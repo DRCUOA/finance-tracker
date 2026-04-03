@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Reconciliation — Finance Tracker{% endblock %}
+{% block page_title %}Statement Reconciliation{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-900">Imported Statements</h2>
+        <p class="text-sm text-gray-400 mt-0.5">Select a statement to reconcile against your records.</p>
+    </div>
+    <div class="divide-y divide-gray-50">
+        {% for s in statements %}
+        <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
+            <div class="min-w-0">
+                <p class="font-medium text-gray-900">{{ s.filename }}</p>
+                <p class="text-sm text-gray-400 mt-0.5">{{ s.account.name if s.account else 'Unknown' }} · {{ s.record_count }} records · {{ s.start_date }} to {{ s.end_date }}</p>
+            </div>
+            <div class="flex items-center gap-3 ml-4">
+                <span class="px-2.5 py-1 rounded-full text-xs font-medium
+                    {% if s.status.value == 'reconciled' %}bg-emerald-50 text-emerald-700
+                    {% elif s.status.value == 'imported' %}bg-blue-50 text-blue-700
+                    {% else %}bg-gray-100 text-gray-600{% endif %}">
+                    {{ s.status.value | title }}
+                </span>
+                <div class="flex gap-2">
+                    <form method="post" action="/reconciliation/{{ s.id }}/run">
+                        <button type="submit" class="px-3.5 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors">Auto-Match</button>
+                    </form>
+                    <a href="/reconciliation/{{ s.id }}" class="px-3.5 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors">Review</a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="px-6 py-12 text-center">
+            <p class="text-gray-400 text-sm">No statements imported yet.</p>
+            <a href="/imports" class="text-brand-600 hover:text-brand-500 text-sm font-medium mt-2 inline-block">Import a statement</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

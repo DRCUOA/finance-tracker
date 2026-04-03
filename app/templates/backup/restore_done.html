@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Restore Complete — Finance Tracker{% endblock %}
+{% block page_title %}Restore Complete{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto text-center">
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-10">
+        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-5">
+            <svg class="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+        </div>
+        <h2 class="text-base font-bold text-gray-900 mb-5">Restore Successful</h2>
+        <div class="text-sm text-gray-600 space-y-1.5 mb-8">
+            <p>{{ stats.accounts }} accounts restored</p>
+            <p>{{ stats.categories }} categories restored</p>
+            <p>{{ stats.transactions }} transactions restored</p>
+            <p>{{ stats.budgets }} budgets restored</p>
+        </div>
+        <a href="/dashboard" class="px-5 py-2.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors shadow-sm">Go to Dashboard</a>
+    </div>
+</div>
+{% endblock %}

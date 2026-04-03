@@ -1,0 +1,39 @@
+{# Period toggle: week / month switch with prev/next navigation.
+   Expects: period, period_label, prev_url, next_url, base_url #}
+<div class="flex items-center gap-3">
+    {# Previous #}
+    <a href="{{ prev_url }}"
+       class="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-700 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+    </a>
+
+    {# Label #}
+    <span class="text-sm font-semibold text-gray-900 min-w-[180px] text-center">{{ period_label }}</span>
+
+    {# Next #}
+    <a href="{{ next_url }}"
+       class="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-700 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+    </a>
+
+    {# Divider #}
+    <div class="h-6 w-px bg-gray-200"></div>
+
+    {# Week / Month toggle #}
+    <div class="inline-flex rounded-lg bg-gray-100 p-0.5">
+        <a href="{{ base_url }}{{ '&' if '?' in base_url else '?' }}period=week"
+           class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
+                  {% if period == 'week' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+            Week
+        </a>
+        <a href="{{ base_url }}{{ '&' if '?' in base_url else '?' }}period=month"
+           class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
+                  {% if period == 'month' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+            Month
+        </a>
+    </div>
+</div>

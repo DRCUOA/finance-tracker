@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Accounts — Finance Tracker{% endblock %}
+{% block page_title %}Accounts{% endblock %}
+
+{% block header_actions %}
+<a href="/accounts/create" class="inline-flex items-center px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors shadow-sm">
+    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+    Add Account
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Assets</p>
+        <p class="text-xl font-bold text-emerald-600 tabular-nums">{{ total_assets|nzd }}</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Liabilities</p>
+        <p class="text-xl font-bold text-red-600 tabular-nums">{{ total_liabilities|nzd }}</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Net Worth</p>
+        <p class="text-xl font-bold tabular-nums {% if net_worth >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">{{ net_worth|nzd }}</p>
+    </div>
+</div>
+
+<!-- Assets -->
+<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 mb-8 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-900">Assets</h2>
+    </div>
+    <div class="divide-y divide-gray-50">
+        {% for acct in assets %}
+        <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
+            <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                    <p class="font-medium text-gray-900">{{ acct.name }}</p>
+                    {% if not acct.is_active %}
+                    <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500">Inactive</span>
+                    {% endif %}
+                </div>
+                <p class="text-sm text-gray-400 mt-0.5">{{ acct.account_type.value | replace("_", " ") | title }}{% if acct.institution %} · {{ acct.institution }}{% endif %}</p>
+            </div>
+            <div class="flex items-center gap-4 ml-4">
+                <span class="text-base font-bold text-emerald-600 tabular-nums whitespace-nowrap">{{ acct.current_balance|nzd }}</span>
+                <a href="/accounts/{{ acct.id }}/edit" class="text-gray-300 hover:text-brand-600 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <p class="px-6 py-12 text-center text-gray-400 text-sm">No asset accounts yet.</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Liabilities -->
+<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-900">Liabilities</h2>
+    </div>
+    <div class="divide-y divide-gray-50">
+        {% for acct in liabilities %}
+        <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
+            <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                    <p class="font-medium text-gray-900">{{ acct.name }}</p>
+                    {% if not acct.is_active %}
+                    <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500">Inactive</span>
+                    {% endif %}
+                </div>
+                <p class="text-sm text-gray-400 mt-0.5">{{ acct.account_type.value | replace("_", " ") | title }}{% if acct.institution %} · {{ acct.institution }}{% endif %}</p>
+            </div>
+            <div class="flex items-center gap-4 ml-4">
+                <span class="text-base font-bold text-red-600 tabular-nums whitespace-nowrap">{{ acct.current_balance|abs|nzd }}</span>
+                <a href="/accounts/{{ acct.id }}/edit" class="text-gray-300 hover:text-brand-600 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <p class="px-6 py-12 text-center text-gray-400 text-sm">No liability accounts yet.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Reports — Finance Tracker{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block header_actions %}
+{% include "components/period_toggle.html" %}
+{% endblock %}
+
+{% block content %}
+<!-- Period Summary -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Income</p>
+        <p class="text-xl font-bold text-emerald-600 tabular-nums">{{ summary.income|nzd }}</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Expenses</p>
+        <p class="text-xl font-bold text-red-600 tabular-nums">{{ summary.expenses|nzd }}</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Net Savings</p>
+        <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">{{ summary.net|nzd }}</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+    <!-- Budget vs Actual Chart -->
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">Budget vs Actual</h3>
+        <canvas id="budgetChart" height="300"></canvas>
+    </div>
+
+    <!-- Spending by Category (Doughnut) -->
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">Spending by Category</h3>
+        <canvas id="categoryChart" height="300"></canvas>
+    </div>
+</div>
+
+<!-- Budget vs Actual Table -->
+<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 mb-10 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100">
+        <h3 class="text-sm font-semibold text-gray-900">Budget vs Actual Detail</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-100">
+            <thead class="bg-gray-50/60">
+                <tr>
+                    <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Budgeted</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actual</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Variance</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">%</th>
+                    <th class="px-6 py-3.5 w-20"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+                {% for row in budget_data %}
+                <tr class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-6 py-3.5 text-sm font-medium text-gray-900">{{ row.category_name }}</td>
+                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 tabular-nums">{{ row.budgeted|nzd }}</td>
+                    <td class="px-6 py-3.5 text-sm text-right font-medium text-gray-900 tabular-nums">{{ row.actual|nzd }}</td>
+                    <td class="px-6 py-3.5 text-sm text-right tabular-nums {% if row.variance >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                        {{ row.variance|nzd }}
+                    </td>
+                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 tabular-nums">{{ row.pct }}%</td>
+                    <td class="px-6 py-3.5 text-right">
+                        <a href="/reports/breakdown/{{ row.category_id }}?period={{ period }}&ref={{ start }}" class="text-brand-600 hover:text-brand-800 text-xs font-medium">Details</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Category Averages -->
+<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 mb-10 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100">
+        <h3 class="text-sm font-semibold text-gray-900">{{ avg_label }} <span class="font-normal text-gray-400">(last 6 periods)</span></h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-100">
+            <thead class="bg-gray-50/60">
+                <tr>
+                    <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">{{ avg_label }}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+                {% for row in averages %}
+                <tr class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-6 py-3.5 text-sm font-medium text-gray-900">{{ row.category_name }}</td>
+                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 tabular-nums">{{ row.total|nzd }}</td>
+                    <td class="px-6 py-3.5 text-sm text-right font-medium text-gray-900 tabular-nums">{{ row.average|nzd }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Net Worth Trend -->
+<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+    <h3 class="text-sm font-semibold text-gray-900 mb-4">
+        Net Worth Trend
+        <span class="font-normal text-gray-400 ml-1">(12 {{ period }}s)</span>
+    </h3>
+    <canvas id="netWorthChart" height="200"></canvas>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fmt = v => '$' + Number(v).toLocaleString('en-NZ', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const ttCb = { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } };
+
+    const budgetData = {{ budget_data | tojson }};
+    if (budgetData.length > 0) {
+        new Chart(document.getElementById('budgetChart'), {
+            type: 'bar',
+            data: {
+                labels: budgetData.map(r => r.category_name),
+                datasets: [
+                    { label: 'Budgeted', data: budgetData.map(r => r.budgeted), backgroundColor: 'rgba(99,102,241,0.25)', borderColor: 'rgb(99,102,241)', borderWidth: 1, borderRadius: 4 },
+                    { label: 'Actual', data: budgetData.map(r => r.actual), backgroundColor: 'rgba(239,68,68,0.25)', borderColor: 'rgb(239,68,68)', borderWidth: 1, borderRadius: 4 },
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { callback: fmt } } }, plugins: { tooltip: ttCb } }
+        });
+    }
+
+    const cats = {{ summary.categories | tojson }};
+    const expenseCats = cats.filter(c => c.type === 'expense' && Math.abs(c.total) > 0);
+    if (expenseCats.length > 0) {
+        const colors = ['#6366f1','#ef4444','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b'];
+        new Chart(document.getElementById('categoryChart'), {
+            type: 'doughnut',
+            data: {
+                labels: expenseCats.map(c => c.name),
+                datasets: [{ data: expenseCats.map(c => Math.abs(c.total)), backgroundColor: colors.slice(0, expenseCats.length), borderWidth: 0 }]
+            },
+            options: { responsive: true, cutout: '60%', plugins: { legend: { position: 'right' }, tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx.raw) } } } }
+        });
+    }
+
+    const netData = {{ net_history | tojson }};
+    if (netData.length > 0) {
+        new Chart(document.getElementById('netWorthChart'), {
+            type: 'line',
+            data: {
+                labels: netData.map(d => d.label),
+                datasets: [
+                    { label: 'Assets', data: netData.map(d => d.assets), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: true, tension: 0.4 },
+                    { label: 'Liabilities', data: netData.map(d => d.liabilities), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4 },
+                    { label: 'Net Worth', data: netData.map(d => d.net_worth), borderColor: '#6366f1', borderWidth: 3, fill: false, tension: 0.4 },
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: false, ticks: { callback: fmt } } }, plugins: { legend: { position: 'top' }, tooltip: ttCb } }
+        });
+    }
+});
+</script>
+{% endblock %}

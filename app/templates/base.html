@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Finance Tracker{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+        html { font-size: 14px; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: { 50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81',950:'#1e1b4b' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full bg-gray-50 antialiased" x-data="{ sidebarOpen: true }" hx-headers='{"X-Requested-With": "XMLHttpRequest"}'>
+
+{% block fullpage %}
+<div class="flex h-full">
+    <!-- Sidebar -->
+    <aside class="flex flex-col bg-brand-950 text-white transition-all duration-300 ease-in-out"
+           :class="sidebarOpen ? 'w-64' : 'w-[68px]'" x-cloak>
+        <div class="flex items-center h-16 px-4 border-b border-white/10"
+             :class="sidebarOpen ? 'justify-between' : 'justify-center'">
+            <span class="font-bold text-base tracking-tight whitespace-nowrap" x-show="sidebarOpen" x-transition>Finance Tracker</span>
+            <button @click="sidebarOpen = !sidebarOpen" class="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+        </div>
+        <nav class="flex-1 py-3 space-y-0.5 overflow-y-auto px-2">
+            {% set nav_items = [
+                ("/dashboard", "Dashboard", "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4"),
+                ("/accounts", "Accounts", "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"),
+                ("/transactions", "Transactions", "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"),
+                ("/categories", "Categories", "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"),
+                ("/imports", "Import", "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"),
+                ("/reconciliation", "Reconcile", "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"),
+                ("/reports", "Reports", "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"),
+                ("/backup", "Backup", "M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"),
+            ] %}
+            {% for href, label, icon in nav_items %}
+            <a href="{{ href }}" class="flex items-center py-2.5 rounded-lg transition-colors group
+                {% if request.url.path.startswith(href) %}bg-white/15 text-white{% else %}text-brand-200 hover:bg-white/10 hover:text-white{% endif %}"
+               :class="sidebarOpen ? 'px-3' : 'px-0 justify-center'">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ icon }}"/>
+                </svg>
+                <span class="ml-3 text-sm font-medium whitespace-nowrap" x-show="sidebarOpen" x-transition>{{ label }}</span>
+            </a>
+            {% endfor %}
+        </nav>
+        <div class="border-t border-white/10 p-3">
+            <a href="/logout" class="flex items-center text-sm text-brand-300 hover:text-white transition-colors py-2 rounded-lg hover:bg-white/10"
+               :class="sidebarOpen ? 'px-3' : 'px-0 justify-center'">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                </svg>
+                <span class="ml-3 font-medium" x-show="sidebarOpen" x-transition>Sign out</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main content -->
+    <div class="flex-1 flex flex-col min-h-0 overflow-auto">
+        <header class="bg-white border-b border-gray-200 px-8 py-5 flex items-center justify-between sticky top-0 z-10">
+            <h1 class="text-lg font-bold text-gray-900 tracking-tight">{% block page_title %}Dashboard{% endblock %}</h1>
+            <div class="flex items-center gap-4">
+                {% block header_actions %}{% endblock %}
+                {% if user %}
+                <div class="flex items-center gap-2 pl-4 border-l border-gray-200">
+                    <div class="w-7 h-7 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-semibold">
+                        {{ user.display_name[0] | upper }}
+                    </div>
+                    <span class="text-sm font-medium text-gray-700 hidden md:inline">{{ user.display_name }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </header>
+        <main class="flex-1 px-8 py-8">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+
+<!-- Toast notifications -->
+<div id="toast-container" class="fixed top-6 right-6 z-50 space-y-3"
+     x-data="{ toasts: [] }"
+     @notify.window="toasts.push({message: $event.detail.message, type: $event.detail.type || 'success', id: Date.now()}); setTimeout(() => toasts.shift(), 4000)">
+    <template x-for="toast in toasts" :key="toast.id">
+        <div x-transition class="px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium backdrop-blur-sm"
+             :class="toast.type === 'error' ? 'bg-red-600' : toast.type === 'warning' ? 'bg-amber-500' : 'bg-emerald-600'"
+             x-text="toast.message"></div>
+    </template>
+</div>
+{% endblock %}
+
+<!-- HTMX event-driven toasts -->
+<script>
+document.body.addEventListener('showToast', function(e) {
+    window.dispatchEvent(new CustomEvent('notify', { detail: { message: e.detail.message, type: e.detail.type } }));
+});
+</script>
+</body>
+</html>

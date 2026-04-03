@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Finance Tracker{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block header_actions %}
+{% include "components/period_toggle.html" %}
+{% endblock %}
+
+{% block content %}
+<!-- Net Worth Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Assets</p>
+        <p class="text-xl font-bold text-emerald-600 tabular-nums">{{ total_assets|nzd }}</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Liabilities</p>
+        <p class="text-xl font-bold text-red-600 tabular-nums">{{ total_liabilities|nzd }}</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Net Worth</p>
+        <p class="text-xl font-bold tabular-nums {% if net_worth >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">{{ net_worth|nzd }}</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">{{ period_label }}</p>
+        <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">{{ summary.net|nzd }}</p>
+        <p class="text-xs text-gray-400 mt-2">{{ summary.income|nzd }} in · {{ summary.expenses|nzd }} out</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+    <!-- Net Worth Trend -->
+    <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">
+            Net Worth Trend
+            <span class="font-normal text-gray-400 ml-1">({{ period }}ly)</span>
+        </h3>
+        <canvas id="trendChart" height="200"></canvas>
+    </div>
+
+    <!-- Budget Status -->
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6 flex flex-col">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">Budget Status</h3>
+        {% if budget_total > 0 %}
+        <div class="flex-1">
+            <div class="flex justify-between text-sm mb-2">
+                <span class="text-gray-500">Spent</span>
+                <span class="font-semibold text-gray-900 tabular-nums">{{ budget_spent|nzd }} / {{ budget_total|nzd }}</span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-3">
+                {% set pct = (budget_spent / budget_total * 100) if budget_total > 0 else 0 %}
+                <div class="h-3 rounded-full transition-all {% if pct > 100 %}bg-red-500{% elif pct > 80 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+                     style="width: {{ [pct, 100] | min }}%"></div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">{{ "%.0f"|format(pct) }}% of budget used</p>
+        </div>
+        {% else %}
+        <p class="text-gray-400 text-sm flex-1">No budget set for this period.</p>
+        {% endif %}
+        <a href="/reports?period={{ period }}" class="text-brand-600 hover:text-brand-500 text-sm font-medium mt-4 inline-flex items-center gap-1">
+            View full report
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </a>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Recent Transactions -->
+    <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-gray-100">
+        <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-900">Recent Transactions</h3>
+            <a href="/transactions" class="text-brand-600 hover:text-brand-500 text-sm font-medium">View all</a>
+        </div>
+        <div class="divide-y divide-gray-50">
+            {% for tx in recent_txs %}
+            <div class="px-6 py-3.5 flex items-center justify-between">
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ tx.description }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">{{ tx.date }} · {{ tx.account.name if tx.account else '' }}</p>
+                </div>
+                <span class="text-sm font-semibold tabular-nums ml-4 whitespace-nowrap {% if tx.amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                    {{ tx.amount|nzd }}
+                </span>
+            </div>
+            {% else %}
+            <p class="px-6 py-12 text-center text-gray-400 text-sm">No transactions yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Accounts -->
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100">
+        <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-900">Accounts</h3>
+            <a href="/accounts" class="text-brand-600 hover:text-brand-500 text-sm font-medium">Manage</a>
+        </div>
+        <div class="divide-y divide-gray-50">
+            {% for acct in accounts %}
+            <div class="px-6 py-3.5 flex items-center justify-between">
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ acct.name }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">{{ acct.account_type.value | replace("_", " ") | title }}</p>
+                </div>
+                <span class="text-sm font-semibold tabular-nums ml-4 whitespace-nowrap {% if acct.current_balance >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                    {{ acct.current_balance|nzd }}
+                </span>
+            </div>
+            {% else %}
+            <p class="px-6 py-8 text-center text-gray-400 text-sm">No accounts yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fmt = v => '$' + Number(v).toLocaleString('en-NZ', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const netData = {{ net_history | tojson }};
+    if (netData.length > 0) {
+        new Chart(document.getElementById('trendChart'), {
+            type: 'line',
+            data: {
+                labels: netData.map(d => d.label),
+                datasets: [
+                    { label: 'Assets', data: netData.map(d => d.assets), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: true, tension: 0.4, pointRadius: 2 },
+                    { label: 'Liabilities', data: netData.map(d => d.liabilities), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: 2 },
+                    { label: 'Net Worth', data: netData.map(d => d.net_worth), borderColor: '#6366f1', borderWidth: 3, fill: false, tension: 0.4, pointRadius: 3 },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: false, ticks: { callback: fmt } } },
+                plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } },
+                interaction: { mode: 'index', intersect: false }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
