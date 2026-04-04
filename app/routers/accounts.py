@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.account import AccountType
+from app.models.account import AccountTerm, AccountType
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
@@ -39,7 +39,7 @@ async def list_accounts(
 async def create_form(request: Request, user: User = Depends(require_user)):
     return templates.TemplateResponse(request, "accounts/form.html", {
         "user": user,
-        "account": None, "account_types": AccountType,
+        "account": None, "account_types": AccountType, "account_terms": AccountTerm,
     })
 
 
@@ -48,6 +48,7 @@ async def create_account(
     request: Request,
     name: str = Form(...),
     account_type: str = Form(...),
+    term: str = Form("short"),
     currency: str = Form("USD"),
     initial_balance: str = Form("0.00"),
     institution: str = Form(""),
@@ -61,6 +62,7 @@ async def create_account(
     await acct_svc.create_account(
         db, user.id, name, AccountType(account_type),
         currency, bal, institution or None,
+        term=AccountTerm(term),
     )
     return RedirectResponse(url="/accounts", status_code=302)
 
@@ -76,7 +78,7 @@ async def edit_form(
         return RedirectResponse(url="/accounts", status_code=302)
     return templates.TemplateResponse(request, "accounts/form.html", {
         "user": user,
-        "account": account, "account_types": AccountType,
+        "account": account, "account_types": AccountType, "account_terms": AccountTerm,
     })
 
 
@@ -85,6 +87,7 @@ async def update_account(
     account_id: uuid.UUID, request: Request,
     name: str = Form(...),
     account_type: str = Form(...),
+    term: str = Form("short"),
     currency: str = Form("USD"),
     initial_balance: str = Form("0.00"),
     institution: str = Form(""),
@@ -99,6 +102,7 @@ async def update_account(
     await acct_svc.update_account(
         db, account_id, user.id,
         name=name, account_type=AccountType(account_type),
+        term=AccountTerm(term),
         currency=currency, initial_balance=bal,
         institution=institution or None, is_active=is_active,
     )

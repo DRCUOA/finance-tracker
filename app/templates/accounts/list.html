@@ -41,7 +41,13 @@
                     <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500">Inactive</span>
                     {% endif %}
                 </div>
-                <p class="text-sm text-gray-400 mt-0.5">{{ acct.account_type.value | replace("_", " ") | title }}{% if acct.institution %} · {{ acct.institution }}{% endif %}</p>
+                <p class="text-sm text-gray-400 mt-0.5">
+                    {{ acct.account_type.value | replace("_", " ") | title }}{% if acct.institution %} · {{ acct.institution }}{% endif %}
+                    <span class="inline-block ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide
+                        {% if acct.term.value == 'short' %}bg-amber-100 text-amber-700
+                        {% elif acct.term.value == 'medium' %}bg-sky-100 text-sky-700
+                        {% else %}bg-indigo-100 text-indigo-700{% endif %}">{{ acct.term.value }}</span>
+                </p>
             </div>
             <div class="flex items-center gap-4 ml-4">
                 <span class="text-base font-bold text-emerald-600 tabular-nums whitespace-nowrap">{{ acct.current_balance|nzd }}</span>
@@ -71,7 +77,13 @@
                     <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500">Inactive</span>
                     {% endif %}
                 </div>
-                <p class="text-sm text-gray-400 mt-0.5">{{ acct.account_type.value | replace("_", " ") | title }}{% if acct.institution %} · {{ acct.institution }}{% endif %}</p>
+                <p class="text-sm text-gray-400 mt-0.5">
+                    {{ acct.account_type.value | replace("_", " ") | title }}{% if acct.institution %} · {{ acct.institution }}{% endif %}
+                    <span class="inline-block ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide
+                        {% if acct.term.value == 'short' %}bg-amber-100 text-amber-700
+                        {% elif acct.term.value == 'medium' %}bg-sky-100 text-sky-700
+                        {% else %}bg-indigo-100 text-indigo-700{% endif %}">{{ acct.term.value }}</span>
+                </p>
             </div>
             <div class="flex items-center gap-4 ml-4">
                 <span class="text-base font-bold text-red-600 tabular-nums whitespace-nowrap">{{ acct.current_balance|abs|nzd }}</span>

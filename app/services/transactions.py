@@ -15,6 +15,7 @@ async def get_transactions(
     db: AsyncSession,
     user_id: uuid.UUID,
     account_id: uuid.UUID | None = None,
+    account_ids: list[uuid.UUID] | None = None,
     category_id: uuid.UUID | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -35,6 +36,8 @@ async def get_transactions(
 
     if account_id:
         stmt = stmt.where(Transaction.account_id == account_id)
+    elif account_ids is not None:
+        stmt = stmt.where(Transaction.account_id.in_(account_ids))
     if category_id:
         stmt = stmt.where(Transaction.category_id == category_id)
     if date_from:

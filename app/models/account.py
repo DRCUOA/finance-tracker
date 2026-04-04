@@ -20,10 +20,22 @@ class AccountType(str, enum.Enum):
     OTHER = "other"
 
 
+class AccountTerm(str, enum.Enum):
+    SHORT = "short"
+    MEDIUM = "medium"
+    LONG = "long"
+
+
 class AccountGroup(str, enum.Enum):
     ASSET = "asset"
     LIABILITY = "liability"
 
+
+CUMULATIVE_TERMS: dict[AccountTerm, list[AccountTerm]] = {
+    AccountTerm.SHORT: [AccountTerm.SHORT],
+    AccountTerm.MEDIUM: [AccountTerm.SHORT, AccountTerm.MEDIUM],
+    AccountTerm.LONG: [AccountTerm.SHORT, AccountTerm.MEDIUM, AccountTerm.LONG],
+}
 
 ACCOUNT_TYPE_GROUPS = {
     AccountType.CHECKING: AccountGroup.ASSET,
@@ -47,6 +59,11 @@ class Account(Base):
     initial_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"))
     current_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"))
     institution: Mapped[str | None] = mapped_column(String(100))
+    term: Mapped[AccountTerm] = mapped_column(
+        Enum(AccountTerm, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        server_default="short",
+    )
     is_active: Mapped[bool] = mapped_column(default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

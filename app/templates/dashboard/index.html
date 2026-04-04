@@ -3,7 +3,34 @@
 {% block page_title %}Dashboard{% endblock %}
 
 {% block header_actions %}
-{% include "components/period_toggle.html" %}
+<div class="flex flex-wrap items-center gap-4">
+    {% include "components/period_toggle.html" %}
+
+    <div class="h-6 w-px bg-gray-200 hidden sm:block"></div>
+
+    <div class="inline-flex rounded-lg bg-gray-100 p-0.5">
+        <a href="{{ term_base_url }}"
+           class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
+                  {% if not active_term %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+            All
+        </a>
+        <a href="{{ term_base_url }}&term=short"
+           class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
+                  {% if active_term == 'short' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+            Short
+        </a>
+        <a href="{{ term_base_url }}&term=medium"
+           class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
+                  {% if active_term == 'medium' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+            Mid
+        </a>
+        <a href="{{ term_base_url }}&term=long"
+           class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
+                  {% if active_term == 'long' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+            Long
+        </a>
+    </div>
+</div>
 {% endblock %}
 
 {% block content %}
@@ -99,7 +126,13 @@
             <div class="px-6 py-3.5 flex items-center justify-between">
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-900 truncate">{{ acct.name }}</p>
-                    <p class="text-xs text-gray-400 mt-0.5">{{ acct.account_type.value | replace("_", " ") | title }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">
+                        {{ acct.account_type.value | replace("_", " ") | title }}
+                        <span class="inline-block ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide
+                            {% if acct.term.value == 'short' %}bg-amber-100 text-amber-700
+                            {% elif acct.term.value == 'medium' %}bg-sky-100 text-sky-700
+                            {% else %}bg-indigo-100 text-indigo-700{% endif %}">{{ acct.term.value }}</span>
+                    </p>
                 </div>
                 <span class="text-sm font-semibold tabular-nums ml-4 whitespace-nowrap {% if acct.current_balance >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
                     {{ acct.current_balance|nzd }}

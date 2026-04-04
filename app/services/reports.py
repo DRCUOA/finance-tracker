@@ -65,8 +65,17 @@ def period_label(ref: date, period: str) -> str:
 async def period_summary(
     db: AsyncSession, user_id: uuid.UUID,
     start: date, end: date,
+    account_ids: list[uuid.UUID] | None = None,
 ) -> dict:
     """Income vs expenses for an arbitrary date range, broken down by category."""
+    join_conditions = [
+        Transaction.category_id == Category.id,
+        Transaction.date >= start,
+        Transaction.date < end,
+    ]
+    if account_ids is not None:
+        join_conditions.append(Transaction.account_id.in_(account_ids))
+
     stmt = (
         select(
             Category.id,
@@ -75,11 +84,7 @@ async def period_summary(
             Category.parent_id,
             sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")).label("total"),
         )
-        .outerjoin(Transaction, and_(
-            Transaction.category_id == Category.id,
-            Transaction.date >= start,
-            Transaction.date < end,
-        ))
+        .outerjoin(Transaction, and_(*join_conditions))
         .where(Category.user_id == user_id)
         .group_by(Category.id)
         .order_by(Category.sort_order)
@@ -128,6 +133,7 @@ async def budget_vs_actual(
     budget_year: int | None = None,
     budget_month: int | None = None,
     period: str = "month",
+    account_ids: list[uuid.UUID] | None = None,
 ) -> list[dict]:
     by = budget_year or start.year
     bm = budget_month or start.month
@@ -152,6 +158,8 @@ async def budget_vs_actual(
         )
         .group_by(Transaction.category_id)
     )
+    if account_ids is not None:
+        actual_stmt = actual_stmt.where(Transaction.account_id.in_(account_ids))
     actual_result = await db.execute(actual_stmt)
     actuals = {str(r.category_id): float(r.actual) for r in actual_result.all()}
 
@@ -230,11 +238,13 @@ async def category_averages(
 async def net_balance_history(
     db: AsyncSession, user_id: uuid.UUID,
     steps: int = 12, period: str = "month",
+    account_ids: list[uuid.UUID] | None = None,
 ) -> list[dict]:
     """Periodic snapshots of total assets, liabilities, and net worth."""
-    accounts = (await db.execute(
-        select(Account).where(Account.user_id == user_id, Account.is_active.is_(True))
-    )).scalars().all()
+    stmt = select(Account).where(Account.user_id == user_id, Account.is_active.is_(True))
+    if account_ids is not None:
+        stmt = stmt.where(Account.id.in_(account_ids))
+    accounts = (await db.execute(stmt)).scalars().all()
 
     today = date.today()
     history = []
