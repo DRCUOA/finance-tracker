@@ -288,6 +288,67 @@ async def net_balance_history(
     return history
 
 
+async def import_coverage(
+    db: AsyncSession, user_id: uuid.UUID,
+) -> dict:
+    """Build a month-by-account matrix showing which months have transactions.
+
+    Returns {"months": ["Jan 26", ...], "accounts": [{"name": ..., "cells": [count, ...]}]}
+    """
+    stmt = (
+        select(
+            Transaction.account_id,
+            extract("year", Transaction.date).label("yr"),
+            extract("month", Transaction.date).label("mo"),
+            sa_func.count().label("cnt"),
+        )
+        .where(Transaction.user_id == user_id)
+        .group_by(Transaction.account_id, "yr", "mo")
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    if not rows:
+        return {"months": [], "accounts": []}
+
+    acct_stmt = (
+        select(Account)
+        .where(Account.user_id == user_id, Account.is_active.is_(True))
+        .order_by(Account.name)
+    )
+    accounts = (await db.execute(acct_stmt)).scalars().all()
+
+    bucket: dict[uuid.UUID, dict[tuple[int, int], int]] = {}
+    all_periods: set[tuple[int, int]] = set()
+    for r in rows:
+        yr, mo = int(r.yr), int(r.mo)
+        all_periods.add((yr, mo))
+        bucket.setdefault(r.account_id, {})[(yr, mo)] = r.cnt
+
+    min_period = min(all_periods)
+    today = date.today()
+    max_period = max(max(all_periods), (today.year, today.month))
+
+    months: list[tuple[int, int]] = []
+    yr, mo = max_period
+    while (yr, mo) >= min_period:
+        months.append((yr, mo))
+        mo -= 1
+        if mo < 1:
+            mo = 12
+            yr -= 1
+
+    month_labels = [date(y, m, 1).strftime("%b %y") for y, m in months]
+
+    account_rows = []
+    for acct in accounts:
+        cells = [bucket.get(acct.id, {}).get(p, 0) for p in months]
+        if any(c > 0 for c in cells):
+            account_rows.append({"name": acct.name, "cells": cells})
+
+    return {"months": month_labels, "accounts": account_rows}
+
+
 async def spending_breakdown(
     db: AsyncSession, user_id: uuid.UUID,
     category_id: uuid.UUID, start: date, end: date,

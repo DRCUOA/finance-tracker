@@ -91,6 +91,50 @@
     </div>
 </div>
 
+<!-- Import Coverage -->
+{% if coverage.accounts %}
+<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 mb-10">
+    <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-gray-900">Import Coverage</h3>
+        <a href="/imports" class="text-brand-600 hover:text-brand-500 text-sm font-medium inline-flex items-center gap-1">
+            Import
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </a>
+    </div>
+    <div class="overflow-x-auto px-6 py-5">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3 pr-4 whitespace-nowrap min-w-[120px]">Account</th>
+                    {% for m in coverage.months %}
+                    <th class="text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider pb-3 px-0.5 whitespace-nowrap">{{ m }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in coverage.accounts %}
+                <tr>
+                    <td class="text-sm font-medium text-gray-700 pr-4 py-1.5 whitespace-nowrap">{{ row.name }}</td>
+                    {% for count in row.cells %}
+                    <td class="px-0.5 py-1.5">
+                        {% if count > 0 %}
+                        <div class="mx-auto h-5 rounded {% if count >= 30 %}bg-emerald-500{% elif count >= 10 %}bg-emerald-400{% else %}bg-emerald-300{% endif %} flex items-center justify-center"
+                             title="{{ count }} transactions">
+                            <span class="text-[9px] font-bold text-white tabular-nums">{{ count }}</span>
+                        </div>
+                        {% else %}
+                        <div class="mx-auto h-5 rounded bg-gray-100" title="No transactions"></div>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Recent Transactions -->
     <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-gray-100">

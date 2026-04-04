@@ -59,6 +59,7 @@ async def dashboard(
     recent_txs, _ = await tx_svc.get_transactions(
         db, user.id, account_ids=acct_ids, page=1, per_page=10,
     )
+    coverage = await report_svc.import_coverage(db, user.id)
 
     budget_total = sum(b["budgeted"] for b in budget_data)
     budget_spent = sum(b["actual"] for b in budget_data)
@@ -88,4 +89,5 @@ async def dashboard(
         "base_url": base_url,
         "active_term": active_term.value if active_term else "",
         "term_base_url": f"/dashboard?period={period}&ref={ref_date.isoformat()}",
+        "coverage": coverage,
     })
