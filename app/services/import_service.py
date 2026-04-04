@@ -1,15 +1,23 @@
 import csv
 import io
 import uuid
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.statement import FileType, Statement, StatementLine, StatementStatus
 from app.models.transaction import Transaction
+
+
+@dataclass
+class ImportResult:
+    imported: int = 0
+    skipped: int = 0
+    skipped_descriptions: list[str] = field(default_factory=list)
 
 
 def parse_csv_preview(content: str, max_rows: int = 10) -> dict:
@@ -100,27 +108,73 @@ def parse_ofx(content: bytes) -> list[dict]:
     return transactions
 
 
+async def _is_duplicate(
+    db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID,
+    tx_date: date, amount: Decimal, description: str,
+    reference: str | None,
+) -> bool:
+    """Check whether a transaction already exists in the database."""
+    if reference:
+        stmt = select(Transaction.id).where(
+            and_(
+                Transaction.account_id == account_id,
+                Transaction.reference == reference,
+            )
+        ).limit(1)
+        result = await db.execute(stmt)
+        if result.first():
+            return True
+
+    stmt = select(Transaction.id).where(
+        and_(
+            Transaction.user_id == user_id,
+            Transaction.account_id == account_id,
+            Transaction.date == tx_date,
+            Transaction.amount == amount,
+            sa_func.lower(sa_func.trim(Transaction.description))
+            == description.lower().strip(),
+        )
+    ).limit(1)
+    result = await db.execute(stmt)
+    return result.first() is not None
+
+
 async def find_duplicates(
     db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID,
     transactions: list[dict],
 ) -> list[dict]:
     """Mark transactions as potential duplicates if matching existing records."""
+    refs = [t["reference"] for t in transactions if t.get("reference")]
+    existing_refs: set[str] = set()
+    if refs:
+        stmt = select(Transaction.reference).where(
+            and_(
+                Transaction.account_id == account_id,
+                Transaction.reference.in_(refs),
+            )
+        )
+        result = await db.execute(stmt)
+        existing_refs = {row[0] for row in result.all()}
+
     for tx in transactions:
-        stmt = select(Transaction).where(
+        ref = tx.get("reference")
+        if ref and ref in existing_refs:
+            tx["is_duplicate"] = True
+            continue
+
+        stmt = select(Transaction.id).where(
             and_(
                 Transaction.user_id == user_id,
                 Transaction.account_id == account_id,
                 Transaction.date == tx["date"],
                 Transaction.amount == tx["amount"],
+                sa_func.lower(sa_func.trim(Transaction.description))
+                == tx["description"].lower().strip(),
             )
-        )
+        ).limit(1)
         result = await db.execute(stmt)
-        existing = result.scalars().all()
-        tx["is_duplicate"] = False
-        for ex in existing:
-            if ex.description.lower().strip() == tx["description"].lower().strip():
-                tx["is_duplicate"] = True
-                break
+        tx["is_duplicate"] = result.first() is not None
+
     return transactions
 
 
@@ -163,13 +217,22 @@ async def create_statement(
 async def import_statement_lines(
     db: AsyncSession, user_id: uuid.UUID, statement_id: uuid.UUID,
     line_ids: list[uuid.UUID], account_id: uuid.UUID,
-) -> int:
-    """Import selected statement lines as transactions."""
-    count = 0
+) -> ImportResult:
+    """Import selected statement lines, skipping duplicates."""
+    result = ImportResult()
     for lid in line_ids:
         line = await db.get(StatementLine, lid)
         if not line:
             continue
+
+        if await _is_duplicate(
+            db, user_id, account_id,
+            line.date, line.amount, line.description, line.reference,
+        ):
+            result.skipped += 1
+            result.skipped_descriptions.append(line.description)
+            continue
+
         tx = Transaction(
             user_id=user_id, account_id=account_id,
             date=line.date, amount=line.amount,
@@ -179,10 +242,11 @@ async def import_statement_lines(
             statement_line_id=line.id,
         )
         db.add(tx)
-        count += 1
+        await db.flush()
+        result.imported += 1
 
     stmt = await db.get(Statement, statement_id)
     if stmt:
         stmt.status = StatementStatus.IMPORTED
     await db.flush()
-    return count
+    return result

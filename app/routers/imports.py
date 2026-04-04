@@ -97,10 +97,13 @@ async def confirm_import(
 ):
     form = await request.form()
     line_ids = [uuid.UUID(lid) for lid in form.getlist("line_ids")]
-    count = await import_svc.import_statement_lines(
+    result = await import_svc.import_statement_lines(
         db, user.id, uuid.UUID(statement_id), line_ids, uuid.UUID(account_id),
     )
     await acct_svc.recalculate_balance(db, uuid.UUID(account_id))
     return templates.TemplateResponse(request, "imports/done.html", {
-        "user": user, "count": count,
+        "user": user,
+        "count": result.imported,
+        "skipped": result.skipped,
+        "skipped_descriptions": result.skipped_descriptions,
     })

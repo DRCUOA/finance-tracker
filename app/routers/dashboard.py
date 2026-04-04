@@ -52,7 +52,8 @@ async def dashboard(
         db, user.id, start, end, period=period, account_ids=acct_ids,
     )
     net_history = await report_svc.net_balance_history(
-        db, user.id, steps=12, period=period, account_ids=acct_ids,
+        db, user.id, steps=12, period=period, ref_date=ref_date,
+        account_ids=acct_ids,
     )
 
     recent_txs, _ = await tx_svc.get_transactions(

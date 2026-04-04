@@ -11,6 +11,10 @@ from app.models.account import Account
 from app.models.category import Category
 
 
+class DuplicateTransactionError(Exception):
+    """Raised when a transaction to be created matches an existing one."""
+
+
 async def get_transactions(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -74,12 +78,58 @@ async def get_transactions(
     return list(result.scalars().all()), total
 
 
+async def check_duplicate(
+    db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID,
+    dt: date, amount: Decimal, description: str,
+    reference: str | None = None,
+    exclude_id: uuid.UUID | None = None,
+) -> bool:
+    """Return True if a matching transaction already exists."""
+    if reference:
+        stmt = select(Transaction.id).where(
+            and_(
+                Transaction.account_id == account_id,
+                Transaction.reference == reference,
+            )
+        )
+        if exclude_id:
+            stmt = stmt.where(Transaction.id != exclude_id)
+        stmt = stmt.limit(1)
+        result = await db.execute(stmt)
+        if result.first():
+            return True
+
+    stmt = select(Transaction.id).where(
+        and_(
+            Transaction.user_id == user_id,
+            Transaction.account_id == account_id,
+            Transaction.date == dt,
+            Transaction.amount == amount,
+            sa_func.lower(sa_func.trim(Transaction.description))
+            == description.lower().strip(),
+        )
+    )
+    if exclude_id:
+        stmt = stmt.where(Transaction.id != exclude_id)
+    stmt = stmt.limit(1)
+    result = await db.execute(stmt)
+    return result.first() is not None
+
+
 async def create_transaction(
     db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID,
     dt: date, amount: Decimal, description: str,
     category_id: uuid.UUID | None = None,
     reference: str | None = None, notes: str | None = None,
+    force: bool = False,
 ) -> Transaction:
+    if not force and await check_duplicate(
+        db, user_id, account_id, dt, amount, description, reference,
+    ):
+        raise DuplicateTransactionError(
+            f"A transaction matching '{description}' on {dt} for {amount} already exists."
+        )
+
     tx = Transaction(
         user_id=user_id, account_id=account_id, date=dt,
         amount=amount, description=description,
@@ -127,6 +177,37 @@ async def batch_categorise(db: AsyncSession, tx_ids: list[uuid.UUID], user_id: u
             count += 1
     await db.flush()
     return count
+
+
+async def get_filtered_transaction_ids(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    account_id: uuid.UUID | None = None,
+    category_id: uuid.UUID | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    search: str | None = None,
+) -> list[str]:
+    stmt = select(Transaction.id).where(Transaction.user_id == user_id)
+    if account_id:
+        stmt = stmt.where(Transaction.account_id == account_id)
+    if category_id:
+        stmt = stmt.where(Transaction.category_id == category_id)
+    if date_from:
+        stmt = stmt.where(Transaction.date >= date_from)
+    if date_to:
+        stmt = stmt.where(Transaction.date <= date_to)
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            or_(
+                Transaction.description.ilike(pattern),
+                Transaction.notes.ilike(pattern),
+                Transaction.reference.ilike(pattern),
+            )
+        )
+    result = await db.execute(stmt)
+    return [str(row[0]) for row in result.all()]
 
 
 async def batch_delete(db: AsyncSession, tx_ids: list[uuid.UUID], user_id: uuid.UUID) -> int:

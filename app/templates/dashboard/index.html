@@ -3,7 +3,7 @@
 {% block page_title %}Dashboard{% endblock %}
 
 {% block header_actions %}
-<div class="flex flex-wrap items-center gap-4">
+<div class="flex flex-wrap items-center gap-4" hx-boost="true" hx-push-url="true">
     {% include "components/period_toggle.html" %}
 
     <div class="h-6 w-px bg-gray-200 hidden sm:block"></div>
@@ -146,11 +146,14 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
     const fmt = v => '$' + Number(v).toLocaleString('en-NZ', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     const netData = {{ net_history | tojson }};
-    if (netData.length > 0) {
-        new Chart(document.getElementById('trendChart'), {
+    const canvas = document.getElementById('trendChart');
+    if (netData.length > 0 && canvas) {
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
+        new Chart(canvas, {
             type: 'line',
             data: {
                 labels: netData.map(d => d.label),
@@ -168,6 +171,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-});
+})();
 </script>
 {% endblock %}

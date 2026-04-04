@@ -238,6 +238,7 @@ async def category_averages(
 async def net_balance_history(
     db: AsyncSession, user_id: uuid.UUID,
     steps: int = 12, period: str = "month",
+    ref_date: date | None = None,
     account_ids: list[uuid.UUID] | None = None,
 ) -> list[dict]:
     """Periodic snapshots of total assets, liabilities, and net worth."""
@@ -246,17 +247,17 @@ async def net_balance_history(
         stmt = stmt.where(Account.id.in_(account_ids))
     accounts = (await db.execute(stmt)).scalars().all()
 
-    today = date.today()
+    anchor = ref_date or date.today()
     history = []
 
     for i in range(steps - 1, -1, -1):
         if period == "week":
-            ref = today - timedelta(weeks=i)
+            ref = anchor - timedelta(weeks=i)
             _, snapshot_end = week_bounds(ref)
             label = (snapshot_end - timedelta(days=1)).strftime("%b %d")
         else:
-            m = today.month - i
-            y = today.year
+            m = anchor.month - i
+            y = anchor.year
             while m <= 0:
                 m += 12
                 y -= 1
