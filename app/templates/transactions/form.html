@@ -66,9 +66,11 @@
         <div class="flex items-center justify-between pt-6 border-t border-gray-100">
             <div>
                 {% if tx %}
-                <form method="post" action="/transactions/{{ tx.id }}/delete" class="inline" onsubmit="return confirm('Delete this transaction?')">
-                    <button type="submit" class="text-red-600 hover:text-red-800 text-sm font-medium transition-colors">Delete</button>
-                </form>
+                    <button type="button"
+                            data-confirm="This transaction will be permanently deleted."
+                            data-confirm-title="Delete transaction?"
+                            data-confirm-action="/transactions/{{ tx.id }}/delete"
+                            class="text-red-600 hover:text-red-800 text-sm font-medium transition-colors">Delete</button>
                 {% endif %}
             </div>
             <div class="flex gap-3">

@@ -112,12 +112,99 @@
              x-text="toast.message"></div>
     </template>
 </div>
+
+<!-- Confirm Dialog -->
+<div x-data="{ open: false, title: '', message: '', confirmLabel: '', style: '', _cb: null }"
+     @app-confirm.window="
+        title = $event.detail.title;
+        message = $event.detail.message;
+        confirmLabel = $event.detail.confirmLabel;
+        style = $event.detail.style;
+        _cb = $event.detail.onConfirm;
+        open = true;
+        $nextTick(() => $refs.cancelBtn && $refs.cancelBtn.focus());
+     "
+     @keydown.escape.window="if (open) { open = false; _cb = null; }"
+     x-cloak>
+    <div x-show="open"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[60] bg-gray-900/50 backdrop-blur-sm"
+         @click="open = false; _cb = null"></div>
+    <div x-show="open"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+         class="fixed inset-0 z-[61] flex items-center justify-center p-4"
+         @click.self="open = false; _cb = null">
+        <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-8 max-w-md w-full">
+            <div class="flex items-start gap-4">
+                <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                     :class="style === 'amber' ? 'bg-amber-100' : 'bg-red-100'">
+                    <svg class="w-5 h-5" :class="style === 'amber' ? 'text-amber-600' : 'text-red-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900" x-text="title"></h3>
+                    <p class="mt-1.5 text-sm text-gray-500 leading-relaxed" x-text="message"></p>
+                </div>
+            </div>
+            <div class="mt-7 flex justify-end gap-3">
+                <button x-ref="cancelBtn" @click="open = false; _cb = null"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2">
+                    Cancel
+                </button>
+                <button @click="open = false; let fn = _cb; _cb = null; if (fn) fn();"
+                        class="px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        :class="style === 'amber' ? 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500' : 'bg-red-600 hover:bg-red-700 focus:ring-red-500'"
+                        x-text="confirmLabel">
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
-<!-- HTMX event-driven toasts -->
 <script>
 document.body.addEventListener('showToast', function(e) {
     window.dispatchEvent(new CustomEvent('notify', { detail: { message: e.detail.message, type: e.detail.type } }));
+});
+
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-confirm]');
+    if (!el) return;
+
+    var form = el.closest('form');
+    var action = el.dataset.confirmAction;
+
+    if (form && !action && !form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    var onConfirm;
+    if (action) {
+        onConfirm = function() {
+            var f = document.createElement('form');
+            f.method = 'POST';
+            f.action = action;
+            f.style.display = 'none';
+            document.body.appendChild(f);
+            f.submit();
+        };
+    } else if (form) {
+        onConfirm = function() { form.submit(); };
+    }
+
+    window.dispatchEvent(new CustomEvent('app-confirm', {
+        detail: {
+            title: el.dataset.confirmTitle || 'Are you sure?',
+            message: el.dataset.confirm,
+            confirmLabel: el.dataset.confirmLabel || 'Delete',
+            style: el.dataset.confirmStyle || 'red',
+            onConfirm: onConfirm
+        }
+    }));
 });
 </script>
 </body>

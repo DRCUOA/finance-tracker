@@ -55,10 +55,11 @@
         <div class="flex items-center justify-between pt-6 border-t border-gray-100">
             <div>
                 {% if account %}
-                <form method="post" action="/accounts/{{ account.id }}/delete" class="inline"
-                      onsubmit="return confirm('Delete this account and all its transactions?')">
-                    <button type="submit" class="text-red-600 hover:text-red-800 text-sm font-medium transition-colors">Delete Account</button>
-                </form>
+                    <button type="button"
+                            data-confirm="This will permanently delete this account and all its transactions."
+                            data-confirm-title="Delete account?"
+                            data-confirm-action="/accounts/{{ account.id }}/delete"
+                            class="text-red-600 hover:text-red-800 text-sm font-medium transition-colors">Delete Account</button>
                 {% endif %}
             </div>
             <div class="flex gap-3">
