@@ -101,19 +101,22 @@ def preview_external_data(data: dict, skip_roots: set[str] | None = None) -> dic
         aid = acct["account_id"]
         txns = [t for t in ext_txns if t["account_id"] == aid]
 
-        eligible = []
+        uncategorized = []
+        categorized_eligible = []
         for t in txns:
             cid = t.get("category_id")
             if cid is None:
+                uncategorized.append(t)
                 continue
             root = _ancestor_root(cid)
             if root in root_ids_to_skip:
                 continue
-            eligible.append(t)
+            categorized_eligible.append(t)
 
         stmts = [s for s in ext_stmts if s["account_id"] == aid]
 
-        dates = [t["transaction_date"] for t in eligible]
+        all_eligible = categorized_eligible + uncategorized
+        dates = [t["transaction_date"] for t in all_eligible]
         acct_summaries.append({
             "account_id": aid,
             "name": acct["account_name"],
@@ -123,8 +126,8 @@ def preview_external_data(data: dict, skip_roots: set[str] | None = None) -> dic
             "opening_balance": acct.get("opening_balance", 0),
             "current_balance": acct.get("current_balance", 0),
             "total_transactions": len(txns),
-            "eligible_transactions": len(eligible),
-            "uncategorized": len(txns) - len([t for t in txns if t.get("category_id")]),
+            "eligible_transactions": len(categorized_eligible),
+            "uncategorized": len(uncategorized),
             "statement_imports": len(stmts),
             "date_from": min(dates) if dates else None,
             "date_to": max(dates) if dates else None,
@@ -143,7 +146,7 @@ async def import_external_data(
     data: dict,
     account_ids: set[str],
     skip_category_roots: set[str] | None = None,
-    skip_uncategorized: bool = True,
+    include_uncategorized_for: set[str] | None = None,
 ) -> MigrationResult:
     """Import selected accounts from an external JSON export.
 
@@ -153,10 +156,12 @@ async def import_external_data(
         Set of external account UUIDs to import (everything else is skipped).
     skip_category_roots
         Root category names to skip entirely (e.g. {"Home Loan", "House Value Adjustments"}).
-    skip_uncategorized
-        Whether to skip transactions that have no category.
+    include_uncategorized_for
+        Set of external account UUIDs where uncategorized transactions should
+        be imported.  For all other accounts they are skipped.
     """
     skip_category_roots = skip_category_roots or set()
+    include_uncategorized_for = include_uncategorized_for or set()
     result = MigrationResult()
     ext = data.get("data", {})
 
@@ -331,7 +336,7 @@ async def import_external_data(
             continue
 
         cid = t.get("category_id")
-        if not cid and skip_uncategorized:
+        if not cid and t["account_id"] not in include_uncategorized_for:
             result.transactions_skipped += 1
             result.skipped_descriptions.append(t.get("description", "")[:80])
             continue

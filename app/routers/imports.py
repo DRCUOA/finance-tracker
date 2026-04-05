@@ -169,6 +169,7 @@ async def migrate_confirm(
 ):
     form = await request.form()
     selected = set(form.getlist("account_ids"))
+    include_uncat = set(form.getlist("include_uncategorized"))
 
     staged = _MIGRATE_DIR / f"{token}.json"
     if not staged.exists():
@@ -181,7 +182,7 @@ async def migrate_confirm(
         db, user.id, data,
         account_ids=selected,
         skip_category_roots=SKIP_ROOTS_DEFAULT,
-        skip_uncategorized=True,
+        include_uncategorized_for=include_uncat & selected,
     )
 
     return templates.TemplateResponse(request, "imports/migrate_done.html", {
