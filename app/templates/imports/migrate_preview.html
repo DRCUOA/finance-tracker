@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Migration Preview — Finance Tracker{% endblock %}
+{% block page_title %}Migration Preview{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-8">
+        <div class="mb-6">
+            <h2 class="text-sm font-semibold text-gray-900">Select Accounts to Import</h2>
+            <p class="text-sm text-gray-500 mt-1.5">
+                Choose which accounts to migrate. Transactions will be de-duplicated against existing data.
+                {% if skip_roots %}
+                <span class="text-amber-600">Skipping category trees: {{ skip_roots | join(", ") }}.</span>
+                {% endif %}
+            </p>
+        </div>
+
+        <form method="post" action="/imports/migrate/confirm">
+            <input type="hidden" name="token" value="{{ token }}">
+
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b border-gray-100">
+                            <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3 pr-4 w-8"></th>
+                            <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3 pr-4">Account</th>
+                            <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3 pr-4">Type</th>
+                            <th class="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3 pr-4">Opening Bal</th>
+                            <th class="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3 pr-4">Eligible Txns</th>
+                            <th class="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3 pr-4">Statements</th>
+                            <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3">Date Range</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        {% for acct in preview.accounts %}
+                        <tr class="hover:bg-gray-50/50 transition-colors">
+                            <td class="py-3 pr-4">
+                                <input type="checkbox" name="account_ids" value="{{ acct.account_id }}"
+                                       class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                                       {% if acct.eligible_transactions > 0 %}checked{% endif %}>
+                            </td>
+                            <td class="py-3 pr-4">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-medium text-gray-900">{{ acct.name }}</span>
+                                    <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide
+                                        {% if acct.timeframe == 'short' %}bg-amber-100 text-amber-700
+                                        {% elif acct.timeframe in ('mid', 'medium') %}bg-sky-100 text-sky-700
+                                        {% else %}bg-indigo-100 text-indigo-700{% endif %}">{{ acct.timeframe }}</span>
+                                </div>
+                            </td>
+                            <td class="py-3 pr-4 text-sm text-gray-500">
+                                {{ acct.account_type | replace("_", " ") | title }}
+                                <span class="text-xs text-gray-400">({{ acct.account_class }})</span>
+                            </td>
+                            <td class="py-3 pr-4 text-sm tabular-nums text-right {% if acct.opening_balance >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                                {{ "${:,.2f}".format(acct.opening_balance) }}
+                            </td>
+                            <td class="py-3 pr-4 text-sm tabular-nums text-right text-gray-700">
+                                {{ acct.eligible_transactions }}
+                                {% if acct.uncategorized > 0 %}
+                                <span class="text-xs text-amber-500">({{ acct.uncategorized }} uncategorized skipped)</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 pr-4 text-sm tabular-nums text-right text-gray-500">{{ acct.statement_imports }}</td>
+                            <td class="py-3 text-sm text-gray-500 whitespace-nowrap">
+                                {% if acct.date_from %}
+                                {{ acct.date_from }} — {{ acct.date_to }}
+                                {% else %}
+                                <span class="text-gray-300">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-8 flex items-center gap-3">
+                <button type="submit" class="px-6 py-2.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors shadow-sm">Import Selected Accounts</button>
+                <a href="/imports/migrate" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

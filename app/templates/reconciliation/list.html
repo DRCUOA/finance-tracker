@@ -2,6 +2,10 @@
 {% block title %}Reconciliation — Finance Tracker{% endblock %}
 {% block page_title %}Statement Reconciliation{% endblock %}
 
+{% block header_actions %}
+<a href="/imports" class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors">Import Statement</a>
+{% endblock %}
+
 {% block content %}
 <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
     <div class="px-6 py-5 border-b border-gray-100">
@@ -10,11 +14,11 @@
     </div>
     <div class="divide-y divide-gray-50">
         {% for s in statements %}
-        <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
-            <div class="min-w-0">
-                <p class="font-medium text-gray-900">{{ s.filename }}</p>
+        <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors" x-data="{ confirmDelete: false }">
+            <a href="/reconciliation/{{ s.id }}/detail" class="min-w-0 flex-1 group">
+                <p class="font-medium text-gray-900 group-hover:text-brand-600 transition-colors">{{ s.filename }}</p>
                 <p class="text-sm text-gray-400 mt-0.5">{{ s.account.name if s.account else 'Unknown' }} · {{ s.record_count }} records · {{ s.start_date }} to {{ s.end_date }}</p>
-            </div>
+            </a>
             <div class="flex items-center gap-3 ml-4">
                 <span class="px-2.5 py-1 rounded-full text-xs font-medium
                     {% if s.status.value == 'reconciled' %}bg-emerald-50 text-emerald-700
@@ -27,6 +31,28 @@
                         <button type="submit" class="px-3.5 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors">Auto-Match</button>
                     </form>
                     <a href="/reconciliation/{{ s.id }}" class="px-3.5 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors">Review</a>
+                    <a href="/reconciliation/{{ s.id }}/edit" class="p-1.5 text-gray-400 hover:text-brand-600 transition-colors" title="Edit">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </a>
+                    <button @click="confirmDelete = true" class="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Delete">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Delete confirmation modal -->
+            <div x-show="confirmDelete" x-cloak x-transition
+                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+                 @click.self="confirmDelete = false" @keydown.escape.window="confirmDelete = false">
+                <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4" @click.stop>
+                    <h3 class="text-base font-semibold text-gray-900">Delete Statement</h3>
+                    <p class="text-sm text-gray-500 mt-2">Are you sure you want to delete <span class="font-medium text-gray-700">{{ s.filename }}</span>? This will remove all statement lines. Linked transactions will be kept but unlinked.</p>
+                    <div class="flex gap-3 mt-5 justify-end">
+                        <button @click="confirmDelete = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
+                        <form method="post" action="/reconciliation/{{ s.id }}/delete">
+                            <button type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">Delete</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>

@@ -10,6 +10,7 @@ from app.models.account import AccountTerm, AccountType
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
+from app.services import reports as report_svc
 from app.templating import templates
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -26,12 +27,14 @@ async def list_accounts(
     liabilities = [a for a in accounts if a.group.value == "liability"]
     total_assets = sum(a.current_balance for a in assets)
     total_liabilities = sum(abs(a.current_balance) for a in liabilities)
+    coverage = await report_svc.import_coverage(db, user.id)
     return templates.TemplateResponse(request, "accounts/list.html", {
         "user": user,
         "assets": assets, "liabilities": liabilities,
         "total_assets": total_assets, "total_liabilities": total_liabilities,
         "net_worth": total_assets - total_liabilities,
         "account_types": AccountType,
+        "coverage": coverage,
     })
 
 

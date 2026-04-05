@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Migration Complete — Finance Tracker{% endblock %}
+{% block page_title %}Migration Complete{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-10 text-center">
+        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-5">
+            <svg class="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+        </div>
+        <h2 class="text-base font-bold text-gray-900 mb-4">Migration Complete</h2>
+
+        <div class="grid grid-cols-2 gap-3 text-left mb-6">
+            <div class="rounded-xl bg-gray-50 ring-1 ring-gray-100 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Accounts</p>
+                <p class="text-lg font-bold text-gray-900 tabular-nums">
+                    {{ result.accounts_created }} <span class="text-sm font-normal text-gray-400">created</span>
+                </p>
+                {% if result.accounts_matched %}
+                <p class="text-xs text-gray-500 mt-0.5">{{ result.accounts_matched }} matched existing</p>
+                {% endif %}
+            </div>
+            <div class="rounded-xl bg-gray-50 ring-1 ring-gray-100 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Categories</p>
+                <p class="text-lg font-bold text-gray-900 tabular-nums">
+                    {{ result.categories_created }} <span class="text-sm font-normal text-gray-400">created</span>
+                </p>
+                {% if result.categories_matched %}
+                <p class="text-xs text-gray-500 mt-0.5">{{ result.categories_matched }} matched existing</p>
+                {% endif %}
+            </div>
+            <div class="rounded-xl bg-emerald-50 ring-1 ring-emerald-200 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600 mb-1">Transactions</p>
+                <p class="text-lg font-bold text-emerald-700 tabular-nums">{{ result.transactions_imported }} <span class="text-sm font-normal">imported</span></p>
+            </div>
+            <div class="rounded-xl bg-gray-50 ring-1 ring-gray-100 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Statements</p>
+                <p class="text-lg font-bold text-gray-900 tabular-nums">{{ result.statements_created }} <span class="text-sm font-normal text-gray-400">created</span></p>
+            </div>
+        </div>
+
+        {% if result.transactions_skipped %}
+        <div class="rounded-xl bg-amber-50 ring-1 ring-amber-200 p-4 text-left mb-6">
+            <p class="text-sm font-semibold text-amber-800 mb-1">{{ result.transactions_skipped }} transaction{{ 's' if result.transactions_skipped != 1 }} skipped</p>
+            <p class="text-xs text-amber-600 mb-2">Duplicates, uncategorized, or from skipped category trees.</p>
+            {% if result.skipped_descriptions %}
+            <ul class="text-xs text-amber-700 space-y-0.5 max-h-32 overflow-y-auto">
+                {% for desc in result.skipped_descriptions[:20] %}
+                <li class="truncate">{{ desc }}</li>
+                {% endfor %}
+                {% if result.skipped_descriptions | length > 20 %}
+                <li class="text-amber-500 italic">… and {{ result.skipped_descriptions | length - 20 }} more</li>
+                {% endif %}
+            </ul>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="flex justify-center gap-3">
+            <a href="/accounts" class="px-5 py-2.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors shadow-sm">View Accounts</a>
+            <a href="/transactions" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">View Transactions</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

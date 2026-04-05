@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Edit Statement — Finance Tracker{% endblock %}
+{% block page_title %}Edit Statement{% endblock %}
+
+{% block header_actions %}
+<a href="/reconciliation" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Cancel</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-xl">
+    <form method="post" action="/reconciliation/{{ statement.id }}/edit" class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
+        <div class="px-6 py-5 border-b border-gray-100">
+            <h2 class="text-sm font-semibold text-gray-900">Statement Details</h2>
+            <p class="text-sm text-gray-400 mt-0.5">Update the name or account for this imported statement.</p>
+        </div>
+        <div class="px-6 py-5 space-y-5">
+            <div>
+                <label for="filename" class="block text-sm font-medium text-gray-700 mb-1.5">Statement Name</label>
+                <input type="text" id="filename" name="filename" value="{{ statement.filename }}" required
+                       class="w-full rounded-lg border-gray-300 text-sm py-2 px-3 focus:border-brand-500 focus:ring-brand-500">
+            </div>
+
+            <div>
+                <label for="account_id" class="block text-sm font-medium text-gray-700 mb-1.5">Account</label>
+                <select id="account_id" name="account_id" required
+                        class="w-full rounded-lg border-gray-300 text-sm py-2 px-3 focus:border-brand-500 focus:ring-brand-500">
+                    {% for acct in accounts %}
+                    <option value="{{ acct.id }}" {% if acct.id == statement.account_id %}selected{% endif %}>{{ acct.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">File Type</p>
+                    <p class="text-sm text-gray-700 mt-1 uppercase">{{ statement.file_type.value }}</p>
+                </div>
+                <div>
+                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Records</p>
+                    <p class="text-sm text-gray-700 mt-1">{{ statement.record_count }}</p>
+                </div>
+                <div>
+                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Date Range</p>
+                    <p class="text-sm text-gray-700 mt-1">{{ statement.start_date }} to {{ statement.end_date }}</p>
+                </div>
+                <div>
+                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Status</p>
+                    <p class="text-sm text-gray-700 mt-1">{{ statement.status.value | title }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+            <a href="/reconciliation" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white ring-1 ring-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Cancel</a>
+            <button type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition-colors">Save Changes</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

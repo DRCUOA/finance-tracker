@@ -11,7 +11,9 @@ from app.models.statement import MatchType, Statement, StatementLine
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.routers.auth import require_user
+from app.services import accounts as acct_svc
 from app.services import reconciler
+from app.services import statements as stmt_svc
 from app.templating import templates
 
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
@@ -74,7 +76,7 @@ async def review_matches(
     unmatched_tx_q = select(Transaction).where(
         Transaction.user_id == user.id,
         Transaction.account_id == statement.account_id,
-        Transaction.statement_line_id.is_(None),
+        Transaction.is_reconciled.is_(False),
     ).order_by(Transaction.date)
     unmatched_txs = (await db.execute(unmatched_tx_q)).scalars().all()
 
@@ -124,3 +126,63 @@ async def manual_match(
     line = await db.get(StatementLine, line_id)
     await reconciler.manual_match(db, line_id, uuid.UUID(tx_id), user.id)
     return RedirectResponse(url=f"/reconciliation/{line.statement_id}", status_code=302)
+
+
+@router.get("/{statement_id}/detail", response_class=HTMLResponse)
+async def statement_detail(
+    statement_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    statement = await stmt_svc.get_statement(db, statement_id, user.id)
+    if not statement:
+        return RedirectResponse(url="/reconciliation", status_code=302)
+
+    lines = sorted(statement.lines, key=lambda l: l.date)
+    return templates.TemplateResponse(request, "reconciliation/detail.html", {
+        "user": user, "statement": statement, "lines": lines,
+    })
+
+
+@router.get("/{statement_id}/edit", response_class=HTMLResponse)
+async def edit_statement_form(
+    statement_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    statement = await stmt_svc.get_statement(db, statement_id, user.id)
+    if not statement:
+        return RedirectResponse(url="/reconciliation", status_code=302)
+
+    accounts = await acct_svc.get_accounts(db, user.id)
+    return templates.TemplateResponse(request, "reconciliation/edit.html", {
+        "user": user, "statement": statement, "accounts": accounts,
+    })
+
+
+@router.post("/{statement_id}/edit")
+async def edit_statement(
+    statement_id: uuid.UUID,
+    filename: str = Form(...),
+    account_id: str = Form(...),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await stmt_svc.update_statement(
+        db, statement_id, user.id,
+        filename=filename.strip(),
+        account_id=uuid.UUID(account_id),
+    )
+    return RedirectResponse(url="/reconciliation", status_code=302)
+
+
+@router.post("/{statement_id}/delete")
+async def delete_statement(
+    statement_id: uuid.UUID,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await stmt_svc.delete_statement(db, statement_id, user.id)
+    return RedirectResponse(url="/reconciliation", status_code=302)

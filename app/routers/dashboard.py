@@ -16,6 +16,7 @@ from app.templating import templates
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 VALID_TERMS = {t.value for t in AccountTerm}
+VALID_SPANS = {"", "6m", "1y", "5y", "all"}
 
 
 @router.get("", response_class=HTMLResponse)
@@ -24,11 +25,14 @@ async def dashboard(
     period: str = Query("month"),
     ref: str = Query(""),
     term: str = Query(""),
+    span: str = Query(""),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
     if period not in ("week", "month"):
         period = "month"
+    if span not in VALID_SPANS:
+        span = ""
 
     active_term: AccountTerm | None = None
     if term in VALID_TERMS:
@@ -51,25 +55,34 @@ async def dashboard(
     budget_data = await report_svc.budget_vs_actual(
         db, user.id, start, end, period=period, account_ids=acct_ids,
     )
+
+    oldest_tx = None
+    if span == "all":
+        oldest_tx, _ = await report_svc.transaction_date_range(
+            db, user.id, account_ids=acct_ids,
+        )
+    chart_steps = report_svc.span_to_steps(span, period, oldest=oldest_tx, ref=ref_date)
+
     net_history = await report_svc.net_balance_history(
-        db, user.id, steps=12, period=period, ref_date=ref_date,
+        db, user.id, steps=chart_steps, period=period, ref_date=ref_date,
         account_ids=acct_ids,
     )
 
     recent_txs, _ = await tx_svc.get_transactions(
         db, user.id, account_ids=acct_ids, page=1, per_page=10,
     )
-    coverage = await report_svc.import_coverage(db, user.id)
-
     budget_total = sum(b["budgeted"] for b in budget_data)
     budget_spent = sum(b["actual"] for b in budget_data)
 
     term_qs = f"&term={active_term.value}" if active_term else ""
+    span_qs = f"&span={span}" if span else ""
     prev_ref = report_svc.step_period(ref_date, -1, period)
     next_ref = report_svc.step_period(ref_date, 1, period)
-    prev_url = f"/dashboard?period={period}&ref={prev_ref.isoformat()}{term_qs}"
-    next_url = f"/dashboard?period={period}&ref={next_ref.isoformat()}{term_qs}"
-    base_url = f"/dashboard?ref={ref_date.isoformat()}{term_qs}"
+    prev_url = f"/dashboard?period={period}&ref={prev_ref.isoformat()}{term_qs}{span_qs}"
+    next_url = f"/dashboard?period={period}&ref={next_ref.isoformat()}{term_qs}{span_qs}"
+    base_url = f"/dashboard?ref={ref_date.isoformat()}{term_qs}{span_qs}"
+
+    span_base_url = f"/dashboard?period={period}&ref={ref_date.isoformat()}{term_qs}"
 
     return templates.TemplateResponse(request, "dashboard/index.html", {
         "user": user,
@@ -88,6 +101,7 @@ async def dashboard(
         "next_url": next_url,
         "base_url": base_url,
         "active_term": active_term.value if active_term else "",
-        "term_base_url": f"/dashboard?period={period}&ref={ref_date.isoformat()}",
-        "coverage": coverage,
+        "term_base_url": f"/dashboard?period={period}&ref={ref_date.isoformat()}{span_qs}",
+        "span": span,
+        "span_base_url": span_base_url,
     })

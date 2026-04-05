@@ -33,7 +33,7 @@ async def auto_match_statement(
             Transaction.user_id == user_id,
             Transaction.date == line.date,
             Transaction.amount == line.amount,
-            Transaction.statement_line_id.is_(None),
+            Transaction.is_reconciled.is_(False),
         )
         txs = (await db.execute(tx_q)).scalars().all()
 
@@ -76,7 +76,7 @@ async def auto_match_statement(
             Transaction.user_id == user_id,
             Transaction.amount == line.amount,
             Transaction.date.between(line.date - timedelta(days=2), line.date + timedelta(days=2)),
-            Transaction.statement_line_id.is_(None),
+            Transaction.is_reconciled.is_(False),
         )
         fuzzy_txs = (await db.execute(fuzzy_q)).scalars().all()
 

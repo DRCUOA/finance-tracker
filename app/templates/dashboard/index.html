@@ -58,10 +58,39 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
     <!-- Net Worth Trend -->
     <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <h3 class="text-sm font-semibold text-gray-900 mb-4">
-            Net Worth Trend
-            <span class="font-normal text-gray-400 ml-1">({{ period }}ly)</span>
-        </h3>
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h3 class="text-sm font-semibold text-gray-900">
+                Net Worth Trend
+                <span class="font-normal text-gray-400 ml-1">({{ period }}ly)</span>
+            </h3>
+            <div class="inline-flex rounded-lg bg-gray-100 p-0.5" hx-boost="true" hx-push-url="true">
+                <a href="{{ span_base_url }}"
+                   class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
+                          {% if not span %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                    Default
+                </a>
+                <a href="{{ span_base_url }}&span=6m"
+                   class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
+                          {% if span == '6m' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                    6M
+                </a>
+                <a href="{{ span_base_url }}&span=1y"
+                   class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
+                          {% if span == '1y' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                    1Y
+                </a>
+                <a href="{{ span_base_url }}&span=5y"
+                   class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
+                          {% if span == '5y' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                    5Y
+                </a>
+                <a href="{{ span_base_url }}&span=all"
+                   class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
+                          {% if span == 'all' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                    All
+                </a>
+            </div>
+        </div>
         <canvas id="trendChart" height="200"></canvas>
     </div>
 
@@ -90,50 +119,6 @@
         </a>
     </div>
 </div>
-
-<!-- Import Coverage -->
-{% if coverage.accounts %}
-<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 mb-10">
-    <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-gray-900">Import Coverage</h3>
-        <a href="/imports" class="text-brand-600 hover:text-brand-500 text-sm font-medium inline-flex items-center gap-1">
-            Import
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-        </a>
-    </div>
-    <div class="overflow-x-auto px-6 py-5">
-        <table class="w-full">
-            <thead>
-                <tr>
-                    <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3 pr-4 whitespace-nowrap min-w-[120px]">Account</th>
-                    {% for m in coverage.months %}
-                    <th class="text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider pb-3 px-0.5 whitespace-nowrap">{{ m }}</th>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in coverage.accounts %}
-                <tr>
-                    <td class="text-sm font-medium text-gray-700 pr-4 py-1.5 whitespace-nowrap">{{ row.name }}</td>
-                    {% for count in row.cells %}
-                    <td class="px-0.5 py-1.5">
-                        {% if count > 0 %}
-                        <div class="mx-auto h-5 rounded {% if count >= 30 %}bg-emerald-500{% elif count >= 10 %}bg-emerald-400{% else %}bg-emerald-300{% endif %} flex items-center justify-center"
-                             title="{{ count }} transactions">
-                            <span class="text-[9px] font-bold text-white tabular-nums">{{ count }}</span>
-                        </div>
-                        {% else %}
-                        <div class="mx-auto h-5 rounded bg-gray-100" title="No transactions"></div>
-                        {% endif %}
-                    </td>
-                    {% endfor %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Recent Transactions -->
@@ -197,19 +182,25 @@
     if (netData.length > 0 && canvas) {
         const existing = Chart.getChart(canvas);
         if (existing) existing.destroy();
+        const n = netData.length;
+        const ptR = n > 60 ? 0 : n > 24 ? 1 : 2;
+        const ptRNw = n > 60 ? 1 : n > 24 ? 2 : 3;
         new Chart(canvas, {
             type: 'line',
             data: {
                 labels: netData.map(d => d.label),
                 datasets: [
-                    { label: 'Assets', data: netData.map(d => d.assets), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: true, tension: 0.4, pointRadius: 2 },
-                    { label: 'Liabilities', data: netData.map(d => d.liabilities), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: 2 },
-                    { label: 'Net Worth', data: netData.map(d => d.net_worth), borderColor: '#6366f1', borderWidth: 3, fill: false, tension: 0.4, pointRadius: 3 },
+                    { label: 'Assets', data: netData.map(d => d.assets), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: true, tension: 0.4, pointRadius: ptR },
+                    { label: 'Liabilities', data: netData.map(d => d.liabilities), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: ptR },
+                    { label: 'Net Worth', data: netData.map(d => d.net_worth), borderColor: '#6366f1', borderWidth: 3, fill: false, tension: 0.4, pointRadius: ptRNw },
                 ]
             },
             options: {
                 responsive: true,
-                scales: { y: { beginAtZero: false, ticks: { callback: fmt } } },
+                scales: {
+                    x: { ticks: { maxTicksLimit: n > 24 ? 12 : undefined } },
+                    y: { beginAtZero: false, ticks: { callback: fmt } }
+                },
                 plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } },
                 interaction: { mode: 'index', intersect: false }
             }

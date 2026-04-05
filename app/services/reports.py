@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account, ACCOUNT_TYPE_GROUPS, AccountGroup
 from app.models.budget import Budget
 from app.models.category import Category, CategoryType
+from app.models.statement import Statement, StatementStatus
 from app.models.transaction import Transaction
 
 
@@ -235,6 +236,44 @@ async def category_averages(
     return rows, divisor_label
 
 
+async def transaction_date_range(
+    db: AsyncSession, user_id: uuid.UUID,
+    account_ids: list[uuid.UUID] | None = None,
+) -> tuple[date | None, date | None]:
+    """Return (oldest, newest) transaction dates for the user."""
+    stmt = select(
+        sa_func.min(Transaction.date),
+        sa_func.max(Transaction.date),
+    ).where(Transaction.user_id == user_id)
+    if account_ids is not None:
+        stmt = stmt.where(Transaction.account_id.in_(account_ids))
+    row = (await db.execute(stmt)).one()
+    return row[0], row[1]
+
+
+def span_to_steps(
+    span: str, period: str,
+    oldest: date | None = None, ref: date | None = None,
+) -> int:
+    """Translate a time-span key + period into the number of chart steps."""
+    fixed = {
+        "6m":  {"month": 6,  "week": 26},
+        "1y":  {"month": 12, "week": 52},
+        "5y":  {"month": 60, "week": 260},
+    }
+    if span in fixed:
+        return fixed[span][period]
+
+    if span == "all" and oldest:
+        anchor = ref or date.today()
+        if period == "week":
+            return max(((anchor - oldest).days // 7) + 1, 2)
+        months = (anchor.year - oldest.year) * 12 + (anchor.month - oldest.month) + 1
+        return max(months, 2)
+
+    return 12
+
+
 async def net_balance_history(
     db: AsyncSession, user_id: uuid.UUID,
     steps: int = 12, period: str = "month",
@@ -288,14 +327,31 @@ async def net_balance_history(
     return history
 
 
+def _months_between(start: date, end: date) -> set[tuple[int, int]]:
+    """Return the set of (year, month) tuples covering start..end inclusive."""
+    periods: set[tuple[int, int]] = set()
+    yr, mo = start.year, start.month
+    end_ym = (end.year, end.month)
+    while (yr, mo) <= end_ym:
+        periods.add((yr, mo))
+        mo += 1
+        if mo > 12:
+            mo = 1
+            yr += 1
+    return periods
+
+
 async def import_coverage(
     db: AsyncSession, user_id: uuid.UUID,
 ) -> dict:
-    """Build a month-by-account matrix showing which months have transactions.
+    """Build a month-by-account matrix showing import coverage.
 
-    Returns {"months": ["Jan 26", ...], "accounts": [{"name": ..., "cells": [count, ...]}]}
+    Cell values: positive int = transaction count, 0 = covered by an import
+    but no transactions, -1 = not covered by any import.
+
+    Returns {"months": [...], "accounts": [{"name": ..., "cells": [...]}]}
     """
-    stmt = (
+    tx_stmt = (
         select(
             Transaction.account_id,
             extract("year", Transaction.date).label("yr"),
@@ -305,10 +361,22 @@ async def import_coverage(
         .where(Transaction.user_id == user_id)
         .group_by(Transaction.account_id, "yr", "mo")
     )
-    result = await db.execute(stmt)
-    rows = result.all()
+    tx_result = await db.execute(tx_stmt)
+    tx_rows = tx_result.all()
 
-    if not rows:
+    stmt_stmt = (
+        select(Statement.account_id, Statement.start_date, Statement.end_date)
+        .where(
+            Statement.user_id == user_id,
+            Statement.status == StatementStatus.IMPORTED,
+            Statement.start_date.isnot(None),
+            Statement.end_date.isnot(None),
+        )
+    )
+    stmt_result = await db.execute(stmt_stmt)
+    stmt_rows = stmt_result.all()
+
+    if not tx_rows and not stmt_rows:
         return {"months": [], "accounts": []}
 
     acct_stmt = (
@@ -320,10 +388,19 @@ async def import_coverage(
 
     bucket: dict[uuid.UUID, dict[tuple[int, int], int]] = {}
     all_periods: set[tuple[int, int]] = set()
-    for r in rows:
+    for r in tx_rows:
         yr, mo = int(r.yr), int(r.mo)
         all_periods.add((yr, mo))
         bucket.setdefault(r.account_id, {})[(yr, mo)] = r.cnt
+
+    covered: dict[uuid.UUID, set[tuple[int, int]]] = {}
+    for s in stmt_rows:
+        periods = _months_between(s.start_date, s.end_date)
+        all_periods |= periods
+        covered.setdefault(s.account_id, set()).update(periods)
+
+    if not all_periods:
+        return {"months": [], "accounts": []}
 
     min_period = min(all_periods)
     today = date.today()
@@ -342,8 +419,17 @@ async def import_coverage(
 
     account_rows = []
     for acct in accounts:
-        cells = [bucket.get(acct.id, {}).get(p, 0) for p in months]
-        if any(c > 0 for c in cells):
+        acct_tx = bucket.get(acct.id, {})
+        acct_cov = covered.get(acct.id, set())
+        cells = []
+        for p in months:
+            if p in acct_tx:
+                cells.append(acct_tx[p])
+            elif p in acct_cov:
+                cells.append(0)
+            else:
+                cells.append(-1)
+        if any(c >= 0 for c in cells):
             account_rows.append({"name": acct.name, "cells": cells})
 
     return {"months": month_labels, "accounts": account_rows}
