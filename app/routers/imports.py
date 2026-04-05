@@ -176,7 +176,6 @@ async def migrate_confirm(
         return RedirectResponse(url="/imports/migrate", status_code=302)
 
     data = json.loads(staged.read_text())
-    staged.unlink(missing_ok=True)
 
     result = await migration_svc.import_external_data(
         db, user.id, data,
@@ -185,6 +184,37 @@ async def migrate_confirm(
         include_uncategorized_for=include_uncat & selected,
     )
 
+    keyword_suggestions = migration_svc.extract_keyword_suggestions(
+        data,
+        cat_id_map=result.cat_id_map,
+        account_ids=selected,
+        skip_category_roots=SKIP_ROOTS_DEFAULT,
+    )
+
+    staged.unlink(missing_ok=True)
+
     return templates.TemplateResponse(request, "imports/migrate_done.html", {
         "user": user, "result": result,
+        "keyword_suggestions": keyword_suggestions,
+    })
+
+
+@router.post("/migrate/keywords")
+async def migrate_keywords(
+    request: Request,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    form = await request.form()
+    selections: list[tuple[uuid.UUID, str]] = []
+    for key in form.keys():
+        if key.startswith("kw:"):
+            cat_id_str = key[3:]
+            for keyword in form.getlist(key):
+                selections.append((uuid.UUID(cat_id_str), keyword))
+
+    created = await migration_svc.import_keywords(db, user.id, selections)
+
+    return templates.TemplateResponse(request, "imports/migrate_keywords_done.html", {
+        "user": user, "created": created,
     })

@@ -3,7 +3,8 @@
 {% block page_title %}Migration Complete{% endblock %}
 
 {% block content %}
-<div class="max-w-lg mx-auto">
+<div class="max-w-3xl mx-auto space-y-8">
+    <!-- Summary Card -->
     <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-10 text-center">
         <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-5">
             <svg class="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,5 +64,57 @@
             <a href="/transactions" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">View Transactions</a>
         </div>
     </div>
+
+    <!-- Keyword Suggestions -->
+    {% if keyword_suggestions %}
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-8" x-data="{ selectAll: true }" x-init="$nextTick(() => { $el.querySelectorAll('input[type=checkbox][name^=kw]').forEach(cb => cb.checked = selectAll) })">
+        <div class="flex items-center justify-between mb-2">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900">Suggested Category Keywords</h3>
+                <p class="text-sm text-gray-500 mt-1">Based on transaction descriptions from the import. These keywords help auto-categorise future transactions.</p>
+            </div>
+        </div>
+
+        <form method="post" action="/imports/migrate/keywords">
+            <div class="mt-4 mb-4 flex items-center gap-2">
+                <input type="checkbox" id="select-all-kw" checked
+                       class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                       @change="selectAll = $el.checked; $el.closest('form').querySelectorAll('input[type=checkbox][name^=kw]').forEach(cb => cb.checked = selectAll)">
+                <label for="select-all-kw" class="text-xs font-medium text-gray-600 uppercase tracking-wide">Select / deselect all</label>
+            </div>
+
+            <div class="divide-y divide-gray-100">
+                {% for cat in keyword_suggestions %}
+                <div class="py-4">
+                    <div class="flex items-center gap-2 mb-2.5">
+                        <h4 class="text-sm font-semibold text-gray-800">{{ cat.category_name }}</h4>
+                        <span class="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{{ cat.transaction_count }} txns</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {% for s in cat.suggestions %}
+                        <label class="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group">
+                            <input type="checkbox" name="kw:{{ cat.local_category_id }}" value="{{ s.keyword }}" checked
+                                   class="h-4 w-4 mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500 flex-shrink-0">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-medium text-gray-900">{{ s.keyword }}</span>
+                                    <span class="text-[10px] text-gray-400 tabular-nums">{{ s.count }}×</span>
+                                </div>
+                                <p class="text-xs text-gray-400 truncate mt-0.5" title="{{ s.sample }}">{{ s.sample }}</p>
+                            </div>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="mt-6 pt-6 border-t border-gray-100 flex items-center gap-3">
+                <button type="submit" class="px-6 py-2.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors shadow-sm">Import Selected Keywords</button>
+                <span class="text-xs text-gray-400">or skip this step — you can add keywords manually later</span>
+            </div>
+        </form>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

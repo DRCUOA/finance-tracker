@@ -37,16 +37,23 @@
                     </div>
                     <!-- Edit form -->
                     <div x-show="editing" x-cloak class="px-6 py-4 bg-gray-50/80 border-t border-gray-100">
-                        <form method="post" action="/categories/{{ parent.id }}/edit" class="flex items-end gap-3">
+                        <form method="post" action="/categories/{{ parent.id }}/edit" class="flex items-start gap-3">
                             <div class="flex-1">
                                 <label class="text-xs font-medium text-gray-500 mb-1 block">Name</label>
                                 <input type="text" name="name" value="{{ parent.name }}" class="block w-full rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500">
                             </div>
-                            <div class="w-32">
-                                <label class="text-xs font-medium text-gray-500 mb-1 block">Budget/mo</label>
-                                <input type="number" step="0.01" name="budgeted_amount" value="{{ parent.budgeted_amount }}" class="block w-full rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500">
+                            <div x-data="budgetInput({{ parent.budgeted_amount }})">
+                                <label class="text-xs font-medium text-gray-500 mb-1 block">Budget</label>
+                                <input type="number" step="0.01" x-model.number="amt" @focus="showPeriod = true" class="block w-28 rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500">
+                                <input type="hidden" name="budgeted_amount" :value="monthly.toFixed(2)">
+                                <div x-show="showPeriod" x-transition class="mt-1.5 inline-flex rounded-md shadow-sm">
+                                    <button type="button" @click="period = 'week'" :class="period === 'week' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="px-2 py-0.5 text-xs font-medium border rounded-l-md transition-colors">Wk</button>
+                                    <button type="button" @click="period = 'month'" :class="period === 'month' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-2 py-0.5 text-xs font-medium border transition-colors">Mo</button>
+                                    <button type="button" @click="period = 'annual'" :class="period === 'annual' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-2 py-0.5 text-xs font-medium border rounded-r-md transition-colors">Yr</button>
+                                </div>
+                                <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 mt-1 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
                             </div>
-                            <button type="submit" class="px-4 py-1.5 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors">Save</button>
+                            <button type="submit" class="mt-5 px-4 py-1.5 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors">Save</button>
                         </form>
                         <button type="button" class="mt-3 text-red-500 text-xs font-medium hover:text-red-700 transition-colors"
                                 data-confirm="This will permanently delete this category and all its children."
@@ -74,12 +81,19 @@
                                 </div>
                             </div>
                             <div x-show="childEditing" x-cloak class="pl-14 pr-6 py-3 bg-white border-t border-gray-100">
-                                <form method="post" action="/categories/{{ child.id }}/edit" class="flex items-end gap-3">
+                                <form method="post" action="/categories/{{ child.id }}/edit" class="flex items-start gap-3">
                                     <div class="flex-1">
                                         <input type="text" name="name" value="{{ child.name }}" class="block w-full rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500">
                                     </div>
-                                    <div class="w-28">
-                                        <input type="number" step="0.01" name="budgeted_amount" value="{{ child.budgeted_amount }}" class="block w-full rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500" placeholder="Budget">
+                                    <div x-data="budgetInput({{ child.budgeted_amount }})">
+                                        <input type="number" step="0.01" x-model.number="amt" @focus="showPeriod = true" class="block w-28 rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500" placeholder="Budget">
+                                        <input type="hidden" name="budgeted_amount" :value="monthly.toFixed(2)">
+                                        <div x-show="showPeriod" x-transition class="mt-1.5 inline-flex rounded-md shadow-sm">
+                                            <button type="button" @click="period = 'week'" :class="period === 'week' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="px-2 py-0.5 text-xs font-medium border rounded-l-md transition-colors">Wk</button>
+                                            <button type="button" @click="period = 'month'" :class="period === 'month' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-2 py-0.5 text-xs font-medium border transition-colors">Mo</button>
+                                            <button type="button" @click="period = 'annual'" :class="period === 'annual' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-2 py-0.5 text-xs font-medium border rounded-r-md transition-colors">Yr</button>
+                                        </div>
+                                        <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 mt-1 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
                                     </div>
                                     <button type="submit" class="px-3 py-1.5 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 transition-colors">Save</button>
                                 </form>
@@ -142,13 +156,36 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Monthly Budget</label>
-                    <input type="number" step="0.01" name="budgeted_amount" value="0.00" class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
+                <div x-data="budgetInput(0)">
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Budget</label>
+                    <input type="number" step="0.01" x-model.number="amt" @focus="showPeriod = true" class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
+                    <input type="hidden" name="budgeted_amount" :value="monthly.toFixed(2)">
+                    <div x-show="showPeriod" x-transition class="mt-2 inline-flex rounded-lg shadow-sm">
+                        <button type="button" @click="period = 'week'" :class="period === 'week' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="px-3 py-1 text-xs font-medium border rounded-l-lg transition-colors">Week</button>
+                        <button type="button" @click="period = 'month'" :class="period === 'month' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-3 py-1 text-xs font-medium border transition-colors">Month</button>
+                        <button type="button" @click="period = 'annual'" :class="period === 'annual' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-3 py-1 text-xs font-medium border rounded-r-lg transition-colors">Annual</button>
+                    </div>
+                    <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 mt-1.5 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
                 </div>
                 <button type="submit" class="w-full px-4 py-2.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors shadow-sm">Add Category</button>
             </form>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('budgetInput', (initial) => ({
+        amt: parseFloat(initial) || 0,
+        period: 'month',
+        showPeriod: false,
+        get monthly() {
+            const v = parseFloat(this.amt) || 0;
+            if (this.period === 'week') return Math.round(v * 52 / 12 * 100) / 100;
+            if (this.period === 'annual') return Math.round(v / 12 * 100) / 100;
+            return Math.round(v * 100) / 100;
+        }
+    }));
+});
+</script>
 {% endblock %}

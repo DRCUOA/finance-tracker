@@ -14,7 +14,7 @@ async def get_accounts(
     active_only: bool = True,
     term: AccountTerm | None = None,
 ) -> list[Account]:
-    stmt = select(Account).where(Account.user_id == user_id).order_by(Account.sort_order)
+    stmt = select(Account).where(Account.user_id == user_id).order_by(Account.name)
     if active_only:
         stmt = stmt.where(Account.is_active.is_(True))
     if term is not None:

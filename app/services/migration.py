@@ -7,7 +7,9 @@ into the local 2-level model (parent → child) and maps account types, terms,
 and signed amounts to match the local schema.
 """
 
+import re
 import uuid
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
@@ -16,7 +18,7 @@ from sqlalchemy import select, func as sa_func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account, AccountTerm, AccountType
-from app.models.category import Category, CategoryType
+from app.models.category import Category, CategoryKeyword, CategoryType
 from app.models.statement import FileType, Statement, StatementStatus
 from app.models.transaction import Transaction
 
@@ -63,6 +65,7 @@ class MigrationResult:
     transactions_skipped: int = 0
     statements_created: int = 0
     skipped_descriptions: list[str] = field(default_factory=list)
+    cat_id_map: dict[str, uuid.UUID] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -426,4 +429,209 @@ async def import_external_data(
         acct.current_balance = acct.initial_balance + tx_sum
 
     await db.flush()
+    result.cat_id_map = cat_id_map
     return result
+
+
+# ---------------------------------------------------------------------------
+# Keyword suggestion engine
+# ---------------------------------------------------------------------------
+
+_STOP_WORDS = {
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "it", "as", "was", "are", "be",
+    "has", "had", "have", "do", "does", "did", "will", "can", "may",
+    "payment", "purchase", "transaction", "debit", "credit", "pos",
+    "direct", "deposit", "transfer", "automatic", "recurring",
+    "ltd", "limited", "nz", "eft", "card", "visa",
+}
+
+
+def _tokenize(desc: str) -> list[str]:
+    """Lowercase, strip numbers/punctuation, return tokens len > 2."""
+    cleaned = re.sub(r"[0-9]+", "", desc.lower())
+    return [
+        tok
+        for raw in cleaned.split()
+        if len(tok := raw.strip(".,;:!?#*()-/& ")) > 2
+    ]
+
+
+def extract_keyword_suggestions(
+    data: dict,
+    cat_id_map: dict[str, uuid.UUID],
+    account_ids: set[str] | None = None,
+    skip_category_roots: set[str] | None = None,
+    max_per_category: int = 8,
+) -> list[dict]:
+    """Analyse categorised transactions and suggest keywords per category.
+
+    Returns a list of dicts:
+        {
+            "local_category_id": UUID,
+            "category_name": str,
+            "suggestions": [
+                {"keyword": str, "count": int, "sample": str},
+                ...
+            ],
+        }
+    Only categories that were mapped (present in *cat_id_map*) are analysed.
+    """
+    skip_category_roots = skip_category_roots or set()
+    ext = data.get("data", {})
+    ext_cats = {c["category_id"]: c for c in ext.get("categories", [])}
+    ext_txns = ext.get("transactions", [])
+
+    root_ids_to_skip: set[str] = set()
+    for c in ext_cats.values():
+        if c["parent_category_id"] is None and c["category_name"] in skip_category_roots:
+            root_ids_to_skip.add(c["category_id"])
+
+    def _ancestor_root(cat_id: str | None) -> str | None:
+        if cat_id is None:
+            return None
+        c = ext_cats.get(cat_id)
+        if not c:
+            return None
+        if c["parent_category_id"] is None:
+            return c["category_id"]
+        return _ancestor_root(c["parent_category_id"])
+
+    # Group descriptions by external category
+    descs_by_cat: dict[str, list[str]] = defaultdict(list)
+    for t in ext_txns:
+        if account_ids and t["account_id"] not in account_ids:
+            continue
+        cid = t.get("category_id")
+        if not cid or cid not in cat_id_map:
+            continue
+        root = _ancestor_root(cid)
+        if root in root_ids_to_skip:
+            continue
+        descs_by_cat[cid].append(t["description"])
+
+    if not descs_by_cat:
+        return []
+
+    # Build global token frequency across ALL categories for IDF-like filtering
+    cat_presence: Counter[str] = Counter()
+    token_by_cat: dict[str, Counter[str]] = {}
+    bigram_by_cat: dict[str, Counter[str]] = {}
+    sample_by_token: dict[str, dict[str, str]] = defaultdict(dict)
+
+    total_cats = len(descs_by_cat)
+
+    for cid, descriptions in descs_by_cat.items():
+        tc: Counter[str] = Counter()
+        bc: Counter[str] = Counter()
+        seen_tokens: set[str] = set()
+
+        for desc in descriptions:
+            tokens = _tokenize(desc)
+            for tok in tokens:
+                if tok not in _STOP_WORDS:
+                    tc[tok] += 1
+                    if tok not in seen_tokens:
+                        cat_presence[tok] += 1
+                        seen_tokens.add(tok)
+                    if tok not in sample_by_token[cid]:
+                        sample_by_token[cid][tok] = desc[:80]
+            for i in range(len(tokens) - 1):
+                bg = f"{tokens[i]} {tokens[i + 1]}"
+                if tokens[i] not in _STOP_WORDS or tokens[i + 1] not in _STOP_WORDS:
+                    bc[bg] += 1
+                    if bg not in sample_by_token[cid]:
+                        sample_by_token[cid][bg] = desc[:80]
+
+        token_by_cat[cid] = tc
+        bigram_by_cat[cid] = bc
+
+    # Score and rank candidates per category
+    results = []
+    for cid, descriptions in descs_by_cat.items():
+        local_id = cat_id_map[cid]
+        cat_name = ext_cats[cid]["category_name"]
+        n_descs = len(descriptions)
+        candidates: dict[str, float] = {}
+
+        # Score bigrams (more specific, weighted higher)
+        for bg, count in bigram_by_cat.get(cid, {}).items():
+            if count < 2:
+                continue
+            candidates[bg] = count * 3.0
+
+        # Score single tokens
+        for tok, count in token_by_cat.get(cid, {}).items():
+            if count < 2:
+                continue
+            presence_ratio = cat_presence[tok] / total_cats
+            if presence_ratio > 0.5:
+                continue
+            specificity = 1.0 / max(cat_presence[tok], 1)
+            candidates[tok] = count * specificity * 10
+
+        # Deduplicate: if a bigram fully covers a single token, drop the token
+        bigram_words = set()
+        for bg in candidates:
+            if " " in bg:
+                bigram_words.update(bg.split())
+        final: list[tuple[str, float, int]] = []
+        for kw, score in candidates.items():
+            if " " not in kw and kw in bigram_words:
+                continue
+            count = (
+                bigram_by_cat.get(cid, {}).get(kw, 0)
+                if " " in kw
+                else token_by_cat.get(cid, {}).get(kw, 0)
+            )
+            final.append((kw, score, count))
+
+        final.sort(key=lambda x: x[1], reverse=True)
+
+        suggestions = [
+            {
+                "keyword": kw,
+                "count": count,
+                "sample": sample_by_token.get(cid, {}).get(kw, ""),
+            }
+            for kw, _, count in final[:max_per_category]
+        ]
+
+        if suggestions:
+            results.append({
+                "local_category_id": str(local_id),
+                "category_name": cat_name,
+                "transaction_count": n_descs,
+                "suggestions": suggestions,
+            })
+
+    results.sort(key=lambda r: r["category_name"])
+    return results
+
+
+async def import_keywords(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    keyword_selections: list[tuple[uuid.UUID, str]],
+) -> int:
+    """Create CategoryKeyword records from confirmed suggestions.
+
+    *keyword_selections* is a list of (category_id, keyword) pairs.
+    Skips duplicates where the keyword already exists for that category.
+    Returns the count of keywords created.
+    """
+    created = 0
+    for cat_id, keyword in keyword_selections:
+        kw_lower = keyword.lower().strip()
+        existing = (await db.execute(
+            select(CategoryKeyword).where(
+                CategoryKeyword.category_id == cat_id,
+                CategoryKeyword.keyword == kw_lower,
+            )
+        )).scalar_one_or_none()
+        if existing:
+            continue
+        db.add(CategoryKeyword(category_id=cat_id, keyword=kw_lower, hit_count=0))
+        created += 1
+    await db.flush()
+    return created
