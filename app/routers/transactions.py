@@ -204,6 +204,48 @@ async def batch_delete(
     return RedirectResponse(url="/transactions", status_code=302)
 
 
+@router.get("/review-uncategorised", response_class=HTMLResponse)
+async def review_uncategorised(
+    request: Request,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    matches, total_uncat = await categoriser.batch_suggest_categories(db, user.id)
+    cats = await cat_svc.get_all_categories_flat(db, user.id)
+    return templates.TemplateResponse(request, "transactions/review.html", {
+        "user": user,
+        "matches": matches,
+        "total_uncategorised": total_uncat,
+        "total_matched": len(matches),
+        "categories": cats,
+    })
+
+
+@router.post("/review-uncategorised/apply")
+async def apply_review(
+    request: Request,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    form = await request.form()
+    applied = 0
+    for key in form.keys():
+        if key.startswith("cat_"):
+            tx_id_str = key[4:]
+            cat_id_str = form[key]
+            if not cat_id_str:
+                continue
+            tx_id = uuid.UUID(tx_id_str)
+            cat_id = uuid.UUID(cat_id_str)
+            tx = await tx_svc.get_transaction(db, tx_id, user.id)
+            if tx and tx.category_id is None:
+                tx.category_id = cat_id
+                await categoriser.record_categorisation(db, user.id, cat_id, tx.description)
+                applied += 1
+    await db.flush()
+    return RedirectResponse(url="/transactions?review_applied=" + str(applied), status_code=302)
+
+
 @router.get("/{tx_id}/edit", response_class=HTMLResponse)
 async def edit_form(
     tx_id: uuid.UUID, request: Request,

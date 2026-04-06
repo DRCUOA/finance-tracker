@@ -1,9 +1,73 @@
 import uuid
+from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.category import Category, CategoryKeyword
+from app.models.transaction import Transaction
+
+
+@dataclass
+class SuggestedMatch:
+    transaction: Transaction
+    category: Category
+    matched_keyword: str
+    score: int
+
+
+async def batch_suggest_categories(
+    db: AsyncSession, user_id: uuid.UUID,
+) -> tuple[list[SuggestedMatch], int]:
+    """Match all uncategorized transactions against current keywords.
+
+    Returns (matches, total_uncategorized) where matches only includes
+    transactions that found a keyword hit.
+    """
+    kw_stmt = (
+        select(CategoryKeyword)
+        .join(Category)
+        .where(Category.user_id == user_id)
+        .options(selectinload(CategoryKeyword.category))
+        .order_by(CategoryKeyword.hit_count.desc())
+    )
+    kw_result = await db.execute(kw_stmt)
+    keywords = kw_result.scalars().all()
+
+    tx_stmt = (
+        select(Transaction)
+        .where(Transaction.user_id == user_id, Transaction.category_id.is_(None))
+        .options(selectinload(Transaction.account))
+        .order_by(Transaction.date.desc())
+    )
+    tx_result = await db.execute(tx_stmt)
+    uncategorized = tx_result.scalars().all()
+
+    matches: list[SuggestedMatch] = []
+    for tx in uncategorized:
+        desc_lower = tx.description.lower()
+        best_kw = None
+        best_score = -1
+        best_cat = None
+
+        for kw in keywords:
+            if kw.keyword in desc_lower:
+                score = len(kw.keyword) * 10 + kw.hit_count
+                if score > best_score:
+                    best_score = score
+                    best_kw = kw.keyword
+                    best_cat = kw.category
+
+        if best_cat and best_kw:
+            matches.append(SuggestedMatch(
+                transaction=tx,
+                category=best_cat,
+                matched_keyword=best_kw,
+                score=best_score,
+            ))
+
+    return matches, len(uncategorized)
 
 
 async def suggest_category(db: AsyncSession, user_id: uuid.UUID, description: str) -> uuid.UUID | None:

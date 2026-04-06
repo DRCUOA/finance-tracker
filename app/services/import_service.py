@@ -92,6 +92,132 @@ def parse_csv_transactions(
     return transactions
 
 
+def guess_csv_mapping(headers: list[str]) -> dict[str, list[str]]:
+    """Guess a sensible default column mapping from CSV headers."""
+    mapping: dict[str, list[str]] = {
+        "date": [], "amount": [], "description": [], "reference": [],
+    }
+    for i, h in enumerate(headers):
+        hl = h.lower().strip()
+        key = str(i)
+        if not mapping["date"] and "date" in hl:
+            mapping["date"] = [key]
+        elif not mapping["amount"] and any(w in hl for w in ("amount", "value", "debit", "credit")):
+            mapping["amount"] = [key]
+        elif any(w in hl for w in (
+            "desc", "memo", "narr", "particular", "detail",
+            "payee", "name", "code",
+        )):
+            mapping["description"].append(key)
+        elif not mapping["reference"] and any(w in hl for w in ("ref", "tran")):
+            mapping["reference"] = [key]
+    return mapping
+
+
+def apply_csv_mapping(
+    content: str,
+    mapping: dict[str, list[str]],
+    date_format: str = "%Y-%m-%d",
+) -> list[dict]:
+    """Apply a user-defined column mapping to CSV data.
+
+    Multiple columns mapped to 'description' are joined with ' | '.
+    """
+    sniffer = csv.Sniffer()
+    try:
+        dialect = sniffer.sniff(content[:4096])
+    except csv.Error:
+        dialect = csv.excel
+
+    reader = csv.reader(io.StringIO(content), dialect)
+    headers = next(reader, None)
+    if not headers:
+        return []
+
+    date_cols = [int(c) for c in mapping.get("date", [])]
+    amount_cols = [int(c) for c in mapping.get("amount", [])]
+    desc_cols = [int(c) for c in mapping.get("description", [])]
+    ref_cols = [int(c) for c in mapping.get("reference", [])]
+
+    if not date_cols or not amount_cols:
+        return []
+
+    date_col = date_cols[0]
+    amount_col = amount_cols[0]
+    max_needed = max([date_col, amount_col] + desc_cols + ref_cols)
+
+    transactions: list[dict] = []
+    for row in reader:
+        if len(row) <= max_needed:
+            continue
+
+        try:
+            dt = datetime.strptime(row[date_col].strip(), date_format).date()
+        except ValueError:
+            for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d", "%m-%d-%Y", "%d-%m-%Y"):
+                try:
+                    dt = datetime.strptime(row[date_col].strip(), fmt).date()
+                    break
+                except ValueError:
+                    continue
+            else:
+                continue
+
+        try:
+            amount_str = (
+                row[amount_col].strip()
+                .replace(",", "").replace("$", "")
+                .replace("£", "").replace("€", "")
+            )
+            amount = Decimal(amount_str)
+        except (InvalidOperation, ValueError):
+            continue
+
+        desc_parts = [row[c].strip() for c in desc_cols if c < len(row) and row[c].strip()]
+        description = " | ".join(desc_parts) if desc_parts else ""
+
+        reference = None
+        if ref_cols and ref_cols[0] < len(row):
+            reference = row[ref_cols[0]].strip() or None
+
+        transactions.append({
+            "date": dt,
+            "amount": amount,
+            "description": description,
+            "reference": reference,
+        })
+
+    return transactions
+
+
+OFX_FIELD_LABELS = {
+    "type": "Transaction Type",
+    "payee": "Payee / Name",
+    "memo": "Memo",
+    "id": "FITID",
+    "checknum": "Check Number",
+    "sic": "SIC Code",
+    "mcc": "MCC Code",
+}
+
+DB_TARGET_FIELDS = [
+    {"key": "description", "label": "Description", "hint": "Used for keyword matching — map multiple fields here"},
+    {"key": "reference", "label": "Reference", "hint": "Used for duplicate detection"},
+]
+
+CSV_TARGET_FIELDS = [
+    {"key": "date", "label": "Date", "hint": "Transaction date (required)"},
+    {"key": "amount", "label": "Amount", "hint": "Transaction amount (required)"},
+    {"key": "description", "label": "Description", "hint": "Used for keyword matching — map multiple fields here"},
+    {"key": "reference", "label": "Reference", "hint": "Used for duplicate detection (optional)"},
+]
+
+DEFAULT_OFX_MAPPING: dict[str, list[str]] = {
+    "description": ["payee", "memo"],
+    "reference": ["id"],
+}
+
+
 def parse_ofx(content: bytes) -> list[dict]:
     """Parse OFX file content into list of transaction dicts."""
     from ofxparse import OfxParser
@@ -106,6 +232,75 @@ def parse_ofx(content: bytes) -> list[dict]:
                 "reference": tx.id or None,
             })
     return transactions
+
+
+def parse_ofx_raw_fields(content: bytes) -> tuple[list[dict], list[str]]:
+    """Extract all available STMTTRN fields from an OFX file.
+
+    Returns (raw_transactions, available_field_keys) where each transaction is
+    a dict with '_date' and '_amount' (always present) plus string values for
+    every non-empty field listed in OFX_FIELD_LABELS.
+    """
+    from ofxparse import OfxParser
+
+    ofx = OfxParser.parse(io.BytesIO(content))
+    transactions: list[dict] = []
+    seen_fields: set[str] = set()
+
+    for account in ofx.accounts:
+        for tx in account.statement.transactions:
+            raw: dict = {
+                "_date": str(tx.date.date() if hasattr(tx.date, "date") else tx.date),
+                "_amount": str(tx.amount),
+            }
+            for attr in OFX_FIELD_LABELS:
+                val = getattr(tx, attr, None)
+                if val is not None and str(val).strip():
+                    raw[attr] = str(val).strip()
+                    seen_fields.add(attr)
+            transactions.append(raw)
+
+    available = [f for f in OFX_FIELD_LABELS if f in seen_fields]
+    return transactions, available
+
+
+def apply_ofx_mapping(
+    raw_transactions: list[dict],
+    mapping: dict[str, list[str]],
+) -> list[dict]:
+    """Apply a user-defined field mapping to raw OFX transaction data.
+
+    ``mapping`` maps db_field -> [ofx_field_key, ...].
+    Multiple sources mapped to 'description' are joined with ' | '.
+    """
+    desc_sources = mapping.get("description", [])
+    ref_sources = mapping.get("reference", [])
+
+    result: list[dict] = []
+    for raw in raw_transactions:
+        date_str = raw.get("_date")
+        amount_str = raw.get("_amount")
+        if not date_str or not amount_str:
+            continue
+
+        dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+        amount = Decimal(amount_str)
+
+        desc_parts = [raw[f].strip() for f in desc_sources if raw.get(f, "").strip()]
+        description = " | ".join(desc_parts) if desc_parts else ""
+
+        reference = None
+        if ref_sources:
+            reference = raw.get(ref_sources[0], "").strip() or None
+
+        result.append({
+            "date": dt,
+            "amount": amount,
+            "description": description,
+            "reference": reference,
+        })
+
+    return result
 
 
 async def _is_duplicate(

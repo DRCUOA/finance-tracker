@@ -17,6 +17,7 @@ from app.services import migration as migration_svc
 from app.templating import templates
 
 _MIGRATE_DIR = Path(tempfile.gettempdir()) / "finance_tracker_migrate"
+_STASH_DIR = Path(tempfile.gettempdir()) / "finance_tracker_import"
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 
@@ -46,23 +47,61 @@ async def upload_file(
     is_ofx = filename.lower().endswith((".ofx", ".qfx"))
 
     if is_ofx:
-        parsed = import_svc.parse_ofx(content_bytes)
-        parsed = await import_svc.find_duplicates(db, user.id, uuid.UUID(account_id), parsed)
-        statement = await import_svc.create_statement(
-            db, user.id, uuid.UUID(account_id), filename, FileType.OFX, parsed,
-        )
-        return templates.TemplateResponse(request, "imports/review.html", {
+        raw_txs, available_fields = import_svc.parse_ofx_raw_fields(content_bytes)
+
+        token = uuid.uuid4().hex
+        _STASH_DIR.mkdir(parents=True, exist_ok=True)
+        (_STASH_DIR / f"{token}.json").write_text(json.dumps({
+            "transactions": raw_txs,
+            "fields": available_fields,
+        }))
+
+        samples = raw_txs[0] if raw_txs else {}
+        source_fields = [
+            {"key": f, "label": import_svc.OFX_FIELD_LABELS[f], "sample": samples.get(f, "")}
+            for f in available_fields
+        ]
+        default_mapping = {
+            db_field: [s for s in sources if s in available_fields]
+            for db_field, sources in import_svc.DEFAULT_OFX_MAPPING.items()
+        }
+
+        return templates.TemplateResponse(request, "imports/map_ofx.html", {
             "user": user,
-            "statement": statement, "transactions": parsed,
+            "source_fields": source_fields,
+            "target_fields": import_svc.DB_TARGET_FIELDS,
+            "default_mapping": default_mapping,
+            "token": token,
             "account_id": account_id,
+            "filename": filename,
+            "record_count": len(raw_txs),
         })
     else:
         content = content_bytes.decode("utf-8", errors="replace")
         preview = import_svc.parse_csv_preview(content)
+
+        source_fields = []
+        for i, h in enumerate(preview["headers"]):
+            sample = ""
+            if preview["rows"] and i < len(preview["rows"][0]):
+                sample = preview["rows"][0][i]
+            source_fields.append({"key": str(i), "label": h, "sample": sample})
+
+        default_mapping = import_svc.guess_csv_mapping(preview["headers"])
+
+        token = uuid.uuid4().hex
+        _STASH_DIR.mkdir(parents=True, exist_ok=True)
+        (_STASH_DIR / f"{token}.csv").write_text(content)
+
         return templates.TemplateResponse(request, "imports/map_fields.html", {
             "user": user,
-            "preview": preview, "account_id": account_id,
-            "filename": filename, "csv_content": content,
+            "preview": preview,
+            "source_fields": source_fields,
+            "target_fields": import_svc.CSV_TARGET_FIELDS,
+            "default_mapping": default_mapping,
+            "token": token,
+            "account_id": account_id,
+            "filename": filename,
         })
 
 
@@ -70,22 +109,58 @@ async def upload_file(
 async def map_csv_fields(
     request: Request,
     account_id: str = Form(...),
+    token: str = Form(...),
     filename: str = Form(...),
-    csv_content: str = Form(...),
-    date_col: int = Form(...),
-    amount_col: int = Form(...),
-    desc_col: int = Form(...),
-    ref_col: str = Form(""),
+    mapping_json: str = Form(...),
     date_format: str = Form("%Y-%m-%d"),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ref = int(ref_col) if ref_col else None
-    parsed = import_svc.parse_csv_transactions(csv_content, date_col, amount_col, desc_col, ref, date_format)
+    stashed = _STASH_DIR / f"{token}.csv"
+    if not stashed.exists():
+        return RedirectResponse(url="/imports", status_code=302)
+
+    content = stashed.read_text()
+    stashed.unlink(missing_ok=True)
+
+    mapping = json.loads(mapping_json)
+    parsed = import_svc.apply_csv_mapping(content, mapping, date_format)
     parsed = await import_svc.find_duplicates(db, user.id, uuid.UUID(account_id), parsed)
     statement = await import_svc.create_statement(
         db, user.id, uuid.UUID(account_id), filename, FileType.CSV, parsed,
     )
+    return templates.TemplateResponse(request, "imports/review.html", {
+        "user": user,
+        "statement": statement, "transactions": parsed,
+        "account_id": account_id,
+    })
+
+
+@router.post("/map-ofx")
+async def map_ofx_fields(
+    request: Request,
+    account_id: str = Form(...),
+    token: str = Form(...),
+    filename: str = Form(...),
+    mapping_json: str = Form(...),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stashed = _STASH_DIR / f"{token}.json"
+    if not stashed.exists():
+        return RedirectResponse(url="/imports", status_code=302)
+
+    data = json.loads(stashed.read_text())
+    stashed.unlink(missing_ok=True)
+
+    mapping = json.loads(mapping_json)
+    parsed = import_svc.apply_ofx_mapping(data["transactions"], mapping)
+    parsed = await import_svc.find_duplicates(db, user.id, uuid.UUID(account_id), parsed)
+
+    statement = await import_svc.create_statement(
+        db, user.id, uuid.UUID(account_id), filename, FileType.OFX, parsed,
+    )
+
     return templates.TemplateResponse(request, "imports/review.html", {
         "user": user,
         "statement": statement, "transactions": parsed,

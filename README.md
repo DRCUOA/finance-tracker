@@ -58,12 +58,14 @@ uvicorn app.main:app --reload --port 8000
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string (asyncpg) | `postgresql+asyncpg://finance:finance@localhost:5432/finance_tracker` |
-| `SECRET_KEY` | JWT signing key (use a long random string) | `change-me-to-a-long-random-string` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime | `30` |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime | `7` |
+
+| Variable                      | Description                                | Default                                                               |
+| ----------------------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| `DATABASE_URL`                | PostgreSQL connection string (asyncpg)     | `postgresql+asyncpg://finance:finance@localhost:5432/finance_tracker` |
+| `SECRET_KEY`                  | JWT signing key (use a long random string) | `change-me-to-a-long-random-string`                                   |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime                      | `30`                                                                  |
+| `REFRESH_TOKEN_EXPIRE_DAYS`   | Refresh token lifetime                     | `7`                                                                   |
+
 
 ## Project Structure
 
@@ -79,3 +81,4 @@ app/
 ├── templates/           # Jinja2 HTML templates
 └── static/              # Static assets
 ```
+

@@ -164,3 +164,26 @@ async def delete_keyword(db: AsyncSession, keyword_id: uuid.UUID, user_id: uuid.
     await db.delete(kw)
     await db.flush()
     return True
+
+
+async def sync_keywords(
+    db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID, keywords: list[str],
+) -> bool:
+    """Replace the full keyword set for a category, preserving hit_count on survivors."""
+    cat = await db.get(Category, category_id, options=[selectinload(Category.keywords)])
+    if not cat or cat.user_id != user_id:
+        return False
+
+    desired = {k.lower().strip() for k in keywords if k.strip()}
+    existing = {kw.keyword: kw for kw in cat.keywords}
+
+    for word, kw_obj in existing.items():
+        if word not in desired:
+            await db.delete(kw_obj)
+
+    for word in desired:
+        if word not in existing:
+            db.add(CategoryKeyword(category_id=category_id, keyword=word))
+
+    await db.flush()
+    return True
