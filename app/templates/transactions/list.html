@@ -12,20 +12,20 @@
 {% block content %}
 <!-- Period presets -->
 <div class="flex items-center gap-2 mb-5">
-    <span class="text-xs font-medium text-gray-400 mr-1">Quick view:</span>
+    <span class="text-xs font-medium text-gray-400 dark:text-gray-500 mr-1">Quick view:</span>
     <a href="/transactions?period=week"
        class="px-3.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors
-              {% if active_period == 'week' %}bg-brand-600 text-white border-brand-600 shadow-sm{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50{% endif %}">
+              {% if active_period == 'week' %}bg-brand-600 text-white border-brand-600 shadow-sm{% else %}bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700{% endif %}">
         This Week
     </a>
     <a href="/transactions?period=month"
        class="px-3.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors
-              {% if active_period == 'month' %}bg-brand-600 text-white border-brand-600 shadow-sm{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50{% endif %}">
+              {% if active_period == 'month' %}bg-brand-600 text-white border-brand-600 shadow-sm{% else %}bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700{% endif %}">
         This Month
     </a>
     <a href="/transactions"
        class="px-3.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors
-              {% if not active_period %}bg-brand-600 text-white border-brand-600 shadow-sm{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50{% endif %}">
+              {% if not active_period %}bg-brand-600 text-white border-brand-600 shadow-sm{% else %}bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700{% endif %}">
         All
     </a>
 </div>
@@ -51,12 +51,12 @@
 }" @txchanged.window="clearSelection()">
 
     <!-- Filters -->
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-5 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-5 mb-6">
         <form id="filter-form" hx-get="/transactions" hx-target="#tx-table" hx-swap="innerHTML" hx-push-url="true"
               @submit="clearSelection()"
               class="grid grid-cols-2 md:grid-cols-6 gap-4">
             <div>
-                <label class="text-xs font-medium text-gray-500 mb-1 block">Account</label>
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Account</label>
                 <select name="account_id" class="block w-full rounded-lg border-gray-300 text-sm py-2 focus:border-brand-500 focus:ring-brand-500">
                     <option value="">All</option>
                     {% for a in accounts %}
@@ -65,7 +65,7 @@
                 </select>
             </div>
             <div>
-                <label class="text-xs font-medium text-gray-500 mb-1 block">Category</label>
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Category</label>
                 <select name="category_id" class="block w-full rounded-lg border-gray-300 text-sm py-2 focus:border-brand-500 focus:ring-brand-500">
                     <option value="">All</option>
                     {% for c in categories %}
@@ -74,15 +74,15 @@
                 </select>
             </div>
             <div>
-                <label class="text-xs font-medium text-gray-500 mb-1 block">From</label>
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">From</label>
                 <input type="date" name="date_from" value="{{ date_from }}" class="block w-full rounded-lg border-gray-300 text-sm py-2 focus:border-brand-500 focus:ring-brand-500">
             </div>
             <div>
-                <label class="text-xs font-medium text-gray-500 mb-1 block">To</label>
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">To</label>
                 <input type="date" name="date_to" value="{{ date_to }}" class="block w-full rounded-lg border-gray-300 text-sm py-2 focus:border-brand-500 focus:ring-brand-500">
             </div>
             <div>
-                <label class="text-xs font-medium text-gray-500 mb-1 block">Search</label>
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Search</label>
                 <input type="text" name="search" value="{{ search }}" placeholder="Description..." class="block w-full rounded-lg border-gray-300 text-sm py-2 focus:border-brand-500 focus:ring-brand-500">
             </div>
             <div class="flex items-end">
@@ -93,9 +93,9 @@
 
     <!-- Batch Actions -->
     <div id="batch-bar" class="mb-5" x-show="selected.length > 0" x-cloak x-transition>
-        <div class="bg-brand-50 border border-brand-200 rounded-xl px-5 py-3.5 flex items-center justify-between">
+        <div class="bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl px-5 py-3.5 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <span class="text-sm font-medium text-brand-700" x-text="selected.length + ' transaction' + (selected.length !== 1 ? 's' : '') + ' selected'"></span>
+                <span class="text-sm font-medium text-brand-700 dark:text-brand-300" x-text="selected.length + ' transaction' + (selected.length !== 1 ? 's' : '') + ' selected'"></span>
                 <button @click="clearSelection()" class="text-xs text-brand-500 hover:text-brand-700 underline transition-colors">Clear</button>
             </div>
             <div class="flex gap-3">

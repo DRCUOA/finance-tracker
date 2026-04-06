@@ -6,27 +6,27 @@
 <div class="flex flex-wrap items-center gap-4" hx-boost="true" hx-push-url="true">
     {% include "components/period_toggle.html" %}
 
-    <div class="h-6 w-px bg-gray-200 hidden sm:block"></div>
+    <div class="h-6 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
 
-    <div class="inline-flex rounded-lg bg-gray-100 p-0.5">
+    <div class="inline-flex rounded-lg bg-gray-100 dark:bg-gray-700 p-0.5">
         <a href="{{ term_base_url }}"
            class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
-                  {% if not active_term %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                  {% if not active_term %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
             All
         </a>
         <a href="{{ term_base_url }}&term=short"
            class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
-                  {% if active_term == 'short' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                  {% if active_term == 'short' %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
             Short
         </a>
         <a href="{{ term_base_url }}&term=medium"
            class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
-                  {% if active_term == 'medium' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                  {% if active_term == 'medium' %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
             Mid
         </a>
         <a href="{{ term_base_url }}&term=long"
            class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
-                  {% if active_term == 'long' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                  {% if active_term == 'long' %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
             Long
         </a>
     </div>
@@ -36,57 +36,57 @@
 {% block content %}
 <!-- Net Worth Cards -->
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Assets</p>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Total Assets</p>
         <p class="text-xl font-bold text-emerald-600 tabular-nums">{{ total_assets|nzd }}</p>
     </div>
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Liabilities</p>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Total Liabilities</p>
         <p class="text-xl font-bold text-red-600 tabular-nums">{{ total_liabilities|nzd }}</p>
     </div>
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Net Worth</p>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Net Worth</p>
         <p class="text-xl font-bold tabular-nums {% if net_worth >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">{{ net_worth|nzd }}</p>
     </div>
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">{{ period_label }}</p>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">{{ period_label }}</p>
         <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">{{ summary.net|nzd }}</p>
-        <p class="text-xs text-gray-400 mt-2">{{ summary.income|nzd }} in · {{ summary.expenses|nzd }} out</p>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">{{ summary.income|nzd }} in · {{ summary.expenses|nzd }} out</p>
     </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
     <!-- Net Worth Trend -->
-    <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
+    <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h3 class="text-sm font-semibold text-gray-900">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
                 Net Worth Trend
-                <span class="font-normal text-gray-400 ml-1">({{ period }}ly)</span>
+                <span class="font-normal text-gray-400 dark:text-gray-500 ml-1">({{ period }}ly)</span>
             </h3>
-            <div class="inline-flex rounded-lg bg-gray-100 p-0.5" hx-boost="true" hx-push-url="true">
+            <div class="inline-flex rounded-lg bg-gray-100 dark:bg-gray-700 p-0.5" hx-boost="true" hx-push-url="true">
                 <a href="{{ span_base_url }}"
                    class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
-                          {% if not span %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
-                    Default
+                          {% if not span %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
+                    {% if period == 'week' %}1W{% else %}1M{% endif %}
                 </a>
                 <a href="{{ span_base_url }}&span=6m"
                    class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
-                          {% if span == '6m' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                          {% if span == '6m' %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
                     6M
                 </a>
                 <a href="{{ span_base_url }}&span=1y"
                    class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
-                          {% if span == '1y' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                          {% if span == '1y' %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
                     1Y
                 </a>
                 <a href="{{ span_base_url }}&span=5y"
                    class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
-                          {% if span == '5y' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                          {% if span == '5y' %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
                     5Y
                 </a>
                 <a href="{{ span_base_url }}&span=all"
                    class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
-                          {% if span == 'all' %}bg-white text-brand-700 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+                          {% if span == 'all' %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
                     All
                 </a>
             </div>
@@ -95,23 +95,23 @@
     </div>
 
     <!-- Budget Status -->
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6 flex flex-col">
-        <h3 class="text-sm font-semibold text-gray-900 mb-4">Budget Status</h3>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 flex flex-col">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Budget Status</h3>
         {% if budget_total > 0 %}
         <div class="flex-1">
             <div class="flex justify-between text-sm mb-2">
-                <span class="text-gray-500">Spent</span>
-                <span class="font-semibold text-gray-900 tabular-nums">{{ budget_spent|nzd }} / {{ budget_total|nzd }}</span>
+                <span class="text-gray-500 dark:text-gray-400">Spent</span>
+                <span class="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{{ budget_spent|nzd }} / {{ budget_total|nzd }}</span>
             </div>
-            <div class="w-full bg-gray-100 rounded-full h-3">
+            <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3">
                 {% set pct = (budget_spent / budget_total * 100) if budget_total > 0 else 0 %}
                 <div class="h-3 rounded-full transition-all {% if pct > 100 %}bg-red-500{% elif pct > 80 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
                      style="width: {{ [pct, 100] | min }}%"></div>
             </div>
-            <p class="text-xs text-gray-400 mt-2">{{ "%.0f"|format(pct) }}% of budget used</p>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">{{ "%.0f"|format(pct) }}% of budget used</p>
         </div>
         {% else %}
-        <p class="text-gray-400 text-sm flex-1">No budget set for this period.</p>
+        <p class="text-gray-400 dark:text-gray-500 text-sm flex-1">No budget set for this period.</p>
         {% endif %}
         <a href="/reports?period={{ period }}" class="text-brand-600 hover:text-brand-500 text-sm font-medium mt-4 inline-flex items-center gap-1">
             View full report
@@ -122,45 +122,45 @@
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Recent Transactions -->
-    <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-gray-100">
-        <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-900">Recent Transactions</h3>
+    <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700">
+        <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent Transactions</h3>
             <a href="/transactions" class="text-brand-600 hover:text-brand-500 text-sm font-medium">View all</a>
         </div>
-        <div class="divide-y divide-gray-50">
+        <div class="divide-y divide-gray-50 dark:divide-gray-700">
             {% for tx in recent_txs %}
             <div class="px-6 py-3.5 flex items-center justify-between">
                 <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-900 truncate">{{ tx.description }}</p>
-                    <p class="text-xs text-gray-400 mt-0.5">{{ tx.date }} · {{ tx.account.name if tx.account else '' }}</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ tx.description }}</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ tx.date }} · {{ tx.account.name if tx.account else '' }}</p>
                 </div>
                 <span class="text-sm font-semibold tabular-nums ml-4 whitespace-nowrap {% if tx.amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
                     {{ tx.amount|nzd }}
                 </span>
             </div>
             {% else %}
-            <p class="px-6 py-12 text-center text-gray-400 text-sm">No transactions yet.</p>
+            <p class="px-6 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">No transactions yet.</p>
             {% endfor %}
         </div>
     </div>
 
     <!-- Accounts -->
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100">
-        <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-900">Accounts</h3>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700">
+        <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Accounts</h3>
             <a href="/accounts" class="text-brand-600 hover:text-brand-500 text-sm font-medium">Manage</a>
         </div>
-        <div class="divide-y divide-gray-50">
+        <div class="divide-y divide-gray-50 dark:divide-gray-700">
             {% for acct in accounts %}
             <div class="px-6 py-3.5 flex items-center justify-between">
                 <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-900 truncate">{{ acct.name }}</p>
-                    <p class="text-xs text-gray-400 mt-0.5">
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ acct.name }}</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                         {{ acct.account_type.value | replace("_", " ") | title }}
                         <span class="inline-block ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide
-                            {% if acct.term.value == 'short' %}bg-amber-100 text-amber-700
-                            {% elif acct.term.value == 'medium' %}bg-sky-100 text-sky-700
-                            {% else %}bg-indigo-100 text-indigo-700{% endif %}">{{ acct.term.value }}</span>
+                            {% if acct.term.value == 'short' %}bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400
+                            {% elif acct.term.value == 'medium' %}bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400
+                            {% else %}bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400{% endif %}">{{ acct.term.value }}</span>
                     </p>
                 </div>
                 <span class="text-sm font-semibold tabular-nums ml-4 whitespace-nowrap {% if acct.current_balance >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
@@ -168,7 +168,7 @@
                 </span>
             </div>
             {% else %}
-            <p class="px-6 py-8 text-center text-gray-400 text-sm">No accounts yet.</p>
+            <p class="px-6 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">No accounts yet.</p>
             {% endfor %}
         </div>
     </div>
@@ -179,33 +179,66 @@
     const fmt = v => '$' + Number(v).toLocaleString('en-NZ', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     const netData = {{ net_history | tojson }};
     const canvas = document.getElementById('trendChart');
+
+    function updateChartTheme() {
+        var isDark = document.documentElement.classList.contains('dark');
+        var color = isDark ? '#9ca3af' : '#666';
+        var gridColor = isDark ? 'rgba(75, 85, 99, 0.5)' : 'rgba(0, 0, 0, 0.1)';
+        Chart.defaults.color = color;
+        Chart.defaults.borderColor = gridColor;
+    }
+
     if (netData.length > 0 && canvas) {
         const existing = Chart.getChart(canvas);
         if (existing) existing.destroy();
         const n = netData.length;
-        const ptR = n > 60 ? 0 : n > 24 ? 1 : 2;
-        const ptRNw = n > 60 ? 1 : n > 24 ? 2 : 3;
-        new Chart(canvas, {
-            type: 'line',
-            data: {
-                labels: netData.map(d => d.label),
-                datasets: [
-                    { label: 'Assets', data: netData.map(d => d.assets), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: true, tension: 0.4, pointRadius: ptR },
-                    { label: 'Liabilities', data: netData.map(d => d.liabilities), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: ptR },
-                    { label: 'Net Worth', data: netData.map(d => d.net_worth), borderColor: '#6366f1', borderWidth: 3, fill: false, tension: 0.4, pointRadius: ptRNw },
-                ]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    x: { ticks: { maxTicksLimit: n > 24 ? 12 : undefined } },
-                    y: { beginAtZero: false, ticks: { callback: fmt } }
+        const useBar = n <= 1;
+        updateChartTheme();
+
+        if (useBar) {
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: netData.map(d => d.label),
+                    datasets: [
+                        { label: 'Assets',      data: netData.map(d => d.assets),      backgroundColor: 'rgba(16,185,129,0.75)' },
+                        { label: 'Liabilities', data: netData.map(d => d.liabilities),  backgroundColor: 'rgba(239,68,68,0.75)' },
+                        { label: 'Net Worth',   data: netData.map(d => d.net_worth),    backgroundColor: 'rgba(99,102,241,0.75)' },
+                    ]
                 },
-                plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } },
-                interaction: { mode: 'index', intersect: false }
-            }
-        });
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: false, ticks: { callback: fmt } } },
+                    plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } }
+                }
+            });
+        } else {
+            const ptR = n > 60 ? 0 : n > 24 ? 1 : 2;
+            const ptRNw = n > 60 ? 1 : n > 24 ? 2 : 3;
+            new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: netData.map(d => d.label),
+                    datasets: [
+                        { label: 'Assets', data: netData.map(d => d.assets), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: true, tension: 0.4, pointRadius: ptR },
+                        { label: 'Liabilities', data: netData.map(d => d.liabilities), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: ptR },
+                        { label: 'Net Worth', data: netData.map(d => d.net_worth), borderColor: '#6366f1', borderWidth: 3, fill: false, tension: 0.4, pointRadius: ptRNw },
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { ticks: { maxTicksLimit: n > 24 ? 12 : undefined } },
+                        y: { beginAtZero: false, ticks: { callback: fmt } }
+                    },
+                    plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } },
+                    interaction: { mode: 'index', intersect: false }
+                }
+            });
+        }
     }
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateChartTheme);
 })();
 </script>
 {% endblock %}

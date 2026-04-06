@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Finance Tracker{% endblock %}</title>
+    <script>
+        if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -15,9 +20,25 @@
         [x-cloak] { display: none !important; }
         html { font-size: 14px; }
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        html.dark { color-scheme: dark; }
+        html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+        html.dark select,
+        html.dark textarea {
+            background-color: rgb(55 65 81);
+            border-color: rgb(75 85 99);
+            color: rgb(229 231 235);
+        }
+        html.dark input::placeholder,
+        html.dark textarea::placeholder {
+            color: rgb(156 163 175);
+        }
+        html.dark input[type="file"] {
+            color: rgb(156 163 175);
+        }
     </style>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
@@ -31,7 +52,7 @@
         }
     </script>
 </head>
-<body class="h-full bg-gray-50 antialiased" x-data="{ sidebarOpen: true }" hx-headers='{"X-Requested-With": "XMLHttpRequest"}'>
+<body class="h-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased" x-data="{ sidebarOpen: true }" hx-headers='{"X-Requested-With": "XMLHttpRequest"}'>
 
 {% block fullpage %}
 <div class="flex h-full">
@@ -69,7 +90,20 @@
             </a>
             {% endfor %}
         </nav>
-        <div class="border-t border-white/10 p-3">
+        <div class="border-t border-white/10 p-3 space-y-1">
+            <button onclick="toggleTheme()" class="flex items-center text-sm text-brand-300 hover:text-white transition-colors py-2 rounded-lg hover:bg-white/10 w-full"
+                    :class="sidebarOpen ? 'px-3' : 'px-0 justify-center'">
+                <svg class="w-5 h-5 flex-shrink-0 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+                <svg class="w-5 h-5 flex-shrink-0 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                </svg>
+                <span class="ml-3 font-medium" x-show="sidebarOpen" x-transition>
+                    <span class="hidden dark:inline">Light mode</span>
+                    <span class="inline dark:hidden">Dark mode</span>
+                </span>
+            </button>
             <a href="/logout" class="flex items-center text-sm text-brand-300 hover:text-white transition-colors py-2 rounded-lg hover:bg-white/10"
                :class="sidebarOpen ? 'px-3' : 'px-0 justify-center'">
                 <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -82,16 +116,16 @@
 
     <!-- Main content -->
     <div class="flex-1 flex flex-col min-h-0 overflow-auto">
-        <header class="bg-white border-b border-gray-200 px-8 py-5 flex items-center justify-between sticky top-0 z-10">
-            <h1 class="text-lg font-bold text-gray-900 tracking-tight">{% block page_title %}Dashboard{% endblock %}</h1>
+        <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-5 flex items-center justify-between sticky top-0 z-10">
+            <h1 class="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">{% block page_title %}Dashboard{% endblock %}</h1>
             <div class="flex items-center gap-4">
                 {% block header_actions %}{% endblock %}
                 {% if user %}
-                <div class="flex items-center gap-2 pl-4 border-l border-gray-200">
-                    <div class="w-7 h-7 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-semibold">
+                <div class="flex items-center gap-2 pl-4 border-l border-gray-200 dark:border-gray-700">
+                    <div class="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-800 text-brand-700 dark:text-brand-200 flex items-center justify-center text-xs font-semibold">
                         {{ user.display_name[0] | upper }}
                     </div>
-                    <span class="text-sm font-medium text-gray-700 hidden md:inline">{{ user.display_name }}</span>
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:inline">{{ user.display_name }}</span>
                 </div>
                 {% endif %}
             </div>
@@ -136,26 +170,26 @@
          x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
          class="fixed inset-0 z-[61] flex items-center justify-center p-4"
          @click.self="open = false; _cb = null">
-        <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-8 max-w-md w-full">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl ring-1 ring-gray-100 dark:ring-gray-700 p-8 max-w-md w-full">
             <div class="flex items-start gap-4">
                 <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                     :class="style === 'amber' ? 'bg-amber-100' : 'bg-red-100'">
-                    <svg class="w-5 h-5" :class="style === 'amber' ? 'text-amber-600' : 'text-red-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     :class="style === 'amber' ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40'">
+                    <svg class="w-5 h-5" :class="style === 'amber' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                     </svg>
                 </div>
                 <div>
-                    <h3 class="text-base font-semibold text-gray-900" x-text="title"></h3>
-                    <p class="mt-1.5 text-sm text-gray-500 leading-relaxed" x-text="message"></p>
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100" x-text="title"></h3>
+                    <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-relaxed" x-text="message"></p>
                 </div>
             </div>
             <div class="mt-7 flex justify-end gap-3">
                 <button x-ref="cancelBtn" @click="open = false; _cb = null"
-                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2">
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800">
                     Cancel
                 </button>
                 <button @click="open = false; let fn = _cb; _cb = null; if (fn) fn();"
-                        class="px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        class="px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
                         :class="style === 'amber' ? 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500' : 'bg-red-600 hover:bg-red-700 focus:ring-red-500'"
                         x-text="confirmLabel">
                 </button>
@@ -166,6 +200,11 @@
 {% endblock %}
 
 <script>
+function toggleTheme() {
+    var isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+
 document.body.addEventListener('showToast', function(e) {
     window.dispatchEvent(new CustomEvent('notify', { detail: { message: e.detail.message, type: e.detail.type } }));
 });

@@ -271,7 +271,7 @@ def span_to_steps(
         months = (anchor.year - oldest.year) * 12 + (anchor.month - oldest.month) + 1
         return max(months, 2)
 
-    return 12
+    return 1
 
 
 async def net_balance_history(

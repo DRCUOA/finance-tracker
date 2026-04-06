@@ -10,28 +10,12 @@
 {% endblock %}
 
 {% block content %}
-<!-- Summary Cards -->
-<!-- <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Assets</p>
-        <p class="text-xl font-bold text-emerald-600 tabular-nums">{{ total_assets|nzd }}</p>
-    </div>
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Liabilities</p>
-        <p class="text-xl font-bold text-red-600 tabular-nums">{{ total_liabilities|nzd }}</p>
-    </div>
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Net Worth</p>
-        <p class="text-xl font-bold tabular-nums {% if net_worth >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">{{ net_worth|nzd }}</p>
-    </div>
-</div> -->
-
 <!-- Import Coverage -->
 {% if coverage.accounts %}
-<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 mb-8">
-    <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-gray-900">Import Coverage</h3>
-        <a href="/imports" class="text-brand-600 hover:text-brand-500 text-sm font-medium inline-flex items-center gap-1">
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 mb-8">
+    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Import Coverage</h3>
+        <a href="/imports" class="text-brand-600 hover:text-brand-500 dark:text-brand-400 dark:hover:text-brand-300 text-sm font-medium inline-flex items-center gap-1">
             Import
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
         </a>
@@ -40,16 +24,16 @@
         <table class="w-full">
             <thead>
                 <tr>
-                    <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3 pr-4 whitespace-nowrap min-w-[120px]">Account</th>
+                    <th class="text-left text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider pb-3 pr-4 whitespace-nowrap min-w-[120px]">Account</th>
                     {% for m in coverage.months %}
-                    <th class="text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider pb-3 px-0.5 whitespace-nowrap">{{ m }}</th>
+                    <th class="text-center text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider pb-3 px-0.5 whitespace-nowrap">{{ m }}</th>
                     {% endfor %}
                 </tr>
             </thead>
             <tbody>
                 {% for row in coverage.accounts %}
                 <tr>
-                    <td class="text-sm font-medium text-gray-700 pr-4 py-1.5 whitespace-nowrap">{{ row.name }}</td>
+                    <td class="text-sm font-medium text-gray-700 dark:text-gray-300 pr-4 py-1.5 whitespace-nowrap">{{ row.name }}</td>
                     {% for count in row.cells %}
                     <td class="px-0.5 py-1.5">
                         {% if count > 0 %}
@@ -58,12 +42,12 @@
                             <span class="text-[9px] font-bold text-white tabular-nums">{{ count }}</span>
                         </div>
                         {% elif count == 0 %}
-                        <div class="mx-auto h-5 rounded bg-emerald-100 flex items-center justify-center"
+                        <div class="mx-auto h-5 rounded bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center"
                              title="Covered – 0 transactions">
                             <span class="text-[9px] font-bold text-emerald-400 tabular-nums">0</span>
                         </div>
                         {% else %}
-                        <div class="mx-auto h-5 rounded bg-gray-100" title="No import data"></div>
+                        <div class="mx-auto h-5 rounded bg-gray-100 dark:bg-gray-700" title="No import data"></div>
                         {% endif %}
                     </td>
                     {% endfor %}
@@ -77,37 +61,37 @@
 
 
 <!-- Assets -->
-<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 mb-8 overflow-hidden">
-    <div class="px-6 py-5 border-b border-gray-100">
-        <h2 class="text-sm font-semibold text-gray-900">Assets</h2>
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 mb-8 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Assets</h2>
     </div>
-    <div class="divide-y divide-gray-50">
+    <div class="divide-y divide-gray-50 dark:divide-gray-700">
         {% for acct in assets %}
-        <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
+        <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors">
             <div class="min-w-0">
                 <div class="flex items-center gap-2">
-                    <p class="font-medium text-gray-900">{{ acct.name }}</p>
+                    <p class="font-medium text-gray-900 dark:text-gray-100">{{ acct.name }}</p>
                     {% if not acct.is_active %}
-                    <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500">Inactive</span>
+                    <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Inactive</span>
                     {% endif %}
                 </div>
-                <p class="text-sm text-gray-400 mt-0.5">
+                <p class="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
                     {{ acct.account_type.value | replace("_", " ") | title }}{% if acct.institution %} · {{ acct.institution }}{% endif %}
                     <span class="inline-block ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide
-                        {% if acct.term.value == 'short' %}bg-amber-100 text-amber-700
-                        {% elif acct.term.value == 'medium' %}bg-sky-100 text-sky-700
-                        {% else %}bg-indigo-100 text-indigo-700{% endif %}">{{ acct.term.value }}</span>
+                        {% if acct.term.value == 'short' %}bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400
+                        {% elif acct.term.value == 'medium' %}bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400
+                        {% else %}bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400{% endif %}">{{ acct.term.value }}</span>
                 </p>
             </div>
             <div class="flex items-center gap-4 ml-4">
-                <span class="text-base font-bold text-emerald-600 tabular-nums whitespace-nowrap">{{ acct.current_balance|nzd }}</span>
-                <a href="/accounts/{{ acct.id }}/edit" class="text-gray-300 hover:text-brand-600 transition-colors">
+                <span class="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums whitespace-nowrap">{{ acct.current_balance|nzd }}</span>
+                <a href="/accounts/{{ acct.id }}/edit" class="text-gray-300 dark:text-gray-600 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 </a>
             </div>
         </div>
         {% else %}
-        <p class="px-6 py-12 text-center text-gray-400 text-sm">No asset accounts yet.</p>
+        <p class="px-6 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">No asset accounts yet.</p>
         {% endfor %}
     </div>
 </div>
@@ -115,37 +99,37 @@
 
 
 <!-- Liabilities -->
-<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
-    <div class="px-6 py-5 border-b border-gray-100">
-        <h2 class="text-sm font-semibold text-gray-900">Liabilities</h2>
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Liabilities</h2>
     </div>
-    <div class="divide-y divide-gray-50">
+    <div class="divide-y divide-gray-50 dark:divide-gray-700">
         {% for acct in liabilities %}
-        <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
+        <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors">
             <div class="min-w-0">
                 <div class="flex items-center gap-2">
-                    <p class="font-medium text-gray-900">{{ acct.name }}</p>
+                    <p class="font-medium text-gray-900 dark:text-gray-100">{{ acct.name }}</p>
                     {% if not acct.is_active %}
-                    <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500">Inactive</span>
+                    <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Inactive</span>
                     {% endif %}
                 </div>
-                <p class="text-sm text-gray-400 mt-0.5">
+                <p class="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
                     {{ acct.account_type.value | replace("_", " ") | title }}{% if acct.institution %} · {{ acct.institution }}{% endif %}
                     <span class="inline-block ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide
-                        {% if acct.term.value == 'short' %}bg-amber-100 text-amber-700
-                        {% elif acct.term.value == 'medium' %}bg-sky-100 text-sky-700
-                        {% else %}bg-indigo-100 text-indigo-700{% endif %}">{{ acct.term.value }}</span>
+                        {% if acct.term.value == 'short' %}bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400
+                        {% elif acct.term.value == 'medium' %}bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400
+                        {% else %}bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400{% endif %}">{{ acct.term.value }}</span>
                 </p>
             </div>
             <div class="flex items-center gap-4 ml-4">
-                <span class="text-base font-bold text-red-600 tabular-nums whitespace-nowrap">{{ acct.current_balance|abs|nzd }}</span>
-                <a href="/accounts/{{ acct.id }}/edit" class="text-gray-300 hover:text-brand-600 transition-colors">
+                <span class="text-base font-bold text-red-600 dark:text-red-400 tabular-nums whitespace-nowrap">{{ acct.current_balance|abs|nzd }}</span>
+                <a href="/accounts/{{ acct.id }}/edit" class="text-gray-300 dark:text-gray-600 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 </a>
             </div>
         </div>
         {% else %}
-        <p class="px-6 py-12 text-center text-gray-400 text-sm">No liability accounts yet.</p>
+        <p class="px-6 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">No liability accounts yet.</p>
         {% endfor %}
     </div>
 </div>

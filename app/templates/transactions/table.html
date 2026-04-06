@@ -1,50 +1,50 @@
 <span x-init="totalFiltered = {{ total }}" class="hidden"></span>
-<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
     <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-100">
-            <thead class="bg-gray-50/60">
+        <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+            <thead class="bg-gray-50/60 dark:bg-gray-700/60">
                 <tr>
-                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-8">
+                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-8">
                         <input type="checkbox" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                                x-effect="$el.indeterminate = selected.length > 0 && selected.length < totalFiltered; $el.checked = selected.length > 0 && selected.length >= totalFiltered"
                                @change="$event.target.checked ? selectAllFiltered() : clearSelection()">
                     </th>
-                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         <a href="?sort_by=date&sort_dir={{ 'asc' if sort_by == 'date' and sort_dir == 'desc' else 'desc' }}&search={{ search }}&account_id={{ account_id }}&category_id={{ category_id }}&date_from={{ date_from }}&date_to={{ date_to }}"
                            class="hover:text-brand-600 transition-colors">Date {% if sort_by == 'date' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}</a>
                     </th>
-                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</th>
-                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Account</th>
-                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                    <th class="px-4 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
+                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account</th>
+                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                    <th class="px-4 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         <a href="?sort_by=amount&sort_dir={{ 'asc' if sort_by == 'amount' and sort_dir == 'desc' else 'desc' }}&search={{ search }}&account_id={{ account_id }}&category_id={{ category_id }}&date_from={{ date_from }}&date_to={{ date_to }}"
                            class="hover:text-brand-600 transition-colors">Amount {% if sort_by == 'amount' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}</a>
                     </th>
-                    <th class="px-4 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-10">
-                        <svg class="w-4 h-4 inline text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <th class="px-4 py-3.5 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-10">
+                        <svg class="w-4 h-4 inline text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     </th>
-                    <th class="px-4 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Actions</th>
+                    <th class="px-4 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">Actions</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-50">
+            <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
                 {% for tx in transactions %}
-                <tr class="hover:bg-gray-50/50 transition-colors group">
+                <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors group">
                     <td class="px-4 py-3.5">
                         <input type="checkbox" value="{{ tx.id }}" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                                :checked="selected.includes('{{ tx.id }}')"
                                @change="toggleOne('{{ tx.id }}', $event.target.checked)">
                     </td>
-                    <td class="px-4 py-3.5 text-sm text-gray-900 whitespace-nowrap">{{ tx.date.isoformat() }}</td>
-                    <td class="px-4 py-3.5 text-sm text-gray-900">{{ tx.description }}</td>
-                    <td class="px-4 py-3.5 text-sm text-gray-500">{{ tx.account.name if tx.account else '—' }}</td>
+                    <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ tx.date.isoformat() }}</td>
+                    <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100">{{ tx.description }}</td>
+                    <td class="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{{ tx.account.name if tx.account else '—' }}</td>
                     <td class="px-4 py-3.5 text-sm">
                         {% if tx.category %}
                         <span class="px-2.5 py-1 rounded-full text-xs font-medium
-                            {% if tx.category.category_type.value == 'income' %}bg-emerald-50 text-emerald-700
-                            {% elif tx.category.category_type.value == 'expense' %}bg-red-50 text-red-700
-                            {% else %}bg-blue-50 text-blue-700{% endif %}">{{ tx.category.name }}</span>
+                            {% if tx.category.category_type.value == 'income' %}bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400
+                            {% elif tx.category.category_type.value == 'expense' %}bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400
+                            {% else %}bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400{% endif %}">{{ tx.category.name }}</span>
                         {% else %}
-                        <span class="text-gray-400 text-xs">Uncategorised</span>
+                        <span class="text-gray-400 dark:text-gray-500 text-xs">Uncategorised</span>
                         {% endif %}
                     </td>
                     <td class="px-4 py-3.5 text-sm text-right font-semibold tabular-nums whitespace-nowrap {% if tx.amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
@@ -58,14 +58,14 @@
                     <td class="px-4 py-3.5">
                         <div class="flex items-center justify-end gap-1">
                             <a href="/transactions/{{ tx.id }}/edit"
-                               class="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                               class="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
                                title="Edit">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </a>
                             <button hx-post="/transactions/{{ tx.id }}/delete"
                                     hx-swap="none"
                                     hx-confirm="Delete this transaction?"
-                                    class="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                    class="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                                     title="Delete">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             </button>
@@ -73,7 +73,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" class="px-4 py-12 text-center text-gray-400 text-sm">No transactions found.</td></tr>
+                <tr><td colspan="8" class="px-4 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">No transactions found.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -83,15 +83,15 @@
 <!-- Pagination -->
 {% if total_pages > 1 %}
 <div class="mt-5 flex items-center justify-between">
-    <p class="text-sm text-gray-500">{{ total }} transaction{{ 's' if total != 1 }} · Page {{ page }} of {{ total_pages }}</p>
+    <p class="text-sm text-gray-500 dark:text-gray-400">{{ total }} transaction{{ 's' if total != 1 }} · Page {{ page }} of {{ total_pages }}</p>
     <div class="flex gap-2">
         {% if page > 1 %}
         <a href="?page={{ page - 1 }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}&search={{ search }}&account_id={{ account_id }}&category_id={{ category_id }}&date_from={{ date_from }}&date_to={{ date_to }}"
-           class="px-4 py-1.5 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">Previous</a>
+           class="px-4 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Previous</a>
         {% endif %}
         {% if page < total_pages %}
         <a href="?page={{ page + 1 }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}&search={{ search }}&account_id={{ account_id }}&category_id={{ category_id }}&date_from={{ date_from }}&date_to={{ date_to }}"
-           class="px-4 py-1.5 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">Next</a>
+           class="px-4 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Next</a>
         {% endif %}
     </div>
 </div>

@@ -4,15 +4,15 @@
 
 {% block content %}
 <div class="max-w-2xl">
-    <form method="post" action="/accounts/{{ account.id ~ '/edit' if account else 'create' }}" class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-8 space-y-6">
+    <form method="post" action="/accounts/{{ account.id ~ '/edit' if account else 'create' }}" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
         <div>
-            <label for="name" class="block text-sm font-medium text-gray-700 mb-1.5">Account Name</label>
+            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Account Name</label>
             <input type="text" name="name" id="name" required value="{{ account.name if account else '' }}"
                    class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
         </div>
         <div class="grid grid-cols-2 gap-5">
             <div>
-                <label for="account_type" class="block text-sm font-medium text-gray-700 mb-1.5">Type</label>
+                <label for="account_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Type</label>
                 <select name="account_type" id="account_type" class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
                     {% for t in account_types %}
                     <option value="{{ t.value }}" {% if account and account.account_type == t %}selected{% endif %}>{{ t.value | replace("_", " ") | title }}</option>
@@ -20,7 +20,7 @@
                 </select>
             </div>
             <div>
-                <label for="term" class="block text-sm font-medium text-gray-700 mb-1.5">Term</label>
+                <label for="term" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Term</label>
                 <select name="term" id="term" class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
                     {% for t in account_terms %}
                     <option value="{{ t.value }}" {% if account and account.term == t %}selected{% endif %}>{{ t.value | title }}</option>
@@ -30,18 +30,18 @@
         </div>
         <div class="grid grid-cols-2 gap-5">
             <div>
-                <label for="currency" class="block text-sm font-medium text-gray-700 mb-1.5">Currency</label>
+                <label for="currency" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Currency</label>
                 <input type="text" name="currency" id="currency" value="{{ account.currency if account else 'NZD' }}" maxlength="3"
                        class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
             </div>
             <div>
-                <label for="initial_balance" class="block text-sm font-medium text-gray-700 mb-1.5">Initial Balance</label>
+                <label for="initial_balance" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Initial Balance</label>
                 <input type="number" step="0.01" name="initial_balance" id="initial_balance" value="{{ account.initial_balance if account else '0.00' }}"
                        class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
             </div>
         </div>
         <div>
-            <label for="institution" class="block text-sm font-medium text-gray-700 mb-1.5">Institution</label>
+            <label for="institution" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Institution</label>
             <input type="text" name="institution" id="institution" value="{{ account.institution if account else '' }}"
                    class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
         </div>
@@ -49,21 +49,21 @@
         <div class="flex items-center">
             <input type="checkbox" name="is_active" id="is_active" value="true" {% if account.is_active %}checked{% endif %}
                    class="h-4 w-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500">
-            <label for="is_active" class="ml-2.5 text-sm text-gray-700">Active</label>
+            <label for="is_active" class="ml-2.5 text-sm text-gray-700 dark:text-gray-300">Active</label>
         </div>
         {% endif %}
-        <div class="flex items-center justify-between pt-6 border-t border-gray-100">
+        <div class="flex items-center justify-between pt-6 border-t border-gray-100 dark:border-gray-700">
             <div>
                 {% if account %}
                     <button type="button"
                             data-confirm="This will permanently delete this account and all its transactions."
                             data-confirm-title="Delete account?"
                             data-confirm-action="/accounts/{{ account.id }}/delete"
-                            class="text-red-600 hover:text-red-800 text-sm font-medium transition-colors">Delete Account</button>
+                            class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium transition-colors">Delete Account</button>
                 {% endif %}
             </div>
             <div class="flex gap-3">
-                <a href="/accounts" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">Cancel</a>
+                <a href="/accounts" class="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</a>
                 <button type="submit" class="px-5 py-2.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors shadow-sm">
                     {{ "Save Changes" if account else "Create Account" }}
                 </button>

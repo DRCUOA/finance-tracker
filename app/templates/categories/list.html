@@ -6,52 +6,52 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
     <!-- Category Tree -->
     <div class="lg:col-span-2">
-        <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
-            <div class="px-6 py-5 border-b border-gray-100">
-                <h2 class="text-sm font-semibold text-gray-900">Category Tree</h2>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Category Tree</h2>
             </div>
-            <div class="divide-y divide-gray-50">
+            <div class="divide-y divide-gray-50 dark:divide-gray-700">
                 {% for parent in tree %}
                 <div x-data="{ open: false, editing: false }">
-                    <div class="px-6 py-3.5 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors" @click="open = !open">
+                    <div class="px-6 py-3.5 flex items-center justify-between hover:bg-gray-50/50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors" @click="open = !open">
                         <div class="flex items-center gap-3">
-                            <svg class="w-4 h-4 text-gray-400 transition-transform duration-200" :class="open ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200" :class="open ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                             </svg>
-                            <span class="font-medium text-gray-900">{{ parent.name }}</span>
+                            <span class="font-medium text-gray-900 dark:text-gray-100">{{ parent.name }}</span>
                             <span class="px-2.5 py-0.5 text-xs font-medium rounded-full
-                                {% if parent.category_type.value == 'income' %}bg-emerald-50 text-emerald-700
-                                {% elif parent.category_type.value == 'expense' %}bg-red-50 text-red-700
-                                {% else %}bg-blue-50 text-blue-700{% endif %}">
+                                {% if parent.category_type.value == 'income' %}bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400
+                                {% elif parent.category_type.value == 'expense' %}bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400
+                                {% else %}bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400{% endif %}">
                                 {{ parent.category_type.value }}
                             </span>
                         </div>
                         <div class="flex items-center gap-3" @click.stop>
                             {% if parent.budgeted_amount > 0 %}
-                            <span class="text-sm text-gray-400 tabular-nums">{{ parent.budgeted_amount|nzd }}/mo</span>
+                            <span class="text-sm text-gray-400 dark:text-gray-500 tabular-nums">{{ parent.budgeted_amount|nzd }}/mo</span>
                             {% endif %}
-                            <button @click="editing = !editing" class="text-gray-300 hover:text-brand-600 transition-colors">
+                            <button @click="editing = !editing" class="text-gray-300 dark:text-gray-600 hover:text-brand-600 transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </button>
                         </div>
                     </div>
                     <!-- Edit form -->
-                    <div x-show="editing" x-cloak class="px-6 py-4 bg-gray-50/80 border-t border-gray-100">
+                    <div x-show="editing" x-cloak class="px-6 py-4 bg-gray-50/80 dark:bg-gray-700/80 border-t border-gray-100 dark:border-gray-700">
                         <form method="post" action="/categories/{{ parent.id }}/edit" class="flex items-start gap-3">
                             <div class="flex-1">
-                                <label class="text-xs font-medium text-gray-500 mb-1 block">Name</label>
+                                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Name</label>
                                 <input type="text" name="name" value="{{ parent.name }}" class="block w-full rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500">
                             </div>
                             <div x-data="budgetInput({{ parent.budgeted_amount }})">
-                                <label class="text-xs font-medium text-gray-500 mb-1 block">Budget</label>
+                                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Budget</label>
                                 <input type="number" step="0.01" x-model.number="amt" @focus="showPeriod = true" class="block w-28 rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500">
                                 <input type="hidden" name="budgeted_amount" :value="monthly.toFixed(2)">
                                 <div x-show="showPeriod" x-transition class="mt-1.5 inline-flex rounded-md shadow-sm">
-                                    <button type="button" @click="period = 'week'" :class="period === 'week' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="px-2 py-0.5 text-xs font-medium border rounded-l-md transition-colors">Wk</button>
-                                    <button type="button" @click="period = 'month'" :class="period === 'month' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-2 py-0.5 text-xs font-medium border transition-colors">Mo</button>
-                                    <button type="button" @click="period = 'annual'" :class="period === 'annual' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-2 py-0.5 text-xs font-medium border rounded-r-md transition-colors">Yr</button>
+                                    <button type="button" @click="period = 'week'" :class="period === 'week' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'" class="px-2 py-0.5 text-xs font-medium border rounded-l-md transition-colors">Wk</button>
+                                    <button type="button" @click="period = 'month'" :class="period === 'month' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'" class="-ml-px px-2 py-0.5 text-xs font-medium border transition-colors">Mo</button>
+                                    <button type="button" @click="period = 'annual'" :class="period === 'annual' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'" class="-ml-px px-2 py-0.5 text-xs font-medium border rounded-r-md transition-colors">Yr</button>
                                 </div>
-                                <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 mt-1 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
+                                <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 dark:text-gray-500 mt-1 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
                             </div>
                             <button type="submit" class="mt-5 px-4 py-1.5 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors">Save</button>
                         </form>
@@ -61,26 +61,26 @@
                                 data-confirm-action="/categories/{{ parent.id }}/delete">Delete category</button>
                     </div>
                     <!-- Children -->
-                    <div x-show="open" x-cloak x-transition class="bg-gray-50/40">
+                    <div x-show="open" x-cloak x-transition class="bg-gray-50/40 dark:bg-gray-700/40">
                         {% for child in parent.children | sort(attribute='sort_order') %}
                         <div x-data="{ childEditing: false, showKw: false }">
-                            <div class="pl-14 pr-6 py-3 flex items-center justify-between hover:bg-gray-100/50 transition-colors">
+                            <div class="pl-14 pr-6 py-3 flex items-center justify-between hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors">
                                 <div class="flex items-center gap-2">
-                                    <span class="text-sm text-gray-700">{{ child.name }}</span>
+                                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ child.name }}</span>
                                     {% if child.keywords %}
-                                    <button @click="showKw = !showKw" class="text-xs text-gray-400 hover:text-brand-600 transition-colors">({{ child.keywords|length }} keywords)</button>
+                                    <button @click="showKw = !showKw" class="text-xs text-gray-400 dark:text-gray-500 hover:text-brand-600 transition-colors">({{ child.keywords|length }} keywords)</button>
                                     {% endif %}
                                 </div>
                                 <div class="flex items-center gap-3">
                                     {% if child.budgeted_amount > 0 %}
-                                    <span class="text-xs text-gray-400 tabular-nums">{{ child.budgeted_amount|nzd }}/mo</span>
+                                    <span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums">{{ child.budgeted_amount|nzd }}/mo</span>
                                     {% endif %}
-                                    <button @click="childEditing = !childEditing" class="text-gray-300 hover:text-brand-600 transition-colors">
+                                    <button @click="childEditing = !childEditing" class="text-gray-300 dark:text-gray-600 hover:text-brand-600 transition-colors">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                     </button>
                                 </div>
                             </div>
-                            <div x-show="childEditing" x-cloak class="pl-14 pr-6 py-3 bg-white border-t border-gray-100">
+                            <div x-show="childEditing" x-cloak class="pl-14 pr-6 py-3 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
                                 <form method="post" action="/categories/{{ child.id }}/edit" class="flex items-start gap-3">
                                     <div class="flex-1">
                                         <input type="text" name="name" value="{{ child.name }}" class="block w-full rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500">
@@ -89,11 +89,11 @@
                                         <input type="number" step="0.01" x-model.number="amt" @focus="showPeriod = true" class="block w-28 rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500" placeholder="Budget">
                                         <input type="hidden" name="budgeted_amount" :value="monthly.toFixed(2)">
                                         <div x-show="showPeriod" x-transition class="mt-1.5 inline-flex rounded-md shadow-sm">
-                                            <button type="button" @click="period = 'week'" :class="period === 'week' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="px-2 py-0.5 text-xs font-medium border rounded-l-md transition-colors">Wk</button>
-                                            <button type="button" @click="period = 'month'" :class="period === 'month' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-2 py-0.5 text-xs font-medium border transition-colors">Mo</button>
-                                            <button type="button" @click="period = 'annual'" :class="period === 'annual' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-2 py-0.5 text-xs font-medium border rounded-r-md transition-colors">Yr</button>
+                                            <button type="button" @click="period = 'week'" :class="period === 'week' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'" class="px-2 py-0.5 text-xs font-medium border rounded-l-md transition-colors">Wk</button>
+                                            <button type="button" @click="period = 'month'" :class="period === 'month' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'" class="-ml-px px-2 py-0.5 text-xs font-medium border transition-colors">Mo</button>
+                                            <button type="button" @click="period = 'annual'" :class="period === 'annual' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'" class="-ml-px px-2 py-0.5 text-xs font-medium border rounded-r-md transition-colors">Yr</button>
                                         </div>
-                                        <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 mt-1 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
+                                        <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 dark:text-gray-500 mt-1 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
                                     </div>
                                     <button type="submit" class="px-3 py-1.5 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 transition-colors">Save</button>
                                 </form>
@@ -111,10 +111,10 @@
                             <!-- Keywords -->
                             <div x-show="showKw" x-cloak x-transition class="pl-16 pr-6 pb-3 flex flex-wrap gap-1.5">
                                 {% for kw in child.keywords %}
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-100 text-xs text-gray-600 font-medium">
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-400 font-medium">
                                     {{ kw.keyword }}
                                     <form method="post" action="/categories/keywords/{{ kw.id }}/delete" class="inline ml-1.5">
-                                        <button type="submit" class="text-gray-400 hover:text-red-500 transition-colors">&times;</button>
+                                        <button type="submit" class="text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors">&times;</button>
                                     </form>
                                 </span>
                                 {% endfor %}
@@ -124,7 +124,7 @@
                     </div>
                 </div>
                 {% else %}
-                <p class="px-6 py-12 text-center text-gray-400 text-sm">No categories yet.</p>
+                <p class="px-6 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">No categories yet.</p>
                 {% endfor %}
             </div>
         </div>
@@ -132,15 +132,15 @@
 
     <!-- Add Category -->
     <div>
-        <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6 sticky top-24">
-            <h3 class="text-sm font-semibold text-gray-900 mb-4">Add Category</h3>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 sticky top-24">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Add Category</h3>
             <form method="post" action="/categories/create" class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Name</label>
                     <input type="text" name="name" required class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Type</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Type</label>
                     <select name="category_type" class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
                         {% for t in category_types %}
                         <option value="{{ t.value }}">{{ t.value | title }}</option>
@@ -148,7 +148,7 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Parent <span class="text-gray-400 font-normal">(optional)</span></label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Parent <span class="text-gray-400 dark:text-gray-500 font-normal">(optional)</span></label>
                     <select name="parent_id" class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
                         <option value="">None (top-level)</option>
                         {% for parent in tree %}
@@ -157,15 +157,15 @@
                     </select>
                 </div>
                 <div x-data="budgetInput(0)">
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Budget</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Budget</label>
                     <input type="number" step="0.01" x-model.number="amt" @focus="showPeriod = true" class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
                     <input type="hidden" name="budgeted_amount" :value="monthly.toFixed(2)">
                     <div x-show="showPeriod" x-transition class="mt-2 inline-flex rounded-lg shadow-sm">
-                        <button type="button" @click="period = 'week'" :class="period === 'week' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="px-3 py-1 text-xs font-medium border rounded-l-lg transition-colors">Week</button>
-                        <button type="button" @click="period = 'month'" :class="period === 'month' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-3 py-1 text-xs font-medium border transition-colors">Month</button>
-                        <button type="button" @click="period = 'annual'" :class="period === 'annual' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'" class="-ml-px px-3 py-1 text-xs font-medium border rounded-r-lg transition-colors">Annual</button>
+                        <button type="button" @click="period = 'week'" :class="period === 'week' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'" class="px-3 py-1 text-xs font-medium border rounded-l-lg transition-colors">Week</button>
+                        <button type="button" @click="period = 'month'" :class="period === 'month' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'" class="-ml-px px-3 py-1 text-xs font-medium border transition-colors">Month</button>
+                        <button type="button" @click="period = 'annual'" :class="period === 'annual' ? 'bg-brand-600 text-white border-brand-600 z-10' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'" class="-ml-px px-3 py-1 text-xs font-medium border rounded-r-lg transition-colors">Annual</button>
                     </div>
-                    <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 mt-1.5 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
+                    <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 dark:text-gray-500 mt-1.5 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
                 </div>
                 <button type="submit" class="w-full px-4 py-2.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors shadow-sm">Add Category</button>
             </form>

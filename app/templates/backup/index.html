@@ -6,31 +6,31 @@
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
     <!-- Export -->
     <div class="space-y-6">
-        <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-8">
-            <h3 class="text-sm font-semibold text-gray-900 mb-2">Full Backup</h3>
-            <p class="text-sm text-gray-500 mb-6">Export all your data as a single JSON file. Includes accounts, categories, transactions, budgets, and keyword rules.</p>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Full Backup</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Export all your data as a single JSON file. Includes accounts, categories, transactions, budgets, and keyword rules.</p>
             <a href="/backup/export/full" class="inline-flex items-center px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors shadow-sm">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Download Full Backup (JSON)
             </a>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-8">
-            <h3 class="text-sm font-semibold text-gray-900 mb-2">Export Tables</h3>
-            <p class="text-sm text-gray-500 mb-6">Export individual data tables.</p>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Export Tables</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Export individual data tables.</p>
             <div class="space-y-4">
                 <div class="flex items-center justify-between py-2">
-                    <span class="text-sm font-medium text-gray-700">Transactions</span>
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Transactions</span>
                     <div class="flex gap-2">
-                        <a href="/backup/export/transactions?fmt=csv" class="px-3.5 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors">CSV</a>
-                        <a href="/backup/export/transactions?fmt=json" class="px-3.5 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors">JSON</a>
+                        <a href="/backup/export/transactions?fmt=csv" class="px-3.5 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">CSV</a>
+                        <a href="/backup/export/transactions?fmt=json" class="px-3.5 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">JSON</a>
                     </div>
                 </div>
-                <div class="flex items-center justify-between py-2 border-t border-gray-50">
-                    <span class="text-sm font-medium text-gray-700">Accounts</span>
+                <div class="flex items-center justify-between py-2 border-t border-gray-50 dark:border-gray-700">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Accounts</span>
                     <div class="flex gap-2">
-                        <a href="/backup/export/accounts?fmt=csv" class="px-3.5 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors">CSV</a>
-                        <a href="/backup/export/accounts?fmt=json" class="px-3.5 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors">JSON</a>
+                        <a href="/backup/export/accounts?fmt=csv" class="px-3.5 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">CSV</a>
+                        <a href="/backup/export/accounts?fmt=json" class="px-3.5 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">JSON</a>
                     </div>
                 </div>
             </div>
@@ -39,17 +39,17 @@
 
     <!-- Restore -->
     <div>
-        <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-8">
-            <h3 class="text-sm font-semibold text-gray-900 mb-4">Restore Backup</h3>
-            <div class="bg-amber-50 ring-1 ring-amber-100 rounded-xl p-4 mb-6">
-                <p class="text-sm text-amber-700">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Restore Backup</h3>
+            <div class="bg-amber-50 dark:bg-amber-900/30 ring-1 ring-amber-100 dark:ring-amber-800 rounded-xl p-4 mb-6">
+                <p class="text-sm text-amber-700 dark:text-amber-400">
                     <strong>Warning:</strong> Restoring a backup will replace all your existing data (accounts, categories, transactions, budgets). This cannot be undone.
                 </p>
             </div>
             <form method="post" action="/backup/restore" enctype="multipart/form-data" class="space-y-5">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Backup File (JSON)</label>
-                    <input type="file" name="file" accept=".json" required class="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Backup File (JSON)</label>
+                    <input type="file" name="file" accept=".json" required class="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 dark:file:bg-brand-900/40 dark:file:text-brand-300">
                 </div>
                 <button type="button"
                         data-confirm="This will replace ALL your existing data including accounts, categories, and transactions. This cannot be undone."

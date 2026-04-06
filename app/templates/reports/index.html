@@ -9,61 +9,61 @@
 {% block content %}
 <!-- Period Summary -->
 <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Income</p>
-        <p class="text-xl font-bold text-emerald-600 tabular-nums">{{ summary.income|nzd }}</p>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Income</p>
+        <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ summary.income|nzd }}</p>
     </div>
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Expenses</p>
-        <p class="text-xl font-bold text-red-600 tabular-nums">{{ summary.expenses|nzd }}</p>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Expenses</p>
+        <p class="text-xl font-bold text-red-600 dark:text-red-400 tabular-nums">{{ summary.expenses|nzd }}</p>
     </div>
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Net Savings</p>
-        <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">{{ summary.net|nzd }}</p>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Net Savings</p>
+        <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ summary.net|nzd }}</p>
     </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
     <!-- Budget vs Actual Chart -->
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <h3 class="text-sm font-semibold text-gray-900 mb-4">Budget vs Actual</h3>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Budget vs Actual</h3>
         <canvas id="budgetChart" height="300"></canvas>
     </div>
 
     <!-- Spending by Category (Doughnut) -->
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-        <h3 class="text-sm font-semibold text-gray-900 mb-4">Spending by Category</h3>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Spending by Category</h3>
         <canvas id="categoryChart" height="300"></canvas>
     </div>
 </div>
 
 <!-- Budget vs Actual Table -->
-<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 mb-10 overflow-hidden">
-    <div class="px-6 py-5 border-b border-gray-100">
-        <h3 class="text-sm font-semibold text-gray-900">Budget vs Actual Detail</h3>
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 mb-10 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Budget vs Actual Detail</h3>
     </div>
     <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-100">
-            <thead class="bg-gray-50/60">
+        <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+            <thead class="bg-gray-50/60 dark:bg-gray-700/60">
                 <tr>
-                    <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Budgeted</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actual</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Variance</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">%</th>
+                    <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Budgeted</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actual</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Variance</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">%</th>
                     <th class="px-6 py-3.5 w-20"></th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-50">
+            <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
                 {% for row in budget_data %}
-                <tr class="hover:bg-gray-50/50 transition-colors">
-                    <td class="px-6 py-3.5 text-sm font-medium text-gray-900">{{ row.category_name }}</td>
-                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 tabular-nums">{{ row.budgeted|nzd }}</td>
-                    <td class="px-6 py-3.5 text-sm text-right font-medium text-gray-900 tabular-nums">{{ row.actual|nzd }}</td>
-                    <td class="px-6 py-3.5 text-sm text-right tabular-nums {% if row.variance >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                    <td class="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">{{ row.category_name }}</td>
+                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.budgeted|nzd }}</td>
+                    <td class="px-6 py-3.5 text-sm text-right font-medium text-gray-900 dark:text-gray-100 tabular-nums">{{ row.actual|nzd }}</td>
+                    <td class="px-6 py-3.5 text-sm text-right tabular-nums {% if row.variance >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">
                         {{ row.variance|nzd }}
                     </td>
-                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 tabular-nums">{{ row.pct }}%</td>
+                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.pct }}%</td>
                     <td class="px-6 py-3.5 text-right">
                         <a href="/reports/breakdown/{{ row.category_id }}?period={{ period }}&ref={{ start }}" class="text-brand-600 hover:text-brand-800 text-xs font-medium">Details</a>
                     </td>
@@ -75,25 +75,25 @@
 </div>
 
 <!-- Category Averages -->
-<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 mb-10 overflow-hidden">
-    <div class="px-6 py-5 border-b border-gray-100">
-        <h3 class="text-sm font-semibold text-gray-900">{{ avg_label }} <span class="font-normal text-gray-400">(last 6 periods)</span></h3>
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 mb-10 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ avg_label }} <span class="font-normal text-gray-400 dark:text-gray-500">(last 6 periods)</span></h3>
     </div>
     <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-100">
-            <thead class="bg-gray-50/60">
+        <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+            <thead class="bg-gray-50/60 dark:bg-gray-700/60">
                 <tr>
-                    <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">{{ avg_label }}</th>
+                    <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total</th>
+                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ avg_label }}</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-50">
+            <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
                 {% for row in averages %}
-                <tr class="hover:bg-gray-50/50 transition-colors">
-                    <td class="px-6 py-3.5 text-sm font-medium text-gray-900">{{ row.category_name }}</td>
-                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 tabular-nums">{{ row.total|nzd }}</td>
-                    <td class="px-6 py-3.5 text-sm text-right font-medium text-gray-900 tabular-nums">{{ row.average|nzd }}</td>
+                <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                    <td class="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">{{ row.category_name }}</td>
+                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.total|nzd }}</td>
+                    <td class="px-6 py-3.5 text-sm text-right font-medium text-gray-900 dark:text-gray-100 tabular-nums">{{ row.average|nzd }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -102,16 +102,20 @@
 </div>
 
 <!-- Net Worth Trend -->
-<div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6">
-    <h3 class="text-sm font-semibold text-gray-900 mb-4">
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
         Net Worth Trend
-        <span class="font-normal text-gray-400 ml-1">(12 {{ period }}s)</span>
+        <span class="font-normal text-gray-400 dark:text-gray-500 ml-1">(12 {{ period }}s)</span>
     </h3>
     <canvas id="netWorthChart" height="200"></canvas>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    var isDark = document.documentElement.classList.contains('dark');
+    Chart.defaults.color = isDark ? '#9ca3af' : '#666';
+    Chart.defaults.borderColor = isDark ? 'rgba(75, 85, 99, 0.5)' : 'rgba(0, 0, 0, 0.1)';
+
     const fmt = v => '$' + Number(v).toLocaleString('en-NZ', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     const ttCb = { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } };
 

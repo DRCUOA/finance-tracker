@@ -4,14 +4,14 @@
 
 {% block content %}
 <div class="max-w-2xl">
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-8">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8">
         <div class="mb-8">
-            <h2 class="text-sm font-semibold text-gray-900">Upload Bank Statement</h2>
-            <p class="text-sm text-gray-500 mt-1.5">Upload a CSV or OFX/QFX file from your bank.</p>
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Upload Bank Statement</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1.5">Upload a CSV or OFX/QFX file from your bank.</p>
         </div>
         <form method="post" action="/imports/upload" enctype="multipart/form-data" class="space-y-6">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Account</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Account</label>
                 <select name="account_id" required class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
                     {% for a in accounts %}
                     <option value="{{ a.id }}">{{ a.name }}</option>
@@ -19,23 +19,23 @@
                 </select>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">File</label>
-                <div class="mt-1 flex justify-center px-6 pt-8 pb-8 border-2 border-gray-200 border-dashed rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">File</label>
+                <div class="mt-1 flex justify-center px-6 pt-8 pb-8 border-2 border-gray-200 dark:border-gray-700 border-dashed rounded-2xl bg-gray-50/50 dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <div class="text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-300" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <svg class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" stroke="currentColor" fill="none" viewBox="0 0 48 48">
                             <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                         <div class="mt-4">
-                            <input type="file" name="file" accept=".csv,.ofx,.qfx" required class="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+                            <input type="file" name="file" accept=".csv,.ofx,.qfx" required class="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 dark:file:bg-brand-900/40 dark:file:text-brand-300">
                         </div>
-                        <p class="mt-2 text-xs text-gray-400">CSV, OFX, or QFX files</p>
+                        <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">CSV, OFX, or QFX files</p>
                     </div>
                 </div>
             </div>
             <button type="submit" class="w-full px-4 py-2.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors shadow-sm">Upload & Preview</button>
         </form>
 
-        <div class="mt-6 pt-6 border-t border-gray-100">
+        <div class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
             <a href="/imports/migrate" class="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-500 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Migrate from another finance tracker (JSON export)
