@@ -13,6 +13,99 @@
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script>
+    (function() {
+        var HV_RAISE = 14, HV_SCALE = 1.12, LERP = 0.14;
+
+        Chart.register({
+            id: 'doughnutHover',
+
+            beforeLayout: function(chart) {
+                if (chart.config.type !== 'doughnut') return;
+                if (!chart._hvOrigPad) {
+                    var p = chart.options.layout && chart.options.layout.padding;
+                    if (typeof p === 'number') p = {top:p, right:p, bottom:p, left:p};
+                    chart._hvOrigPad = {
+                        top: (p && p.top) || 0,
+                        right: (p && p.right) || 0,
+                        bottom: (p && p.bottom) || 0,
+                        left: (p && p.left) || 0
+                    };
+                }
+                var o = chart._hvOrigPad;
+                if (!chart.options.layout) chart.options.layout = {};
+                chart.options.layout.padding = {
+                    top:    o.top + HV_RAISE + 4,
+                    bottom: o.bottom + 4,
+                    left:   o.left + 12,
+                    right:  o.right + 12
+                };
+            },
+
+            beforeDraw: function(chart) {
+                if (chart.config.type !== 'doughnut') return;
+                var meta = chart.getDatasetMeta(0);
+                if (!meta || !meta.data || !meta.data.length) return;
+
+                var active = chart.getActiveElements();
+                var ai = active.length ? active[0].index : -1;
+                var st = chart._hv || (chart._hv = []);
+                while (st.length < meta.data.length) st.push({s:1, r:0});
+
+                var moving = false;
+                for (var i = 0; i < meta.data.length; i++) {
+                    var on = i === ai;
+                    var ts = on ? HV_SCALE : 1, tr = on ? HV_RAISE : 0;
+                    st[i].s += (ts - st[i].s) * LERP;
+                    st[i].r += (tr - st[i].r) * LERP;
+                    if (Math.abs(st[i].s - ts) < 0.003) st[i].s = ts;
+                    if (Math.abs(st[i].r - tr) < 0.15)  st[i].r = tr;
+                    if (st[i].s !== ts || st[i].r !== tr) moving = true;
+                }
+                chart._hvMoving = moving;
+            },
+
+            beforeDatasetDraw: function(chart) {
+                if (chart.config.type !== 'doughnut' || !chart._hv) return;
+                var meta = chart.getDatasetMeta(0);
+                chart._hvSaved = [];
+                for (var i = 0; i < meta.data.length; i++) {
+                    var arc = meta.data[i];
+                    var st = chart._hv[i];
+                    chart._hvSaved.push({
+                        y: arc.y,
+                        outerRadius: arc.outerRadius,
+                        innerRadius: arc.innerRadius
+                    });
+                    arc.y -= st.r;
+                    arc.outerRadius *= st.s;
+                    arc.innerRadius *= st.s;
+                }
+            },
+
+            afterDatasetDraw: function(chart) {
+                if (chart.config.type !== 'doughnut' || !chart._hvSaved) return;
+                var meta = chart.getDatasetMeta(0);
+                for (var i = 0; i < meta.data.length; i++) {
+                    var arc = meta.data[i];
+                    var saved = chart._hvSaved[i];
+                    arc.y = saved.y;
+                    arc.outerRadius = saved.outerRadius;
+                    arc.innerRadius = saved.innerRadius;
+                }
+                delete chart._hvSaved;
+            },
+
+            afterDraw: function(chart) {
+                if (chart.config.type !== 'doughnut') return;
+                if (chart._hvMoving) {
+                    chart._hvMoving = false;
+                    requestAnimationFrame(function() { chart.render(); });
+                }
+            }
+        });
+    })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -35,6 +128,35 @@
         html.dark input[type="file"] {
             color: rgb(156 163 175);
         }
+        .nav-tooltip {
+            position: absolute;
+            left: calc(100% + 10px);
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgb(17 24 39 / 0.95);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 4px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            z-index: 100;
+        }
+        .nav-tooltip::before {
+            content: '';
+            position: absolute;
+            right: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 5px solid transparent;
+            border-right-color: rgb(17 24 39 / 0.95);
+        }
+        .nav-icon-link:hover .nav-tooltip {
+            opacity: 1;
+        }
     </style>
     <script>
         tailwind.config = {
@@ -52,64 +174,53 @@
         }
     </script>
 </head>
-<body class="h-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased" x-data="{ sidebarOpen: true }" hx-headers='{"X-Requested-With": "XMLHttpRequest"}'>
+<body class="h-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased" hx-headers='{"X-Requested-With": "XMLHttpRequest"}'>
 
 {% block fullpage %}
 <div class="flex h-full">
-    <!-- Sidebar -->
-    <aside class="flex flex-col bg-brand-950 text-white transition-all duration-300 ease-in-out"
-           :class="sidebarOpen ? 'w-64' : 'w-[68px]'" x-cloak>
-        <div class="flex items-center h-16 px-4 border-b border-white/10"
-             :class="sidebarOpen ? 'justify-between' : 'justify-center'">
-            <span class="font-bold text-base tracking-tight whitespace-nowrap" x-show="sidebarOpen" x-transition>Finance Tracker</span>
-            <button @click="sidebarOpen = !sidebarOpen" class="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
-            </button>
+    <!-- Sidebar (icon-only, tooltips on hover) -->
+    <aside class="sidebar-rail flex flex-col bg-brand-950 text-white w-[52px] flex-shrink-0">
+        <div class="flex items-center justify-center h-14 border-b border-white/10">
+            <span class="font-bold text-lg tracking-tight text-brand-300">F</span>
         </div>
-        <nav class="flex-1 py-3 space-y-0.5 overflow-y-auto px-2">
+        <nav class="flex-1 py-2 space-y-0.5 flex flex-col items-center">
             {% set nav_items = [
                 ("/dashboard", "Dashboard", "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4"),
                 ("/accounts", "Accounts", "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"),
                 ("/transactions", "Transactions", "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"),
                 ("/categories", "Categories", "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"),
+                ("/matching-rules", "Matching Rules", "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"),
                 ("/imports", "Import", "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"),
                 ("/reconciliation", "Reconcile", "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"),
                 ("/reports", "Reports", "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"),
+                ("/sql", "SQL Tool", "M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"),
                 ("/backup", "Backup", "M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"),
             ] %}
             {% for href, label, icon in nav_items %}
-            <a href="{{ href }}" class="flex items-center py-2.5 rounded-lg transition-colors group
-                {% if request.url.path.startswith(href) %}bg-white/15 text-white{% else %}text-brand-200 hover:bg-white/10 hover:text-white{% endif %}"
-               :class="sidebarOpen ? 'px-3' : 'px-0 justify-center'">
-                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <a href="{{ href }}" class="nav-icon-link relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors
+                {% if request.url.path.startswith(href) %}bg-white/15 text-white{% else %}text-brand-200 hover:bg-white/10 hover:text-white{% endif %}">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ icon }}"/>
                 </svg>
-                <span class="ml-3 text-sm font-medium whitespace-nowrap" x-show="sidebarOpen" x-transition>{{ label }}</span>
+                <span class="nav-tooltip">{{ label }}</span>
             </a>
             {% endfor %}
         </nav>
-        <div class="border-t border-white/10 p-3 space-y-1">
-            <button onclick="toggleTheme()" class="flex items-center text-sm text-brand-300 hover:text-white transition-colors py-2 rounded-lg hover:bg-white/10 w-full"
-                    :class="sidebarOpen ? 'px-3' : 'px-0 justify-center'">
-                <svg class="w-5 h-5 flex-shrink-0 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="border-t border-white/10 py-2 flex flex-col items-center space-y-0.5">
+            <button onclick="toggleTheme()" class="nav-icon-link relative flex items-center justify-center w-9 h-9 rounded-lg text-brand-300 hover:text-white hover:bg-white/10 transition-colors">
+                <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
                 </svg>
-                <svg class="w-5 h-5 flex-shrink-0 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
                 </svg>
-                <span class="ml-3 font-medium" x-show="sidebarOpen" x-transition>
-                    <span class="hidden dark:inline">Light mode</span>
-                    <span class="inline dark:hidden">Dark mode</span>
-                </span>
+                <span class="nav-tooltip"><span class="hidden dark:inline">Light</span><span class="inline dark:hidden">Dark</span></span>
             </button>
-            <a href="/logout" class="flex items-center text-sm text-brand-300 hover:text-white transition-colors py-2 rounded-lg hover:bg-white/10"
-               :class="sidebarOpen ? 'px-3' : 'px-0 justify-center'">
-                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <a href="/logout" class="nav-icon-link relative flex items-center justify-center w-9 h-9 rounded-lg text-brand-300 hover:text-white hover:bg-white/10 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                 </svg>
-                <span class="ml-3 font-medium" x-show="sidebarOpen" x-transition>Sign out</span>
+                <span class="nav-tooltip">Sign out</span>
             </a>
         </div>
     </aside>
@@ -130,7 +241,7 @@
                 {% endif %}
             </div>
         </header>
-        <main class="flex-1 px-8 py-8">
+        <main class="flex-1 px-8 py-8 overflow-y-auto min-h-0">
             {% block content %}{% endblock %}
         </main>
     </div>
@@ -245,6 +356,274 @@ document.addEventListener('click', function(e) {
         }
     }));
 });
+</script>
+
+<!-- ═══════════ Transaction Edit Modal ═══════════ -->
+<div id="txEditModal" class="hidden fixed inset-0 z-[70] items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <div class="flex items-center gap-2">
+                <h2 class="text-base font-bold text-gray-900 dark:text-gray-100">Edit Transaction</h2>
+                <span id="txLockBadge" class="hidden items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider">
+                    <svg id="txLockIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"></svg>
+                    <span id="txLockText"></span>
+                </span>
+            </div>
+            <button onclick="closeTxEdit()" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div id="txEditLoading" class="flex-1 flex items-center justify-center py-16">
+            <svg class="animate-spin h-7 w-7 text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        </div>
+        <form id="txEditForm" class="hidden flex-1 overflow-y-auto">
+            <input type="hidden" id="txEditId">
+            <div class="px-6 py-5 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Date</label>
+                        <input type="date" id="txEditDate" class="txf w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Amount</label>
+                        <input type="number" step="0.01" id="txEditAmount" class="txf w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Description</label>
+                    <input type="text" id="txEditDesc" class="txf w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Account</label>
+                        <select id="txEditAccount" class="txf w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Category</label>
+                        <select id="txEditCategory" class="txf w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500"></select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Reference</label>
+                    <input type="text" id="txEditRef" class="txf w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
+                    <textarea id="txEditNotes" rows="2" class="txf w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500"></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
+                <button type="button" onclick="closeTxEdit()" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">Cancel</button>
+                <button type="submit" id="txEditSave" class="px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ═══════════ Category Edit Modal ═══════════ -->
+<div id="catEditModal" class="hidden fixed inset-0 z-[70] items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 class="text-base font-bold text-gray-900 dark:text-gray-100">Edit Category</h2>
+            <button onclick="closeCatEdit()" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div id="catEditLoading" class="flex-1 flex items-center justify-center py-16">
+            <svg class="animate-spin h-7 w-7 text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        </div>
+        <form id="catEditForm" class="hidden flex-1 overflow-y-auto">
+            <input type="hidden" id="catEditId">
+            <div class="px-6 py-5 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Name</label>
+                    <input type="text" id="catEditName" class="w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Monthly Budget</label>
+                    <input type="number" step="0.01" id="catEditBudget" class="w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
+                    <input type="text" id="catEditType" class="w-full rounded-lg border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm py-2 px-3 text-gray-500 dark:text-gray-400 capitalize" readonly>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
+                <button type="button" onclick="closeCatEdit()" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">Cancel</button>
+                <button type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors shadow-sm">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+/* ─── SVG paths for lock icons ─── */
+var _lockPath = 'M12 15v2m-6-6V7a6 6 0 1112 0v4M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z';
+var _unlockPath = 'M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z';
+
+/* ─── Transaction Edit Modal ─── */
+function openTxEdit(txId) {
+    var m = document.getElementById('txEditModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    document.getElementById('txEditLoading').classList.remove('hidden');
+    document.getElementById('txEditForm').classList.add('hidden');
+    fetch('/transactions/' + txId + '/detail')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            document.getElementById('txEditId').value = d.id;
+            document.getElementById('txEditDate').value = d.date;
+            document.getElementById('txEditAmount').value = d.amount;
+            document.getElementById('txEditDesc').value = d.description;
+            document.getElementById('txEditRef').value = d.reference;
+            document.getElementById('txEditNotes').value = d.notes;
+
+            var acctSel = document.getElementById('txEditAccount');
+            acctSel.innerHTML = '';
+            d.accounts.forEach(function(a) {
+                var o = document.createElement('option'); o.value = a.id; o.textContent = a.name;
+                if (a.id === d.account_id) o.selected = true;
+                acctSel.appendChild(o);
+            });
+
+            var catSel = document.getElementById('txEditCategory');
+            catSel.innerHTML = '<option value="">Uncategorised</option>';
+            d.categories.forEach(function(p) {
+                if (p.children.length) {
+                    var g = document.createElement('optgroup'); g.label = p.name;
+                    p.children.forEach(function(c) {
+                        var o = document.createElement('option'); o.value = c.id; o.textContent = c.name;
+                        if (c.id === d.category_id) o.selected = true;
+                        g.appendChild(o);
+                    });
+                    catSel.appendChild(g);
+                } else {
+                    var o = document.createElement('option'); o.value = p.id; o.textContent = p.name;
+                    if (p.id === d.category_id) o.selected = true;
+                    catSel.appendChild(o);
+                }
+            });
+
+            var badge = document.getElementById('txLockBadge');
+            var icon = document.getElementById('txLockIcon');
+            var lockText = document.getElementById('txLockText');
+            var saveBtn = document.getElementById('txEditSave');
+            var fields = document.querySelectorAll('#txEditForm .txf');
+
+            if (d.is_locked) {
+                badge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400';
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + _lockPath + '"/>';
+                lockText.textContent = 'Reconciled';
+                saveBtn.disabled = true;
+                fields.forEach(function(f) { f.disabled = true; });
+            } else {
+                badge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400';
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + _unlockPath + '"/>';
+                lockText.textContent = 'Editable';
+                saveBtn.disabled = false;
+                fields.forEach(function(f) { f.disabled = false; });
+            }
+
+            document.getElementById('txEditLoading').classList.add('hidden');
+            document.getElementById('txEditForm').classList.remove('hidden');
+        })
+        .catch(function() {
+            closeTxEdit();
+            window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Failed to load transaction', type: 'error' } }));
+        });
+}
+
+function closeTxEdit() {
+    var m = document.getElementById('txEditModal');
+    m.classList.add('hidden'); m.classList.remove('flex');
+}
+
+document.getElementById('txEditModal').addEventListener('click', function(e) { if (e.target === this) closeTxEdit(); });
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && !document.getElementById('txEditModal').classList.contains('hidden')) closeTxEdit(); });
+
+document.getElementById('txEditForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var id = document.getElementById('txEditId').value;
+    var body = {
+        date: document.getElementById('txEditDate').value,
+        amount: parseFloat(document.getElementById('txEditAmount').value),
+        description: document.getElementById('txEditDesc').value,
+        account_id: document.getElementById('txEditAccount').value,
+        category_id: document.getElementById('txEditCategory').value,
+        reference: document.getElementById('txEditRef').value,
+        notes: document.getElementById('txEditNotes').value,
+    };
+    fetch('/transactions/' + id + '/edit-modal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).then(function(r) {
+        if (r.status === 403) {
+            window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Transaction is locked by reconciliation', type: 'error' } }));
+            return;
+        }
+        return r.json();
+    }).then(function(d) {
+        if (d && d.ok) {
+            closeTxEdit();
+            window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Transaction saved', type: 'success' } }));
+            setTimeout(function() { location.reload(); }, 400);
+        }
+    });
+});
+
+/* ─── Category Edit Modal ─── */
+function openCatEdit(catId) {
+    var m = document.getElementById('catEditModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    document.getElementById('catEditLoading').classList.remove('hidden');
+    document.getElementById('catEditForm').classList.add('hidden');
+    fetch('/categories/' + catId + '/detail')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            document.getElementById('catEditId').value = d.id;
+            document.getElementById('catEditName').value = d.name;
+            document.getElementById('catEditBudget').value = d.budgeted_amount;
+            document.getElementById('catEditType').value = d.category_type;
+            document.getElementById('catEditLoading').classList.add('hidden');
+            document.getElementById('catEditForm').classList.remove('hidden');
+        })
+        .catch(function() {
+            closeCatEdit();
+            window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Failed to load category', type: 'error' } }));
+        });
+}
+
+function closeCatEdit() {
+    var m = document.getElementById('catEditModal');
+    m.classList.add('hidden'); m.classList.remove('flex');
+}
+
+document.getElementById('catEditModal').addEventListener('click', function(e) { if (e.target === this) closeCatEdit(); });
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !document.getElementById('catEditModal').classList.contains('hidden')) closeCatEdit();
+});
+
+document.getElementById('catEditForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var id = document.getElementById('catEditId').value;
+    var body = {
+        name: document.getElementById('catEditName').value,
+        budgeted_amount: parseFloat(document.getElementById('catEditBudget').value) || 0,
+    };
+    fetch('/categories/' + id + '/edit-modal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d && d.ok) {
+            closeCatEdit();
+            window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Category saved', type: 'success' } }));
+            setTimeout(function() { location.reload(); }, 400);
+        }
+    });
+});
+
+/* ─── Padlock SVG helper (inline in any template) ─── */
+function lockSvg(isLocked) {
+    return '<svg class="w-3.5 h-3.5 ' + (isLocked ? 'text-red-400' : 'text-emerald-400') + '" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + (isLocked ? _lockPath : _unlockPath) + '"/></svg>';
+}
 </script>
 </body>
 </html>

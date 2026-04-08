@@ -9,7 +9,7 @@ from sqlalchemy import select, and_, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.statement import FileType, MatchType, Statement, StatementLine, StatementStatus
+from app.models.statement import FileType, Statement, StatementLine, StatementStatus
 from app.models.transaction import Transaction
 
 
@@ -434,14 +434,9 @@ async def import_statement_lines(
             description=line.description,
             original_description=line.description,
             reference=line.reference,
-            statement_line_id=line.id,
         )
         db.add(tx)
         await db.flush()
-
-        line.matched_transaction_id = tx.id
-        line.match_type = MatchType.EXACT
-        line.match_confidence = 1.0
 
         result.imported += 1
 

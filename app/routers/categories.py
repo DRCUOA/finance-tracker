@@ -3,7 +3,7 @@ import uuid
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response
 
@@ -29,6 +29,46 @@ async def list_categories(
         "user": user, "tree": tree,
         "category_types": CategoryType,
     })
+
+
+@router.get("/{category_id}/detail")
+async def category_detail(
+    category_id: uuid.UUID,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    cat = await cat_svc.get_category(db, category_id, user.id)
+    if not cat:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    return {
+        "id": str(cat.id),
+        "name": cat.name,
+        "category_type": cat.category_type.value,
+        "budgeted_amount": float(cat.budgeted_amount),
+        "parent_id": str(cat.parent_id) if cat.parent_id else "",
+        "keywords": [{"id": str(kw.id), "keyword": kw.keyword} for kw in (cat.keywords or [])],
+    }
+
+
+@router.post("/{category_id}/edit-modal")
+async def edit_category_modal(
+    category_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    body = await request.json()
+    kwargs = {}
+    if "name" in body and body["name"]:
+        kwargs["name"] = body["name"]
+    if "budgeted_amount" in body and body["budgeted_amount"] is not None:
+        kwargs["budgeted_amount"] = Decimal(str(body["budgeted_amount"]))
+    if not kwargs:
+        return JSONResponse({"error": "Nothing to update"}, status_code=400)
+    result = await cat_svc.update_category(db, category_id, user.id, **kwargs)
+    if result is None:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    return JSONResponse({"ok": True})
 
 
 @router.post("/create")
@@ -147,6 +187,30 @@ async def inline_update_category(
         return Response(status_code=404)
     trigger = json.dumps({"notify": {"message": "Saved", "type": "success"}})
     return Response(status_code=204, headers={"HX-Trigger": trigger})
+
+
+@router.post("/{source_id}/merge-into/{target_id}")
+async def merge_category(
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await cat_svc.merge_categories(db, source_id, target_id, user.id)
+    if result is None:
+        return JSONResponse({"error": "Invalid merge"}, status_code=400)
+    trigger = json.dumps({
+        "notify": {
+            "message": f"Merged {result['source_name']} into {result['target_name']} ({result['transactions_moved']} transactions moved)",
+            "type": "success",
+        }
+    })
+    return Response(
+        status_code=200,
+        content=json.dumps({"ok": True, **result}),
+        media_type="application/json",
+        headers={"HX-Trigger": trigger, "HX-Redirect": "/categories"},
+    )
 
 
 @router.put("/{category_id}/keywords")

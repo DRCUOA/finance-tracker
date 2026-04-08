@@ -13,6 +13,7 @@ import app.models.category  # noqa: F401
 import app.models.transaction  # noqa: F401
 import app.models.statement  # noqa: F401
 import app.models.budget  # noqa: F401
+import app.models.reconciliation  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

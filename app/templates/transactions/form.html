@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/category_options.html" import category_options %}
 {% block title %}{{ "Edit" if tx else "New" }} Transaction — Finance Tracker{% endblock %}
 {% block page_title %}{{ "Edit" if tx else "New" }} Transaction{% endblock %}
 
@@ -38,11 +39,10 @@
             </div>
             <div>
                 <label for="category_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Category</label>
+                {% set sel_cat = (form_data.category_id if form_data else (tx.category_id|string if tx and tx.category_id else '')) %}
                 <select name="category_id" id="category_id" class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
                     <option value="">Uncategorised</option>
-                    {% for c in categories %}
-                    <option value="{{ c.id }}" {% if (form_data and form_data.category_id == c.id|string) or (tx and tx.category_id == c.id) %}selected{% endif %}>{{ c.name }}</option>
-                    {% endfor %}
+                    {{ category_options(category_tree, sel_cat) }}
                 </select>
             </div>
         </div>

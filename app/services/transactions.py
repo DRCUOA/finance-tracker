@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -9,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.models.transaction import Transaction
 from app.models.account import Account
 from app.models.category import Category
+from app.models.reconciliation import Reconciliation, ReconciliationStatus
 
 
 class DuplicateTransactionError(Exception):
@@ -21,12 +23,13 @@ async def get_transactions(
     account_id: uuid.UUID | None = None,
     account_ids: list[uuid.UUID] | None = None,
     category_id: uuid.UUID | None = None,
+    uncategorized: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
     search: str | None = None,
     min_amount: Decimal | None = None,
     max_amount: Decimal | None = None,
-    is_reconciled: bool | None = None,
+    is_cleared: bool | None = None,
     sort_by: str = "date",
     sort_dir: str = "desc",
     page: int = 1,
@@ -44,6 +47,8 @@ async def get_transactions(
         stmt = stmt.where(Transaction.account_id.in_(account_ids))
     if category_id:
         stmt = stmt.where(Transaction.category_id == category_id)
+    elif uncategorized:
+        stmt = stmt.where(Transaction.category_id.is_(None))
     if date_from:
         stmt = stmt.where(Transaction.date >= date_from)
     if date_to:
@@ -61,13 +66,20 @@ async def get_transactions(
         stmt = stmt.where(Transaction.amount >= min_amount)
     if max_amount is not None:
         stmt = stmt.where(Transaction.amount <= max_amount)
-    if is_reconciled is not None:
-        stmt = stmt.where(Transaction.is_reconciled == is_reconciled)
+    if is_cleared is not None:
+        stmt = stmt.where(Transaction.is_cleared == is_cleared)
 
     count_stmt = select(sa_func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar()
 
-    sort_col = getattr(Transaction, sort_by, Transaction.date)
+    if sort_by == "account":
+        stmt = stmt.outerjoin(Account, Transaction.account_id == Account.id)
+        sort_col = Account.name
+    elif sort_by == "category":
+        stmt = stmt.outerjoin(Category, Transaction.category_id == Category.id)
+        sort_col = Category.name
+    else:
+        sort_col = getattr(Transaction, sort_by, Transaction.date)
     if sort_dir == "asc":
         stmt = stmt.order_by(sort_col.asc(), Transaction.created_at.asc())
     else:
@@ -184,6 +196,7 @@ async def get_filtered_transaction_ids(
     user_id: uuid.UUID,
     account_id: uuid.UUID | None = None,
     category_id: uuid.UUID | None = None,
+    uncategorized: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
     search: str | None = None,
@@ -193,6 +206,8 @@ async def get_filtered_transaction_ids(
         stmt = stmt.where(Transaction.account_id == account_id)
     if category_id:
         stmt = stmt.where(Transaction.category_id == category_id)
+    elif uncategorized:
+        stmt = stmt.where(Transaction.category_id.is_(None))
     if date_from:
         stmt = stmt.where(Transaction.date >= date_from)
     if date_to:
@@ -208,6 +223,66 @@ async def get_filtered_transaction_ids(
         )
     result = await db.execute(stmt)
     return [str(row[0]) for row in result.all()]
+
+
+async def get_locked_tx_ids(db: AsyncSession, tx_ids: list[uuid.UUID]) -> set[str]:
+    """Return IDs of transactions locked by a completed or in-progress reconciliation."""
+    if not tx_ids:
+        return set()
+    locked: set[str] = set()
+    result = await db.execute(
+        select(Transaction.id).where(
+            Transaction.id.in_(tx_ids),
+            Transaction.is_cleared.is_(True),
+        )
+    )
+    locked.update(str(r[0]) for r in result.all())
+
+    draft_result = await db.execute(
+        select(Reconciliation.draft_cleared_ids).where(
+            Reconciliation.status == ReconciliationStatus.IN_PROGRESS,
+            Reconciliation.draft_cleared_ids.isnot(None),
+        )
+    )
+    str_ids = {str(tid) for tid in tx_ids}
+    for row in draft_result.all():
+        try:
+            draft_ids = json.loads(row[0])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        locked.update(did for did in draft_ids if did in str_ids)
+    return locked
+
+
+async def is_tx_locked(db: AsyncSession, tx_id: uuid.UUID) -> bool:
+    return bool(await get_locked_tx_ids(db, [tx_id]))
+
+
+async def get_tx_detail(db: AsyncSession, tx_id: uuid.UUID, user_id: uuid.UUID) -> dict | None:
+    """Full transaction detail with lock status for edit modals."""
+    result = await db.execute(
+        select(Transaction)
+        .options(selectinload(Transaction.account), selectinload(Transaction.category))
+        .where(Transaction.id == tx_id, Transaction.user_id == user_id)
+    )
+    tx = result.scalar_one_or_none()
+    if not tx:
+        return None
+    locked = await is_tx_locked(db, tx_id)
+    return {
+        "id": str(tx.id),
+        "date": tx.date.isoformat(),
+        "description": tx.description,
+        "amount": float(tx.amount),
+        "account_id": str(tx.account_id),
+        "account_name": tx.account.name if tx.account else "",
+        "category_id": str(tx.category_id) if tx.category_id else "",
+        "category_name": tx.category.name if tx.category else "",
+        "reference": tx.reference or "",
+        "notes": tx.notes or "",
+        "is_cleared": tx.is_cleared,
+        "is_locked": locked,
+    }
 
 
 async def batch_delete(db: AsyncSession, tx_ids: list[uuid.UUID], user_id: uuid.UUID) -> int:

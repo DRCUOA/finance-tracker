@@ -1,0 +1,23 @@
+{#
+  Renders <option> / <optgroup> elements for a category tree.
+  Parents with children become non-selectable <optgroup> labels.
+  Childless parents render as a normal <option>.
+
+  Parameters:
+    tree         – list[Category] from get_category_tree (parents with .children)
+    selected_id  – optional UUID or string of the currently-selected category id
+#}
+{% macro category_options(tree, selected_id='') %}
+{%- set sel = (selected_id|string) if selected_id else '' -%}
+{% for parent in tree %}
+{% if parent.children %}
+<optgroup label="{{ parent.name }}">
+{% for child in parent.children %}
+<option value="{{ child.id }}" {% if sel == child.id|string %}selected{% endif %}>{{ child.name }}</option>
+{% endfor %}
+</optgroup>
+{% else %}
+<option value="{{ parent.id }}" {% if sel == parent.id|string %}selected{% endif %}>{{ parent.name }}</option>
+{% endif %}
+{% endfor %}
+{% endmacro %}

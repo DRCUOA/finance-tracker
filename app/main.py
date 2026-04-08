@@ -10,8 +10,10 @@ from app.routers import (
     categories,
     dashboard,
     imports,
+    matching_rules,
     reconciliation,
     reports,
+    sql_tool,
     transactions,
 )
 
@@ -29,8 +31,10 @@ app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(accounts.router)
 app.include_router(categories.router)
+app.include_router(matching_rules.router)
 app.include_router(transactions.router)
 app.include_router(imports.router)
 app.include_router(reconciliation.router)
 app.include_router(reports.router)
+app.include_router(sql_tool.router)
 app.include_router(backup.router)

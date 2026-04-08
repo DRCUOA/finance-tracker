@@ -1,0 +1,63 @@
+{% if error %}
+<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl p-4">
+    <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div>
+            <p class="text-sm font-semibold text-red-700 dark:text-red-300">Query Error</p>
+            <p class="text-sm text-red-600 dark:text-red-400 mt-1 font-mono">{{ error }}</p>
+        </div>
+    </div>
+</div>
+{% elif result %}
+    {% if result.statement_type == 'SELECT' %}
+    <div class="space-y-3">
+        <div class="flex items-center justify-between">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                <span class="font-semibold text-gray-700 dark:text-gray-200">{{ result.row_count }}</span> row{{ 's' if result.row_count != 1 else '' }} returned
+                {% if result.truncated %}<span class="text-amber-600 dark:text-amber-400 ml-1">(limited to {{ result.row_count }})</span>{% endif %}
+            </p>
+        </div>
+        {% if result.rows %}
+        <div class="overflow-x-auto rounded-xl ring-1 ring-gray-200 dark:ring-gray-700">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                        {% for col in result.columns %}
+                        <th class="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                    {% for row in result.rows %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                        {% for val in row %}
+                        <td class="px-4 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap max-w-xs truncate font-mono text-xs"
+                            title="{{ val if val is not none else '' }}">{{ val if val is not none else '' }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-400 dark:text-gray-500 italic">No rows returned.</p>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-xl p-4">
+        <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-emerald-500 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{{ result.statement_type }} Successful</p>
+                <p class="text-sm text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    {{ result.row_count }} row{{ 's' if result.row_count != 1 else '' }} affected.
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endif %}

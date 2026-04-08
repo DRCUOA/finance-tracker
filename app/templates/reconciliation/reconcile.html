@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Reconcile {{ account.name }} — Finance Tracker{% endblock %}
+{% block page_title %}Reconcile: {{ account.name }}{% endblock %}
+
+{% block header_actions %}
+<a href="/reconciliation" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Cancel</a>
+{% endblock %}
+
+{% block content %}
+<div x-data="{
+         statementBalance: {{ statement_balance }},
+         clearedBalance: {{ cleared_balance }},
+         checked: { {% for did in draft_ids %}{% if not loop.first %}, {% endif %}'{{ did }}': null{% endfor %} },
+         init() {
+             {% for tx in transactions %}
+             {% for did in draft_ids %}
+             if ('{{ did }}' === '{{ tx.id }}') this.checked['{{ did }}'] = {{ tx.amount }};
+             {% endfor %}
+             {% endfor %}
+             for (const id in this.checked) {
+                 if (this.checked[id] === null) delete this.checked[id];
+             }
+         },
+         get checkedTotal() {
+             let sum = 0;
+             for (const id in this.checked) {
+                 if (this.checked[id]) sum += this.checked[id];
+             }
+             return sum;
+         },
+         get difference() {
+             return Math.round((this.statementBalance - this.clearedBalance - this.checkedTotal) * 100) / 100;
+         },
+         get isBalanced() {
+             return Math.abs(this.difference) < 0.005;
+         },
+         toggle(id, amount) {
+             if (this.checked[id] !== undefined) {
+                 delete this.checked[id];
+             } else {
+                 this.checked[id] = amount;
+             }
+         },
+         selectAll() {
+             {% for tx in transactions %}
+             this.checked['{{ tx.id }}'] = {{ tx.amount }};
+             {% endfor %}
+         },
+         clearAll() {
+             this.checked = {};
+         },
+         submitTo(action) {
+             this.$refs.theForm.action = action;
+             this.$nextTick(() => this.$refs.theForm.submit());
+         }
+     }">
+
+    <form x-ref="theForm" method="post" action="/reconciliation/{{ account.id }}/finish">
+        <input type="hidden" name="statement_date" value="{{ statement_date }}">
+        <input type="hidden" name="statement_balance" value="{{ statement_balance }}">
+
+        <template x-for="id in Object.keys(checked)">
+            <input type="hidden" name="cleared_ids" :value="id">
+        </template>
+
+        <div class="space-y-6">
+            <!-- Balance summary -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white dark:bg-gray-800 rounded-xl ring-1 ring-gray-100 dark:ring-gray-700 p-4">
+                    <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Statement Balance</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-gray-100 tabular-nums mt-1">{{ statement_balance|nzd }}</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ statement_date }}</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-xl ring-1 ring-gray-100 dark:ring-gray-700 p-4">
+                    <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Cleared Balance</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-gray-100 tabular-nums mt-1">{{ cleared_balance|nzd }}</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Previously reconciled</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-xl ring-1 ring-gray-100 dark:ring-gray-700 p-4">
+                    <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Items Cleared</p>
+                    <p class="text-lg font-bold text-brand-600 dark:text-brand-400 tabular-nums mt-1" x-text="Object.keys(checked).length"></p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">of {{ transactions|length }} uncleared</p>
+                </div>
+                <div class="rounded-xl ring-1 p-4 transition-colors"
+                     :class="isBalanced
+                        ? 'bg-emerald-50 dark:bg-emerald-900/30 ring-emerald-200 dark:ring-emerald-800'
+                        : 'bg-white dark:bg-gray-800 ring-gray-100 dark:ring-gray-700'">
+                    <p class="text-xs font-medium uppercase tracking-wider"
+                       :class="isBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'">Difference</p>
+                    <p class="text-lg font-bold tabular-nums mt-1"
+                       :class="isBalanced
+                           ? 'text-emerald-700 dark:text-emerald-400'
+                           : (difference > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400')"
+                       x-text="new Intl.NumberFormat('en-NZ', {style: 'currency', currency: 'NZD'}).format(difference)"></p>
+                    <p class="text-xs mt-0.5"
+                       :class="isBalanced ? 'text-emerald-500 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'"
+                       x-text="isBalanced ? 'Ready to finish!' : 'Clear items to reach zero'"></p>
+                </div>
+            </div>
+
+            <!-- Transactions list -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Uncleared Transactions</h3>
+                    <div class="flex gap-2">
+                        <button type="button" @click="selectAll()"
+                                class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Select All</button>
+                        <button type="button" @click="clearAll()"
+                                class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Clear All</button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                        <thead class="bg-gray-50/60 dark:bg-gray-700/60">
+                            <tr>
+                                <th class="px-4 py-3 text-center w-10">
+                                    <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                </th>
+                                <th class="px-2 py-3 w-6"></th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                                <th class="px-2 py-3 w-8"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+                            {% for tx in transactions %}
+                            <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group"
+                                @click="toggle('{{ tx.id }}', {{ tx.amount }})"
+                                :class="checked['{{ tx.id }}'] !== undefined ? 'bg-brand-50/50 dark:bg-brand-900/20' : ''">
+                                <td class="px-4 py-3 text-center">
+                                    <input type="checkbox" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 pointer-events-none"
+                                           :checked="checked['{{ tx.id }}'] !== undefined">
+                                </td>
+                                <td class="px-2 py-3 text-center">
+                                    <svg class="w-3.5 h-3.5 inline text-emerald-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap tabular-nums">{{ tx.date.isoformat() }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{{ tx.description }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-semibold tabular-nums whitespace-nowrap {% if tx.amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                                    {{ tx.amount|nzd }}
+                                </td>
+                                <td class="px-2 py-3 text-center" @click.stop>
+                                    <button type="button" onclick="openTxEdit('{{ tx.id }}')" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-brand-600 dark:hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-all" title="Edit">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="px-4 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
+                                    No uncleared transactions found for this period.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Action bar -->
+            <div class="flex items-center justify-between">
+                <a href="/reconciliation" class="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    Cancel
+                </a>
+                <div class="flex items-center gap-3">
+                    <button type="button"
+                            @click="submitTo('/reconciliation/{{ account.id }}/save-draft')"
+                            class="px-5 py-2.5 text-sm font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors">
+                        Save Draft
+                    </button>
+                    <button type="submit"
+                            :disabled="!isBalanced"
+                            class="px-6 py-2.5 text-sm font-semibold text-white rounded-xl shadow-sm transition-colors"
+                            :class="isBalanced
+                                ? 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer'
+                                : 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'">
+                        Finish Reconciliation
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

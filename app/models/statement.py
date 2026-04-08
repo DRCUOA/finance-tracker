@@ -3,7 +3,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,15 +18,6 @@ class FileType(str, enum.Enum):
 class StatementStatus(str, enum.Enum):
     PENDING = "pending"
     IMPORTED = "imported"
-    RECONCILED = "reconciled"
-
-
-class MatchType(str, enum.Enum):
-    EXACT = "exact"
-    KEYWORD = "keyword"
-    FUZZY = "fuzzy"
-    MANUAL = "manual"
-    NONE = "none"
 
 
 class Statement(Base):
@@ -56,9 +47,5 @@ class StatementLine(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     reference: Mapped[str | None] = mapped_column(String(100))
-    matched_transaction_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    match_type: Mapped[MatchType] = mapped_column(Enum(MatchType, values_callable=lambda x: [e.value for e in x]), default=MatchType.NONE)
-    match_confidence: Mapped[float] = mapped_column(Float, default=0.0)
 
     statement = relationship("Statement", back_populates="lines")
-    matched_transaction = relationship("Transaction", back_populates="statement_line", foreign_keys="Transaction.statement_line_id")

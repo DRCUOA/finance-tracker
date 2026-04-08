@@ -1,3 +1,28 @@
+{% from "components/category_options.html" import category_options %}
+{% set _qs = "search=" ~ (search|default('')) ~ "&account_id=" ~ (account_id|default('')) ~ "&category_id=" ~ (category_id|default('')) ~ "&date_from=" ~ (date_from|default('')) ~ "&date_to=" ~ (date_to|default('')) %}
+
+{# Sort-header helper: renders a clickable column header that toggles asc/desc #}
+{% macro sort_th(col, label, align='left') %}
+{% set active = sort_by == col %}
+{% set next_dir = 'asc' if active and sort_dir == 'desc' else 'desc' %}
+<th class="px-4 py-3.5 text-{{ align }} text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+    <a href="?sort_by={{ col }}&sort_dir={{ next_dir }}&{{ _qs }}"
+       class="inline-flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 transition-colors {% if active %}text-brand-600 dark:text-brand-400{% endif %}">
+        {{ label }}
+        {% if active %}
+        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            {% if sort_dir == 'asc' %}<path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/>
+            {% else %}<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>{% endif %}
+        </svg>
+        {% else %}
+        <svg class="w-3.5 h-3.5 flex-shrink-0 opacity-0 group-hover/th:opacity-40 transition-opacity" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+        </svg>
+        {% endif %}
+    </a>
+</th>
+{% endmacro %}
+
 <span x-init="totalFiltered = {{ total }}" class="hidden"></span>
 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
     <div class="overflow-x-auto">
@@ -9,17 +34,11 @@
                                x-effect="$el.indeterminate = selected.length > 0 && selected.length < totalFiltered; $el.checked = selected.length > 0 && selected.length >= totalFiltered"
                                @change="$event.target.checked ? selectAllFiltered() : clearSelection()">
                     </th>
-                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        <a href="?sort_by=date&sort_dir={{ 'asc' if sort_by == 'date' and sort_dir == 'desc' else 'desc' }}&search={{ search }}&account_id={{ account_id }}&category_id={{ category_id }}&date_from={{ date_from }}&date_to={{ date_to }}"
-                           class="hover:text-brand-600 transition-colors">Date {% if sort_by == 'date' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}</a>
-                    </th>
-                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
-                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account</th>
-                    <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                    <th class="px-4 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        <a href="?sort_by=amount&sort_dir={{ 'asc' if sort_by == 'amount' and sort_dir == 'desc' else 'desc' }}&search={{ search }}&account_id={{ account_id }}&category_id={{ category_id }}&date_from={{ date_from }}&date_to={{ date_to }}"
-                           class="hover:text-brand-600 transition-colors">Amount {% if sort_by == 'amount' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}</a>
-                    </th>
+                    {{ sort_th('date', 'Date') }}
+                    {{ sort_th('description', 'Description') }}
+                    {{ sort_th('account', 'Account') }}
+                    {{ sort_th('category', 'Category') }}
+                    {{ sort_th('amount', 'Amount', 'right') }}
                     <th class="px-4 py-3.5 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-10">
                         <svg class="w-4 h-4 inline text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     </th>
@@ -37,31 +56,30 @@
                     <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ tx.date.isoformat() }}</td>
                     <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100">{{ tx.description }}</td>
                     <td class="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{{ tx.account.name if tx.account else '—' }}</td>
-                    <td class="px-4 py-3.5 text-sm">
-                        {% if tx.category %}
-                        <span class="px-2.5 py-1 rounded-full text-xs font-medium
-                            {% if tx.category.category_type.value == 'income' %}bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400
-                            {% elif tx.category.category_type.value == 'expense' %}bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400
-                            {% else %}bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400{% endif %}">{{ tx.category.name }}</span>
-                        {% else %}
-                        <span class="text-gray-400 dark:text-gray-500 text-xs">Uncategorised</span>
-                        {% endif %}
+                    <td class="px-4 py-2">
+                        <select @change="updateCategory('{{ tx.id }}', $event.target.value)"
+                                class="w-full max-w-[11rem] rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-700 text-xs py-1.5 pl-2 pr-7 focus:border-brand-500 focus:ring-brand-500 text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <option value="" {% if not tx.category_id %}selected{% endif %}>Uncategorised</option>
+                            {{ category_options(category_tree, tx.category_id) }}
+                        </select>
                     </td>
                     <td class="px-4 py-3.5 text-sm text-right font-semibold tabular-nums whitespace-nowrap {% if tx.amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
                         {{ tx.amount|nzd }}
                     </td>
                     <td class="px-4 py-3.5 text-center">
-                        {% if tx.is_reconciled %}
-                        <span class="text-emerald-500"><svg class="w-4 h-4 inline" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg></span>
+                        {% if tx.is_cleared %}
+                        <svg class="w-4 h-4 inline text-red-400" title="Reconciled — locked" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6-6V7a6 6 0 1112 0v4M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
+                        {% else %}
+                        <svg class="w-4 h-4 inline text-emerald-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
                         {% endif %}
                     </td>
                     <td class="px-4 py-3.5">
                         <div class="flex items-center justify-end gap-1">
-                            <a href="/transactions/{{ tx.id }}/edit"
+                            <button onclick="openTxEdit('{{ tx.id }}')"
                                class="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
                                title="Edit">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                            </a>
+                            </button>
                             <button hx-post="/transactions/{{ tx.id }}/delete"
                                     hx-swap="none"
                                     hx-confirm="Delete this transaction?"
@@ -86,11 +104,11 @@
     <p class="text-sm text-gray-500 dark:text-gray-400">{{ total }} transaction{{ 's' if total != 1 }} · Page {{ page }} of {{ total_pages }}</p>
     <div class="flex gap-2">
         {% if page > 1 %}
-        <a href="?page={{ page - 1 }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}&search={{ search }}&account_id={{ account_id }}&category_id={{ category_id }}&date_from={{ date_from }}&date_to={{ date_to }}"
+        <a href="?page={{ page - 1 }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}&{{ _qs }}"
            class="px-4 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Previous</a>
         {% endif %}
         {% if page < total_pages %}
-        <a href="?page={{ page + 1 }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}&search={{ search }}&account_id={{ account_id }}&category_id={{ category_id }}&date_from={{ date_from }}&date_to={{ date_to }}"
+        <a href="?page={{ page + 1 }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}&{{ _qs }}"
            class="px-4 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Next</a>
         {% endif %}
     </div>

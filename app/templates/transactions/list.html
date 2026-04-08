@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/category_options.html" import category_options %}
 {% block title %}Transactions — Finance Tracker{% endblock %}
 {% block page_title %}Transactions{% endblock %}
 
@@ -53,14 +54,26 @@
     toggleOne(id, checked) {
         if (checked && !this.selected.includes(id)) this.selected.push(id);
         else if (!checked) this.selected = this.selected.filter(i => i !== id);
+    },
+    async updateCategory(txId, categoryId) {
+        const body = new FormData();
+        body.append('category_id', categoryId);
+        const r = await fetch('/transactions/' + txId + '/update-category', { method: 'POST', body });
+        if (!r.ok) {
+            window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Failed to update category', type: 'error' } }));
+        }
     }
 }" @txchanged.window="clearSelection()">
 
     <!-- Filters -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-5 mb-6">
         <form id="filter-form" hx-get="/transactions" hx-target="#tx-table" hx-swap="innerHTML" hx-push-url="true"
-              @submit="clearSelection()"
-              class="grid grid-cols-2 md:grid-cols-6 gap-4">
+              hx-trigger="change from:find select, change from:find input[type='date'], keyup changed delay:300ms from:find input[type='text']"
+              @submit.prevent
+              @htmx:before-request="clearSelection()"
+              class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <input type="hidden" name="sort_by" value="{{ sort_by }}">
+            <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
             <div>
                 <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Account</label>
                 <select name="account_id" class="block w-full rounded-lg border-gray-300 text-sm py-2 focus:border-brand-500 focus:ring-brand-500">
@@ -74,9 +87,8 @@
                 <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Category</label>
                 <select name="category_id" class="block w-full rounded-lg border-gray-300 text-sm py-2 focus:border-brand-500 focus:ring-brand-500">
                     <option value="">All</option>
-                    {% for c in categories %}
-                    <option value="{{ c.id }}" {% if category_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>
-                    {% endfor %}
+                    <option value="__none__" {% if category_id == '__none__' %}selected{% endif %}>Uncategorized</option>
+                    {{ category_options(category_tree, category_id) }}
                 </select>
             </div>
             <div>
@@ -90,9 +102,6 @@
             <div>
                 <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Search</label>
                 <input type="text" name="search" value="{{ search }}" placeholder="Description..." class="block w-full rounded-lg border-gray-300 text-sm py-2 focus:border-brand-500 focus:ring-brand-500">
-            </div>
-            <div class="flex items-end">
-                <button type="submit" class="w-full px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors">Filter</button>
             </div>
         </form>
     </div>
@@ -108,9 +117,7 @@
                 <form hx-post="/transactions/batch/categorise" hx-swap="none" class="flex items-center gap-2">
                     <template x-for="id in selected"><input type="hidden" name="tx_ids" :value="id"></template>
                     <select name="category_id" class="rounded-lg border-gray-300 text-sm py-1.5 focus:border-brand-500 focus:ring-brand-500">
-                        {% for c in categories %}
-                        <option value="{{ c.id }}">{{ c.name }}</option>
-                        {% endfor %}
+                        {{ category_options(category_tree) }}
                     </select>
                     <button type="submit" class="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors">Categorise</button>
                 </form>

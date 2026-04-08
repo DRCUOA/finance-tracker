@@ -70,7 +70,7 @@ async def export_transactions(
             "date": tx.date.isoformat(), "amount": float(tx.amount),
             "description": tx.description, "account": tx.account.name if tx.account else "",
             "category": tx.category.name if tx.category else "",
-            "reference": tx.reference or "", "is_reconciled": tx.is_reconciled,
+            "reference": tx.reference or "", "is_cleared": tx.is_cleared,
         }
         for tx in txs
     ]

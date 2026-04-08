@@ -64,6 +64,7 @@ class Account(Base):
         nullable=False,
         server_default="short",
     )
+    is_cashflow: Mapped[bool] = mapped_column(default=True, server_default="true")
     is_active: Mapped[bool] = mapped_column(default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -72,6 +73,7 @@ class Account(Base):
     user = relationship("User", back_populates="accounts")
     transactions = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
     statements = relationship("Statement", back_populates="account", cascade="all, delete-orphan")
+    reconciliations = relationship("Reconciliation", back_populates="account", cascade="all, delete-orphan")
 
     @property
     def group(self) -> AccountGroup:

@@ -1,0 +1,518 @@
+{% extends "base.html" %}
+{% block title %}SQL Tool — Finance Tracker{% endblock %}
+{% block page_title %}SQL Tool{% endblock %}
+
+{% block header_actions %}
+<span class="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700">
+    <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    Transactions table only
+</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-5" x-data="sqlBuilder()">
+
+    <!-- ── Action + Core ─────────────────────────────────── -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 space-y-5">
+
+        <!-- Action selector -->
+        <div>
+            <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Action</label>
+            <div class="flex gap-2">
+                <template x-for="a in ['SELECT', 'UPDATE', 'DELETE']" :key="a">
+                    <button type="button"
+                        @click="if (action !== a) { action = a; resetForm(); }"
+                        class="px-4 py-2 text-sm font-semibold rounded-lg border transition-colors"
+                        :class="action === a
+                            ? (a === 'DELETE' ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-brand-600 text-white border-brand-600 shadow-sm')
+                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                        x-text="a"></button>
+                </template>
+            </div>
+        </div>
+
+        <!-- ── SELECT: columns ── -->
+        <div x-show="action === 'SELECT'" x-transition class="border-t border-gray-100 dark:border-gray-700 pt-5 space-y-4">
+
+            <!-- Column picker -->
+            <div>
+                <div class="flex items-center justify-between mb-2.5">
+                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Columns</label>
+                    <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+                        <input type="checkbox" x-model="selectAll"
+                            class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                        <span class="text-gray-600 dark:text-gray-400 font-medium">All columns</span>
+                    </label>
+                </div>
+                <div x-show="!selectAll" x-transition class="flex flex-wrap gap-1.5">
+                    <template x-for="col in columns" :key="col.name">
+                        <label class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer transition-colors text-xs select-none"
+                               :class="selectedCols.includes(col.name)
+                                   ? 'border-brand-300 dark:border-brand-600 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300'
+                                   : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'">
+                            <input type="checkbox" :value="col.name" x-model="selectedCols" class="sr-only">
+                            <span class="font-medium" x-text="col.name"></span>
+                            <span class="text-[10px] opacity-60" x-text="col.type"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Aggregates -->
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Aggregate Functions</label>
+                    <button type="button" @click="addAggregate()"
+                        class="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors">+ Add</button>
+                </div>
+                <div x-show="aggregates.length === 0" class="text-xs text-gray-400 dark:text-gray-500 italic">None</div>
+                <div class="space-y-2">
+                    <template x-for="(agg, i) in aggregates" :key="i">
+                        <div class="flex items-center gap-2">
+                            <select x-model="agg.fn" class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 w-24 focus:border-brand-500 focus:ring-brand-500">
+                                <template x-for="fn in ['COUNT','SUM','AVG','MIN','MAX']"><option :value="fn" x-text="fn"></option></template>
+                            </select>
+                            <span class="text-gray-400 text-sm">(</span>
+                            <select x-model="agg.col" class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 flex-1 focus:border-brand-500 focus:ring-brand-500">
+                                <option value="*">*</option>
+                                <template x-for="col in columns" :key="col.name"><option :value="col.name" x-text="col.name"></option></template>
+                            </select>
+                            <span class="text-gray-400 text-sm">)</span>
+                            <span class="text-gray-400 text-xs whitespace-nowrap">AS</span>
+                            <input type="text" x-model="agg.alias" placeholder="alias"
+                                class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 w-28 focus:border-brand-500 focus:ring-brand-500">
+                            <button type="button" @click="removeAggregate(i)"
+                                class="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── UPDATE: SET clauses ── -->
+        <div x-show="action === 'UPDATE'" x-transition class="border-t border-gray-100 dark:border-gray-700 pt-5">
+            <div class="flex items-center justify-between mb-3">
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Set Values</label>
+                <button type="button" @click="addSet()"
+                    class="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors">+ Add column</button>
+            </div>
+            <div class="space-y-2">
+                <template x-for="(s, i) in setClauses" :key="i">
+                    <div class="flex items-center gap-2">
+                        <select x-model="s.col" @change="onSetColChange(i)"
+                            class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 w-44 focus:border-brand-500 focus:ring-brand-500">
+                            <option value="">— column —</option>
+                            <template x-for="col in updatableColumns" :key="col.name">
+                                <option :value="col.name" x-text="col.name"></option>
+                            </template>
+                        </select>
+                        <span class="text-gray-400 text-sm font-mono">=</span>
+
+                        <!-- Lookup value (account_id / category_id) -->
+                        <select x-show="isLookupCol(s.col) && !s.isNull" x-model="s.val"
+                            class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 flex-1 focus:border-brand-500 focus:ring-brand-500">
+                            <option value="">— select —</option>
+                            <template x-for="item in lookupFor(s.col)" :key="item.id">
+                                <option :value="item.id" x-text="item.name"></option>
+                            </template>
+                        </select>
+                        <!-- Boolean value -->
+                        <select x-show="colType(s.col) === 'boolean' && !s.isNull" x-model="s.val"
+                            class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 flex-1 focus:border-brand-500 focus:ring-brand-500">
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                        <!-- All other value types -->
+                        <input x-show="!isLookupCol(s.col) && colType(s.col) !== 'boolean' && !s.isNull" x-model="s.val"
+                            :type="inputType(s.col)" :step="colType(s.col) === 'numeric' ? '0.01' : undefined"
+                            :placeholder="colType(s.col) === 'numeric' ? '0.00' : 'value'"
+                            class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 flex-1 focus:border-brand-500 focus:ring-brand-500">
+                        <!-- NULL shown -->
+                        <span x-show="s.isNull" class="flex-1 text-sm font-mono text-gray-400 px-3 py-1.5">NULL</span>
+
+                        <label class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap cursor-pointer select-none">
+                            <input type="checkbox" x-model="s.isNull" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                            NULL
+                        </label>
+                        <button type="button" @click="removeSet(i)"
+                            class="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ── DELETE: info ── -->
+        <div x-show="action === 'DELETE'" x-transition class="border-t border-gray-100 dark:border-gray-700 pt-5">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Add conditions below to target specific rows.</p>
+        </div>
+    </div>
+
+    <!-- ── WHERE Conditions ──────────────────────────────── -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <div class="flex items-center justify-between mb-3">
+            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Where Conditions</label>
+            <button type="button" @click="addWhere()"
+                class="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors">+ Add condition</button>
+        </div>
+
+        <div x-show="wheres.length === 0" class="text-xs text-gray-400 dark:text-gray-500 italic py-1">
+            No conditions — query applies to all your transactions.
+        </div>
+
+        <div class="space-y-2">
+            <template x-for="(w, i) in wheres" :key="i">
+                <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <!-- Logic (AND/OR) -->
+                    <select x-show="i > 0" x-model="w.logic"
+                        class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 w-[72px] focus:border-brand-500 focus:ring-brand-500">
+                        <option value="AND">AND</option>
+                        <option value="OR">OR</option>
+                    </select>
+                    <div x-show="i === 0" class="hidden sm:block w-[72px]"></div>
+
+                    <!-- Column -->
+                    <select x-model="w.col" @change="onWhereColChange(i)"
+                        class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 w-44 focus:border-brand-500 focus:ring-brand-500">
+                        <template x-for="col in columns" :key="col.name">
+                            <option :value="col.name" x-text="col.name"></option>
+                        </template>
+                    </select>
+
+                    <!-- Operator -->
+                    <select x-model="w.op"
+                        class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 w-32 focus:border-brand-500 focus:ring-brand-500">
+                        <template x-for="op in opsForCol(w.col)" :key="op">
+                            <option :value="op" x-text="op"></option>
+                        </template>
+                    </select>
+
+                    <!-- Value: lookup select (account_id / category_id) -->
+                    <select x-show="isLookupCol(w.col) && needsValue(w.op)" x-model="w.val"
+                        class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 flex-1 min-w-[100px] focus:border-brand-500 focus:ring-brand-500">
+                        <option value="">— select —</option>
+                        <template x-for="item in lookupFor(w.col)" :key="item.id">
+                            <option :value="item.id" x-text="item.name"></option>
+                        </template>
+                    </select>
+                    <!-- Value: boolean select -->
+                    <select x-show="colType(w.col) === 'boolean' && needsValue(w.op)" x-model="w.val"
+                        class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 flex-1 min-w-[100px] focus:border-brand-500 focus:ring-brand-500">
+                        <option value="true">true</option>
+                        <option value="false">false</option>
+                    </select>
+                    <!-- Value: other types -->
+                    <input x-show="!isLookupCol(w.col) && colType(w.col) !== 'boolean' && needsValue(w.op)" x-model="w.val"
+                        :type="inputType(w.col)"
+                        :step="colType(w.col) === 'numeric' ? '0.01' : undefined"
+                        :placeholder="w.op === 'LIKE' || w.op === 'ILIKE' ? '%keyword%' : (colType(w.col) === 'numeric' ? '0.00' : (colType(w.col) === 'uuid' ? 'uuid...' : 'value'))"
+                        class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 flex-1 min-w-[100px] focus:border-brand-500 focus:ring-brand-500">
+                    <!-- Spacer when no value needed -->
+                    <div x-show="!needsValue(w.op)" class="flex-1 min-w-[100px]"></div>
+
+                    <button type="button" @click="removeWhere(i)"
+                        class="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </template>
+        </div>
+
+        <!-- DELETE without conditions warning -->
+        <div x-show="action === 'DELETE' && wheres.length === 0" x-transition class="mt-3">
+            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3 flex items-center gap-2">
+                <svg class="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="text-xs text-red-600 dark:text-red-400 font-medium">Without conditions this will delete all your transactions.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Sorting & Limits (SELECT only) ────────────────── -->
+    <div x-show="action === 'SELECT'" x-transition
+         class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <!-- GROUP BY -->
+            <div>
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Group By</label>
+                <div class="flex flex-wrap gap-1.5">
+                    <template x-for="col in columns" :key="col.name">
+                        <label class="flex items-center gap-1 px-2 py-1 rounded-md border cursor-pointer transition-colors text-xs select-none"
+                               :class="groupByCols.includes(col.name)
+                                   ? 'border-brand-300 dark:border-brand-600 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300'
+                                   : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 hover:border-gray-300 dark:hover:border-gray-600'">
+                            <input type="checkbox" :value="col.name" x-model="groupByCols" class="sr-only">
+                            <span x-text="col.name"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+
+            <!-- ORDER BY -->
+            <div>
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Order By</label>
+                <div class="flex gap-2">
+                    <select x-model="orderCol"
+                        class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 flex-1 focus:border-brand-500 focus:ring-brand-500">
+                        <option value="">— none —</option>
+                        <template x-for="col in columns" :key="col.name">
+                            <option :value="col.name" x-text="col.name"></option>
+                        </template>
+                    </select>
+                    <select x-model="orderDir"
+                        class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 w-24 focus:border-brand-500 focus:ring-brand-500">
+                        <option value="DESC">DESC</option>
+                        <option value="ASC">ASC</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- LIMIT -->
+            <div>
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Limit</label>
+                <input type="number" x-model.number="limit" min="1" max="500" placeholder="100"
+                    class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 w-full focus:border-brand-500 focus:ring-brand-500">
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Preview + Run ─────────────────────────────────── -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Generated SQL</label>
+        <pre class="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 text-sm font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto whitespace-pre-wrap border border-gray-200 dark:border-gray-700 min-h-[48px]"
+             x-text="query"></pre>
+
+        <div class="mt-4 flex items-center justify-end gap-3">
+            <button type="button" @click="resetForm()"
+                class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                Reset
+            </button>
+            <form hx-post="/sql/execute" hx-target="#sql-results" hx-swap="innerHTML" hx-indicator="#run-spinner">
+                <input type="hidden" name="query" :value="query">
+                <button type="submit"
+                    class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                    @keydown.ctrl.enter.window.prevent="$el.click()"
+                    @keydown.meta.enter.window.prevent="$el.click()">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>Run Query</span>
+                    <svg id="run-spinner" class="htmx-indicator w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ── Results ───────────────────────────────────────── -->
+    <div id="sql-results" class="min-h-[60px]">
+        {% include "sql_tool/_results.html" %}
+    </div>
+</div>
+
+<script>
+function sqlBuilder() {
+    var COLUMNS = [
+        { name: 'id',                   type: 'uuid'      },
+        { name: 'date',                 type: 'date'      },
+        { name: 'amount',               type: 'numeric'   },
+        { name: 'description',          type: 'text'      },
+        { name: 'original_description', type: 'text'      },
+        { name: 'reference',            type: 'text'      },
+        { name: 'notes',                type: 'text'      },
+        { name: 'account_id',           type: 'uuid'      },
+        { name: 'category_id',          type: 'uuid'      },
+        { name: 'is_cleared',           type: 'boolean'   },
+        { name: 'created_at',           type: 'timestamp' },
+        { name: 'updated_at',           type: 'timestamp' },
+    ];
+
+    var UPDATABLE = COLUMNS.filter(function(c) {
+        return ['id', 'created_at', 'updated_at'].indexOf(c.name) === -1;
+    });
+
+    var OPS = {
+        text:      ['=', '!=', 'LIKE', 'ILIKE', 'IS NULL', 'IS NOT NULL'],
+        numeric:   ['=', '!=', '>', '<', '>=', '<=', 'IS NULL', 'IS NOT NULL'],
+        date:      ['=', '!=', '>', '<', '>=', '<=', 'IS NULL', 'IS NOT NULL'],
+        timestamp: ['=', '!=', '>', '<', '>=', '<=', 'IS NULL', 'IS NOT NULL'],
+        boolean:   ['=', 'IS NULL', 'IS NOT NULL'],
+        uuid:      ['=', '!=', 'IS NULL', 'IS NOT NULL'],
+    };
+
+    var LOOKUPS = {
+        account_id:  {{ acct_lookup | tojson }},
+        category_id: {{ cat_lookup | tojson }},
+    };
+
+    return {
+        action: 'SELECT',
+        columns: COLUMNS,
+        updatableColumns: UPDATABLE,
+        lookups: LOOKUPS,
+
+        selectAll: true,
+        selectedCols: [],
+        aggregates: [],
+
+        setClauses: [{ col: '', val: '', isNull: false }],
+
+        wheres: [],
+
+        groupByCols: [],
+        orderCol: '',
+        orderDir: 'DESC',
+        limit: 100,
+
+        /* ── helpers ──────────────────────────────────── */
+
+        colType: function(name) {
+            var c = COLUMNS.find(function(c) { return c.name === name; });
+            return c ? c.type : 'text';
+        },
+
+        opsForCol: function(name) {
+            return OPS[this.colType(name)] || OPS.text;
+        },
+
+        needsValue: function(op) {
+            return op !== 'IS NULL' && op !== 'IS NOT NULL';
+        },
+
+        inputType: function(name) {
+            var t = this.colType(name);
+            if (t === 'numeric')  return 'number';
+            if (t === 'date' || t === 'timestamp') return 'date';
+            return 'text';
+        },
+
+        isLookupCol: function(name) {
+            return LOOKUPS.hasOwnProperty(name);
+        },
+
+        lookupFor: function(name) {
+            return LOOKUPS[name] || [];
+        },
+
+        lookupLabel: function(name, id) {
+            var list = LOOKUPS[name] || [];
+            var item = list.find(function(x) { return x.id === id; });
+            return item ? item.name : id;
+        },
+
+        quoteVal: function(col, val) {
+            var t = this.colType(col);
+            if (t === 'numeric' || t === 'boolean') return val;
+            return "'" + String(val).replace(/'/g, "''") + "'";
+        },
+
+        /* ── mutators ─────────────────────────────────── */
+
+        addAggregate: function()  { this.aggregates.push({ fn: 'COUNT', col: '*', alias: '' }); },
+        removeAggregate: function(i) { this.aggregates.splice(i, 1); },
+
+        addSet: function()  { this.setClauses.push({ col: '', val: '', isNull: false }); },
+        removeSet: function(i) {
+            this.setClauses.splice(i, 1);
+            if (this.setClauses.length === 0) this.addSet();
+        },
+        onSetColChange: function(i) {
+            var s = this.setClauses[i];
+            s.val = this.colType(s.col) === 'boolean' ? 'true' : '';
+            s.isNull = false;
+        },
+
+        addWhere: function() {
+            this.wheres.push({ col: 'date', op: '=', val: '', logic: 'AND' });
+        },
+        removeWhere: function(i) { this.wheres.splice(i, 1); },
+        onWhereColChange: function(i) {
+            var w = this.wheres[i];
+            var ops = this.opsForCol(w.col);
+            if (ops.indexOf(w.op) === -1) w.op = ops[0];
+            w.val = this.colType(w.col) === 'boolean' ? 'true' : '';
+        },
+
+        resetForm: function() {
+            this.selectAll = true;
+            this.selectedCols = [];
+            this.aggregates = [];
+            this.setClauses = [{ col: '', val: '', isNull: false }];
+            this.wheres = [];
+            this.groupByCols = [];
+            this.orderCol = '';
+            this.orderDir = 'DESC';
+            this.limit = 100;
+        },
+
+        /* ── query builder ────────────────────────────── */
+
+        get query() {
+            var lines = [];
+
+            if (this.action === 'SELECT') {
+                var cols = [];
+                if (this.selectAll && this.aggregates.length === 0) {
+                    cols.push('*');
+                } else {
+                    if (!this.selectAll && this.selectedCols.length > 0) {
+                        for (var k = 0; k < this.selectedCols.length; k++) cols.push(this.selectedCols[k]);
+                    }
+                    for (var a = 0; a < this.aggregates.length; a++) {
+                        var agg = this.aggregates[a];
+                        var expr = agg.fn + '(' + agg.col + ')';
+                        if (agg.alias && agg.alias.trim()) expr += ' AS ' + agg.alias.trim();
+                        cols.push(expr);
+                    }
+                    if (cols.length === 0) cols.push('*');
+                }
+                lines.push('SELECT ' + cols.join(', '));
+                lines.push('FROM transactions');
+
+            } else if (this.action === 'UPDATE') {
+                lines.push('UPDATE transactions');
+                var sets = this.setClauses.filter(function(s) { return s.col; });
+                if (sets.length === 0) return '-- Choose columns to update';
+                var self = this;
+                var setParts = sets.map(function(s) {
+                    if (s.isNull) return s.col + ' = NULL';
+                    return s.col + ' = ' + self.quoteVal(s.col, s.val);
+                });
+                lines.push('SET ' + setParts.join(', '));
+
+            } else {
+                lines.push('DELETE FROM transactions');
+            }
+
+            var valid = this.wheres.filter(function(w) {
+                return w.col && (w.op === 'IS NULL' || w.op === 'IS NOT NULL' || w.val !== '');
+            });
+            if (valid.length > 0) {
+                var self2 = this;
+                var wp = valid.map(function(w, i) {
+                    var cond;
+                    if (w.op === 'IS NULL')          cond = w.col + ' IS NULL';
+                    else if (w.op === 'IS NOT NULL') cond = w.col + ' IS NOT NULL';
+                    else                             cond = w.col + ' ' + w.op + ' ' + self2.quoteVal(w.col, w.val);
+                    return i === 0 ? cond : w.logic + ' ' + cond;
+                });
+                lines.push('WHERE ' + wp.join('\n  '));
+            }
+
+            if (this.action === 'SELECT') {
+                if (this.groupByCols.length > 0) {
+                    lines.push('GROUP BY ' + this.groupByCols.join(', '));
+                }
+                if (this.orderCol) {
+                    lines.push('ORDER BY ' + this.orderCol + ' ' + this.orderDir);
+                }
+                if (this.limit > 0) {
+                    lines.push('LIMIT ' + this.limit);
+                }
+            }
+
+            return lines.join('\n');
+        },
+    };
+}
+</script>
+{% endblock %}

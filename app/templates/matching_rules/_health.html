@@ -1,0 +1,127 @@
+{% set total_issues = report.duplicates|length + report.zero_hit|length + report.short_broad|length %}
+
+{% if total_issues == 0 %}
+<div class="py-10 text-center">
+    <p class="text-sm text-gray-500 dark:text-gray-400">No keyword issues found. All keywords look healthy.</p>
+</div>
+{% else %}
+
+{% if report.duplicates %}
+<div class="mb-6">
+    <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2">
+        Duplicate keywords across categories
+        <span class="text-gray-400 font-normal">({{ report.duplicates|length }})</span>
+    </h3>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">These keywords appear in multiple categories, causing unpredictable matching. Keep the one with the highest hit count or most appropriate category.</p>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-gray-100 dark:border-gray-700">
+                    <th class="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Keyword</th>
+                    <th class="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Categories</th>
+                    <th class="w-20"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {% for dup in report.duplicates %}
+                <tr>
+                    <td class="py-2 px-3">
+                        <code class="text-xs bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded">{{ dup.keyword }}</code>
+                    </td>
+                    <td class="py-2 px-3">
+                        {% for cat in dup.categories %}
+                        <span class="inline-flex items-center gap-1 mr-3 text-xs">
+                            <span class="text-gray-700 dark:text-gray-300">{% if cat.parent_name %}{{ cat.parent_name }} &raquo; {% endif %}{{ cat.category_name }}</span>
+                            <span class="text-gray-400 dark:text-gray-500 tabular-nums">({{ cat.hit_count }} hits)</span>
+                            <form method="post" action="/matching-rules/rules/{{ cat.keyword_id }}/delete" class="inline">
+                                <button type="submit" class="text-red-400 hover:text-red-600 transition-colors ml-0.5" title="Delete this instance">&times;</button>
+                            </form>
+                        </span>
+                        {% endfor %}
+                    </td>
+                    <td class="py-2 px-3"></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if report.short_broad %}
+<div class="mb-6">
+    <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2">
+        Short or broad keywords
+        <span class="text-gray-400 font-normal">({{ report.short_broad|length }})</span>
+    </h3>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Very short keywords (4 chars or fewer) and location-based words tend to cause cross-category collisions.</p>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-gray-100 dark:border-gray-700">
+                    <th class="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Keyword</th>
+                    <th class="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Category</th>
+                    <th class="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Reason</th>
+                    <th class="text-right py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400 w-16">Hits</th>
+                    <th class="w-16"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {% for kw in report.short_broad %}
+                <tr>
+                    <td class="py-2 px-3">
+                        <code class="text-xs bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-2 py-0.5 rounded">{{ kw.keyword }}</code>
+                    </td>
+                    <td class="py-2 px-3 text-xs text-gray-700 dark:text-gray-300">{% if kw.parent_name %}{{ kw.parent_name }} &raquo; {% endif %}{{ kw.category_name }}</td>
+                    <td class="py-2 px-3 text-xs text-gray-500 dark:text-gray-400">{{ kw.reason }}</td>
+                    <td class="py-2 px-3 text-right tabular-nums text-xs text-gray-500 dark:text-gray-400">{{ kw.hit_count }}</td>
+                    <td class="py-2 px-3 text-right">
+                        <form method="post" action="/matching-rules/rules/{{ kw.keyword_id }}/delete" class="inline">
+                            <button type="submit" class="text-xs text-red-500 hover:text-red-700 font-medium transition-colors">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if report.zero_hit %}
+<div class="mb-6">
+    <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2">
+        Stale zero-hit keywords
+        <span class="text-gray-400 font-normal">({{ report.zero_hit|length }})</span>
+    </h3>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Keywords older than 90 days that have never matched a transaction. Consider deleting them.</p>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-gray-100 dark:border-gray-700">
+                    <th class="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Keyword</th>
+                    <th class="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Category</th>
+                    <th class="w-16"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {% for kw in report.zero_hit %}
+                <tr>
+                    <td class="py-2 px-3">
+                        <code class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">{{ kw.keyword }}</code>
+                    </td>
+                    <td class="py-2 px-3 text-xs text-gray-700 dark:text-gray-300">{% if kw.parent_name %}{{ kw.parent_name }} &raquo; {% endif %}{{ kw.category_name }}</td>
+                    <td class="py-2 px-3 text-right">
+                        <form method="post" action="/matching-rules/rules/{{ kw.keyword_id }}/delete" class="inline">
+                            <button type="submit" class="text-xs text-red-500 hover:text-red-700 font-medium transition-colors">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endif %}

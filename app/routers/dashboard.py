@@ -1,7 +1,8 @@
+import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -9,6 +10,7 @@ from app.models.account import AccountGroup, AccountTerm
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
+from app.services import reconciliation as recon_svc
 from app.services import reports as report_svc
 from app.services import transactions as tx_svc
 from app.templating import templates
@@ -47,13 +49,19 @@ async def dashboard(
     accounts = await acct_svc.get_accounts(db, user.id, term=active_term)
     acct_ids = [a.id for a in accounts] if active_term else None
 
+    has_non_cashflow = any(not a.is_cashflow for a in accounts)
+    if has_non_cashflow:
+        cashflow_ids = [a.id for a in accounts if a.is_cashflow]
+    else:
+        cashflow_ids = acct_ids
+
     total_assets = sum(a.current_balance for a in accounts if a.group == AccountGroup.ASSET)
     total_liabilities = sum(abs(a.current_balance) for a in accounts if a.group == AccountGroup.LIABILITY)
     net_worth = total_assets - total_liabilities
 
-    summary = await report_svc.period_summary(db, user.id, start, end, account_ids=acct_ids)
+    summary = await report_svc.period_summary(db, user.id, start, end, account_ids=cashflow_ids)
     budget_data = await report_svc.budget_vs_actual(
-        db, user.id, start, end, period=period, account_ids=acct_ids,
+        db, user.id, start, end, period=period, account_ids=cashflow_ids,
     )
 
     oldest_tx = None
@@ -67,6 +75,12 @@ async def dashboard(
         db, user.id, steps=chart_steps, period=period, ref_date=ref_date,
         account_ids=acct_ids,
     )
+
+    acct_recon = {}
+    for acct in accounts:
+        last = await recon_svc.get_last_reconciliation(db, acct.id)
+        draft = await recon_svc.get_draft_for_account(db, acct.id)
+        acct_recon[str(acct.id)] = {"last": last, "draft": draft}
 
     recent_txs, _ = await tx_svc.get_transactions(
         db, user.id, account_ids=acct_ids, page=1, per_page=10,
@@ -90,11 +104,13 @@ async def dashboard(
         "total_liabilities": total_liabilities,
         "net_worth": net_worth,
         "summary": summary,
+        "budget_data": budget_data,
         "budget_total": budget_total,
         "budget_spent": budget_spent,
         "net_history": net_history,
         "recent_txs": recent_txs,
         "accounts": accounts,
+        "acct_recon": acct_recon,
         "period": period,
         "period_label": label,
         "prev_url": prev_url,
@@ -105,3 +121,21 @@ async def dashboard(
         "span": span,
         "span_base_url": span_base_url,
     })
+
+
+@router.get("/category-trend/{category_id}")
+async def category_trend(
+    category_id: uuid.UUID,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    accounts = await acct_svc.get_accounts(db, user.id)
+    has_nc = any(not a.is_cashflow for a in accounts)
+    cf_ids = [a.id for a in accounts if a.is_cashflow] if has_nc else None
+
+    data = await report_svc.category_spending_trend(
+        db, user.id, category_id, periods=12, account_ids=cf_ids,
+    )
+    if data is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return data

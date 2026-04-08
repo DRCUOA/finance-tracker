@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+{% block title %}Category Deepdive — Finance Tracker{% endblock %}
+{% block page_title %}Category Deepdive{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-4">
+    {% include "components/period_toggle.html" %}
+    <div class="h-6 w-px bg-gray-200 dark:bg-gray-700"></div>
+    <a href="/reports?period={{ period }}&ref={{ start }}" class="text-brand-600 hover:text-brand-500 text-xs font-medium inline-flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"/></svg>
+        Reports
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+    <!-- Spending by Category -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 flex flex-col">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Spending by Category</h3>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">{{ period_label }}</p>
+        <div class="flex-1 flex flex-col items-center justify-center relative" style="min-height: 300px">
+            <canvas id="spendDoughnut"></canvas>
+            <p id="spendHover" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none" style="padding-top: 10px">
+                <span class="text-[11px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold" id="spendLabel">Total Spent</span>
+                <span class="text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100" id="spendValue">{{ summary.expenses|nzd }}</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Income by Category -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 flex flex-col">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Income by Category</h3>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">{{ period_label }}</p>
+        <div class="flex-1 flex flex-col items-center justify-center relative" style="min-height: 300px">
+            <canvas id="incomeDoughnut"></canvas>
+            <p id="incomeHover" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none" style="padding-top: 10px">
+                <span class="text-[11px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold" id="incomeLabel">Total Income</span>
+                <span class="text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100" id="incomeValue">{{ summary.income|nzd }}</span>
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Category Deep-Dive Modal -->
+<div id="ddModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4 transition-all">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
+            <h2 class="text-base font-bold text-gray-900 dark:text-gray-100" id="ddTitle">Category</h2>
+            <button id="ddClose" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="px-6 py-3 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-3 flex-shrink-0">
+            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">From</label>
+            <input type="date" id="ddDateFrom" class="text-xs rounded-lg border-gray-300 dark:border-gray-600 px-2.5 py-1.5 focus:ring-brand-500 focus:border-brand-500">
+            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">To</label>
+            <input type="date" id="ddDateTo" class="text-xs rounded-lg border-gray-300 dark:border-gray-600 px-2.5 py-1.5 focus:ring-brand-500 focus:border-brand-500">
+            <button id="ddApply" class="px-3 py-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors">Apply</button>
+            <div class="h-5 w-px bg-gray-200 dark:bg-gray-700"></div>
+            <button data-range="30d" class="dd-quick px-2.5 py-1 text-[11px] font-semibold rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">30 days</button>
+            <button data-range="90d" class="dd-quick px-2.5 py-1 text-[11px] font-semibold rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">90 days</button>
+            <button data-range="ytd" class="dd-quick px-2.5 py-1 text-[11px] font-semibold rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">YTD</button>
+            <button data-range="1y" class="dd-quick px-2.5 py-1 text-[11px] font-semibold rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">1 Year</button>
+            <button data-range="all" class="dd-quick px-2.5 py-1 text-[11px] font-semibold rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">All Time</button>
+        </div>
+
+        <!-- Loading -->
+        <div id="ddLoading" class="flex-1 flex items-center justify-center py-20">
+            <svg class="animate-spin h-8 w-8 text-brand-500" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+        </div>
+
+        <!-- Body -->
+        <div id="ddBody" class="hidden flex-1 overflow-y-auto min-h-0">
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 px-6 pt-5 pb-4">
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-center">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">Total</p>
+                    <p class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums" id="ddTotal">$0.00</p>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-center">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">Transactions</p>
+                    <p class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums" id="ddCount">0</p>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-center">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">Monthly Avg</p>
+                    <p class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums" id="ddAvg">$0.00</p>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-center">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">Min</p>
+                    <p class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums" id="ddMin">$0.00</p>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-center">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">Max</p>
+                    <p class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums" id="ddMax">$0.00</p>
+                </div>
+            </div>
+
+            <!-- Transaction Table -->
+            <div class="px-6 pb-5">
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Transactions</h4>
+                <div class="rounded-xl ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left" id="ddTable">
+                            <thead class="bg-gray-50 dark:bg-gray-700/60 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-2 py-2 w-6"></th>
+                                    <th class="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500" data-col="date" data-type="string">
+                                        <div class="flex items-center gap-1 cursor-pointer select-none dd-sort-head">
+                                            Date <span class="dd-sort-icon text-gray-300 dark:text-gray-600"></span>
+                                        </div>
+                                    </th>
+                                    <th class="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500" data-col="description" data-type="string">
+                                        <div class="flex items-center gap-1 cursor-pointer select-none dd-sort-head">
+                                            Description <span class="dd-sort-icon text-gray-300 dark:text-gray-600"></span>
+                                        </div>
+                                    </th>
+                                    <th class="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500" data-col="account_name" data-type="string">
+                                        <div class="flex items-center gap-1 cursor-pointer select-none dd-sort-head">
+                                            Account <span class="dd-sort-icon text-gray-300 dark:text-gray-600"></span>
+                                        </div>
+                                    </th>
+                                    <th class="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 text-right" data-col="amount" data-type="number">
+                                        <div class="flex items-center justify-end gap-1 cursor-pointer select-none dd-sort-head">
+                                            Amount <span class="dd-sort-icon text-gray-300 dark:text-gray-600"></span>
+                                        </div>
+                                    </th>
+                                    <th class="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500" data-col="reference" data-type="string">
+                                        <div class="flex items-center gap-1 cursor-pointer select-none dd-sort-head">
+                                            Reference <span class="dd-sort-icon text-gray-300 dark:text-gray-600"></span>
+                                        </div>
+                                    </th>
+                                    <th class="px-2 py-2 w-8"></th>
+                                </tr>
+                                <!-- Column Filters -->
+                                <tr class="bg-gray-50/80 dark:bg-gray-700/40 border-t border-gray-100 dark:border-gray-600">
+                                    <th></th>
+                                    <th class="px-3 py-1.5"><select class="dd-col-filter w-full text-[11px] rounded border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-1 px-1.5" data-col="date"><option value="">All</option></select></th>
+                                    <th class="px-3 py-1.5"><select class="dd-col-filter w-full text-[11px] rounded border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-1 px-1.5" data-col="description"><option value="">All</option></select></th>
+                                    <th class="px-3 py-1.5"><select class="dd-col-filter w-full text-[11px] rounded border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-1 px-1.5" data-col="account_name"><option value="">All</option></select></th>
+                                    <th class="px-3 py-1.5"><select class="dd-col-filter w-full text-[11px] rounded border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-1 px-1.5" data-col="amount"><option value="">All</option></select></th>
+                                    <th class="px-3 py-1.5"><select class="dd-col-filter w-full text-[11px] rounded border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-1 px-1.5" data-col="reference"><option value="">All</option></select></th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="ddTxBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="ddTableFooter" class="px-4 py-2 text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/40 border-t border-gray-100 dark:border-gray-700 tabular-nums"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+requestAnimationFrame(function() {
+    const fmt = v => '$' + Number(v).toLocaleString('en-NZ', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const palette = [
+        '#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6',
+        '#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b',
+        '#a855f7','#06b6d4','#e11d48','#84cc16','#78716c',
+    ];
+    const cats = {{ summary.categories | tojson }};
+    const isDk = document.documentElement.classList.contains('dark');
+
+    const expenseCats = cats.filter(c => c.type !== 'transfer' && c.total < 0)
+                            .map(c => ({...c, absTotal: Math.abs(c.total)}))
+                            .sort((a, b) => b.absTotal - a.absTotal);
+    const incomeCats  = cats.filter(c => c.type !== 'transfer' && c.total > 0)
+                            .sort((a, b) => b.total - a.total);
+
+    function buildDoughnut(canvas, items, valueKey, labelEl, valueEl, defaultLabel, defaultValue) {
+        if (canvas) { var ec = Chart.getChart(canvas); if (ec) ec.destroy(); }
+        if (!canvas || items.length === 0) {
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = 300;
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2, canvas.height / 2, 80, 0, 2 * Math.PI);
+                ctx.strokeStyle = isDk ? '#374151' : '#e5e7eb';
+                ctx.lineWidth = 24;
+                ctx.stroke();
+            }
+            if (labelEl) labelEl.textContent = 'No data';
+            if (valueEl) valueEl.textContent = '$0.00';
+            return;
+        }
+        const colors = items.map((_, i) => palette[i % palette.length]);
+        new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: items.map(c => c.name),
+                datasets: [{
+                    data: items.map(c => c[valueKey]),
+                    backgroundColor: colors,
+                    hoverBackgroundColor: colors.map(c => c + 'dd'),
+                    borderWidth: 2,
+                    borderColor: isDk ? '#1f2937' : '#ffffff',
+                    hoverBorderColor: isDk ? '#1f2937' : '#ffffff',
+                    borderRadius: 3,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '68%',
+                layout: { padding: 4 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false },
+                },
+                onHover: (evt, elements) => {
+                    canvas.style.cursor = elements.length ? 'pointer' : 'default';
+                    if (elements.length) {
+                        const row = items[elements[0].index];
+                        labelEl.textContent = row.name;
+                        valueEl.textContent = fmt(row[valueKey]);
+                    } else {
+                        labelEl.textContent = defaultLabel;
+                        valueEl.textContent = defaultValue;
+                    }
+                },
+                onClick: (evt, elements) => {
+                    if (elements.length) {
+                        const row = items[elements[0].index];
+                        openDeepDive(row.id, row.name);
+                    }
+                },
+            },
+        });
+    }
+
+    buildDoughnut(
+        document.getElementById('spendDoughnut'),
+        expenseCats, 'absTotal',
+        document.getElementById('spendLabel'),
+        document.getElementById('spendValue'),
+        'Total Spent', '{{ summary.expenses|nzd }}'
+    );
+    buildDoughnut(
+        document.getElementById('incomeDoughnut'),
+        incomeCats, 'total',
+        document.getElementById('incomeLabel'),
+        document.getElementById('incomeValue'),
+        'Total Income', '{{ summary.income|nzd }}'
+    );
+
+    // ---------------------------------------------------------------
+    // Deep-Dive Modal
+    // ---------------------------------------------------------------
+    const modal   = document.getElementById('ddModal');
+    const loading = document.getElementById('ddLoading');
+    const body    = document.getElementById('ddBody');
+    let currentCatId = null;
+    let allTx = [];
+    let sortCol = 'date', sortDir = 'desc';
+    let colFilters = {};
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        allTx = [];
+        colFilters = {};
+    }
+    document.getElementById('ddClose').addEventListener('click', closeModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal(); });
+
+    function openDeepDive(catId, catName) {
+        currentCatId = catId;
+        document.getElementById('ddTitle').textContent = catName;
+        loading.classList.remove('hidden');
+        body.classList.add('hidden');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById('ddDateFrom').value = '';
+        document.getElementById('ddDateTo').value = '';
+        fetchCategoryData();
+    }
+
+    function buildUrl() {
+        let url = '/reports/deepdive/category/' + currentCatId;
+        const from = document.getElementById('ddDateFrom').value;
+        const to   = document.getElementById('ddDateTo').value;
+        const params = [];
+        if (from) params.push('date_from=' + from);
+        if (to)   params.push('date_to=' + to);
+        if (params.length) url += '?' + params.join('&');
+        return url;
+    }
+
+    async function fetchCategoryData() {
+        loading.classList.remove('hidden');
+        body.classList.add('hidden');
+        try {
+            const res = await fetch(buildUrl());
+            const data = await res.json();
+            loading.classList.add('hidden');
+            body.classList.remove('hidden');
+
+            document.getElementById('ddTotal').textContent = fmt(data.summary.total);
+            document.getElementById('ddCount').textContent = data.summary.count;
+            document.getElementById('ddAvg').textContent   = fmt(data.summary.avg_monthly);
+            document.getElementById('ddMin').textContent    = fmt(data.summary.min_amount);
+            document.getElementById('ddMax').textContent    = fmt(data.summary.max_amount);
+
+            allTx = data.transactions;
+            sortCol = 'date';
+            sortDir = 'desc';
+            colFilters = {};
+            populateFilters();
+            renderTable();
+        } catch (err) {
+            loading.classList.add('hidden');
+            body.classList.remove('hidden');
+            document.getElementById('ddTxBody').innerHTML =
+                '<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-red-500">Failed to load</td></tr>';
+        }
+    }
+
+    document.getElementById('ddApply').addEventListener('click', fetchCategoryData);
+
+    // Quick-range buttons
+    document.querySelectorAll('.dd-quick').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const range = btn.dataset.range;
+            const today = new Date();
+            const iso = d => d.toISOString().split('T')[0];
+            document.getElementById('ddDateTo').value = iso(today);
+
+            if (range === 'all') {
+                document.getElementById('ddDateFrom').value = '';
+                document.getElementById('ddDateTo').value = '';
+            } else if (range === 'ytd') {
+                document.getElementById('ddDateFrom').value = today.getFullYear() + '-01-01';
+            } else if (range === '30d') {
+                const d = new Date(today); d.setDate(d.getDate() - 30);
+                document.getElementById('ddDateFrom').value = iso(d);
+            } else if (range === '90d') {
+                const d = new Date(today); d.setDate(d.getDate() - 90);
+                document.getElementById('ddDateFrom').value = iso(d);
+            } else if (range === '1y') {
+                const d = new Date(today); d.setFullYear(d.getFullYear() - 1);
+                document.getElementById('ddDateFrom').value = iso(d);
+            }
+            fetchCategoryData();
+        });
+    });
+
+    // ------ Sorting ------
+    document.querySelectorAll('.dd-sort-head').forEach(head => {
+        head.addEventListener('click', () => {
+            const th = head.closest('th');
+            const col = th.dataset.col;
+            if (sortCol === col) {
+                sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortCol = col;
+                sortDir = th.dataset.type === 'number' ? 'desc' : 'asc';
+            }
+            renderTable();
+        });
+    });
+
+    // ------ Column Filters ------
+    document.querySelectorAll('.dd-col-filter').forEach(sel => {
+        sel.addEventListener('change', () => {
+            const col = sel.dataset.col;
+            if (sel.value) {
+                colFilters[col] = sel.value;
+            } else {
+                delete colFilters[col];
+            }
+            renderTable();
+        });
+    });
+
+    function populateFilters() {
+        document.querySelectorAll('.dd-col-filter').forEach(sel => {
+            const col = sel.dataset.col;
+            const uniq = [...new Set(allTx.map(tx => String(col === 'amount' ? fmt(tx[col]) : tx[col])))].sort();
+            sel.innerHTML = '<option value="">All (' + uniq.length + ')</option>';
+            for (const val of uniq) {
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = val.length > 40 ? val.slice(0, 37) + '...' : val;
+                sel.appendChild(opt);
+            }
+            sel.value = '';
+        });
+        colFilters = {};
+    }
+
+    function getFilteredSorted() {
+        let rows = allTx;
+        for (const [col, val] of Object.entries(colFilters)) {
+            rows = rows.filter(tx => {
+                const cellVal = col === 'amount' ? fmt(tx[col]) : String(tx[col]);
+                return cellVal === val;
+            });
+        }
+        rows = [...rows];
+        rows.sort((a, b) => {
+            let va = a[sortCol], vb = b[sortCol];
+            if (sortCol === 'amount') {
+                va = Number(va); vb = Number(vb);
+            } else {
+                va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+            }
+            if (va < vb) return sortDir === 'asc' ? -1 : 1;
+            if (va > vb) return sortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+        return rows;
+    }
+
+    function renderTable() {
+        // Update sort icons
+        document.querySelectorAll('#ddTable thead th[data-col]').forEach(th => {
+            const icon = th.querySelector('.dd-sort-icon');
+            if (th.dataset.col === sortCol) {
+                icon.textContent = sortDir === 'asc' ? '▲' : '▼';
+                icon.classList.remove('text-gray-300', 'dark:text-gray-600');
+                icon.classList.add('text-brand-500');
+            } else {
+                icon.textContent = '⇅';
+                icon.classList.add('text-gray-300', 'dark:text-gray-600');
+                icon.classList.remove('text-brand-500');
+            }
+        });
+
+        const rows = getFilteredSorted();
+        const tbody = document.getElementById('ddTxBody');
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No transactions match filters</td></tr>';
+        } else {
+            const html = rows.map(tx => {
+                const amtClass = tx.amount >= 0 ? 'text-emerald-600' : 'text-red-500';
+                return '<tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors group/ddr">' +
+                    '<td class="px-2 py-2.5 text-center">' + lockSvg(tx.is_cleared) + '</td>' +
+                    '<td class="px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">' + tx.date + '</td>' +
+                    '<td class="px-4 py-2.5 text-sm text-gray-800 dark:text-gray-200 truncate max-w-[280px]" title="' + tx.description.replace(/"/g, '&quot;') + '">' + tx.description + '</td>' +
+                    '<td class="px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">' + tx.account_name + '</td>' +
+                    '<td class="px-4 py-2.5 text-sm text-right font-medium tabular-nums whitespace-nowrap ' + amtClass + '">' + fmt(tx.amount) + '</td>' +
+                    '<td class="px-4 py-2.5 text-xs text-gray-400 dark:text-gray-500 truncate max-w-[120px]">' + (tx.reference || '') + '</td>' +
+                    '<td class="px-2 py-2.5 text-center"><button onclick="openTxEdit(\'' + tx.id + '\')" class="p-1 rounded-md text-gray-300 hover:text-brand-600 opacity-0 group-hover/ddr:opacity-100 transition-all" title="Edit"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button></td>' +
+                    '</tr>';
+            }).join('');
+            tbody.innerHTML = html;
+        }
+
+        const footer = document.getElementById('ddTableFooter');
+        const filteredTotal = rows.reduce((s, tx) => s + tx.amount, 0);
+        footer.textContent = rows.length + ' transaction' + (rows.length !== 1 ? 's' : '') +
+            ' · Total: ' + fmt(filteredTotal) +
+            (Object.keys(colFilters).length ? ' (filtered from ' + allTx.length + ')' : '');
+    }
+});
+})();
+</script>
+{% endblock %}

@@ -1,188 +1,153 @@
 import uuid
+from datetime import date
+from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models.statement import MatchType, Statement, StatementLine
-from app.models.transaction import Transaction
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
-from app.services import reconciler
-from app.services import statements as stmt_svc
+from app.services import reconciliation as recon_svc
 from app.templating import templates
 
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 
 
 @router.get("", response_class=HTMLResponse)
-async def reconciliation_page(
+async def reconciliation_index(
     request: Request,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = (
-        select(Statement)
-        .where(Statement.user_id == user.id)
-        .options(selectinload(Statement.account))
-        .order_by(Statement.created_at.desc())
-    )
-    result = await db.execute(stmt)
-    statements = result.scalars().all()
-    return templates.TemplateResponse(request, "reconciliation/list.html", {
-        "user": user, "statements": statements,
-    })
-
-
-@router.post("/{statement_id}/run")
-async def run_reconciliation(
-    statement_id: uuid.UUID,
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
-):
-    await reconciler.auto_match_statement(db, user.id, statement_id)
-    return RedirectResponse(url=f"/reconciliation/{statement_id}", status_code=302)
-
-
-@router.get("/{statement_id}", response_class=HTMLResponse)
-async def review_matches(
-    statement_id: uuid.UUID,
-    request: Request,
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
-):
-    stmt_q = (
-        select(Statement)
-        .where(Statement.id == statement_id)
-        .options(selectinload(Statement.account), selectinload(Statement.lines))
-    )
-    statement = (await db.execute(stmt_q)).scalar_one_or_none()
-    if not statement or statement.user_id != user.id:
-        return RedirectResponse(url="/reconciliation", status_code=302)
-
-    lines = sorted(statement.lines, key=lambda l: l.date)
-
-    matched_txs = {}
-    for line in lines:
-        if line.matched_transaction_id:
-            tx = await db.get(Transaction, line.matched_transaction_id)
-            if tx:
-                matched_txs[str(line.id)] = tx
-
-    unmatched_tx_q = select(Transaction).where(
-        Transaction.user_id == user.id,
-        Transaction.account_id == statement.account_id,
-        Transaction.is_reconciled.is_(False),
-    ).order_by(Transaction.date)
-    unmatched_txs = (await db.execute(unmatched_tx_q)).scalars().all()
-
-    exact = [l for l in lines if l.match_type == MatchType.EXACT]
-    keyword = [l for l in lines if l.match_type == MatchType.KEYWORD]
-    fuzzy = [l for l in lines if l.match_type == MatchType.FUZZY]
-    manual = [l for l in lines if l.match_type == MatchType.MANUAL]
-    unmatched = [l for l in lines if l.match_type == MatchType.NONE]
-
-    return templates.TemplateResponse(request, "reconciliation/review.html", {
-        "user": user, "statement": statement,
-        "exact": exact, "keyword": keyword, "fuzzy": fuzzy,
-        "manual": manual, "unmatched": unmatched,
-        "matched_txs": matched_txs, "unmatched_txs": unmatched_txs,
-    })
-
-
-@router.post("/confirm/{line_id}")
-async def confirm_match(
-    line_id: uuid.UUID,
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
-):
-    line = await db.get(StatementLine, line_id)
-    await reconciler.confirm_match(db, line_id, user.id)
-    return RedirectResponse(url=f"/reconciliation/{line.statement_id}", status_code=302)
-
-
-@router.post("/reject/{line_id}")
-async def reject_match(
-    line_id: uuid.UUID,
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
-):
-    line = await db.get(StatementLine, line_id)
-    await reconciler.reject_match(db, line_id)
-    return RedirectResponse(url=f"/reconciliation/{line.statement_id}", status_code=302)
-
-
-@router.post("/manual/{line_id}")
-async def manual_match(
-    line_id: uuid.UUID,
-    tx_id: str = Form(...),
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
-):
-    line = await db.get(StatementLine, line_id)
-    await reconciler.manual_match(db, line_id, uuid.UUID(tx_id), user.id)
-    return RedirectResponse(url=f"/reconciliation/{line.statement_id}", status_code=302)
-
-
-@router.get("/{statement_id}/detail", response_class=HTMLResponse)
-async def statement_detail(
-    statement_id: uuid.UUID,
-    request: Request,
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
-):
-    statement = await stmt_svc.get_statement(db, statement_id, user.id)
-    if not statement:
-        return RedirectResponse(url="/reconciliation", status_code=302)
-
-    lines = sorted(statement.lines, key=lambda l: l.date)
-    return templates.TemplateResponse(request, "reconciliation/detail.html", {
-        "user": user, "statement": statement, "lines": lines,
-    })
-
-
-@router.get("/{statement_id}/edit", response_class=HTMLResponse)
-async def edit_statement_form(
-    statement_id: uuid.UUID,
-    request: Request,
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
-):
-    statement = await stmt_svc.get_statement(db, statement_id, user.id)
-    if not statement:
-        return RedirectResponse(url="/reconciliation", status_code=302)
-
     accounts = await acct_svc.get_accounts(db, user.id)
-    return templates.TemplateResponse(request, "reconciliation/edit.html", {
-        "user": user, "statement": statement, "accounts": accounts,
+    account_info = []
+    for acct in accounts:
+        last = await recon_svc.get_last_reconciliation(db, acct.id)
+        draft = await recon_svc.get_draft_for_account(db, acct.id)
+        cleared_bal = await recon_svc.get_cleared_balance(db, acct.id)
+        account_info.append({
+            "account": acct,
+            "last_reconciliation": last,
+            "draft": draft,
+            "cleared_balance": cleared_bal,
+        })
+    return templates.TemplateResponse(request, "reconciliation/index.html", {
+        "user": user,
+        "account_info": account_info,
     })
 
 
-@router.post("/{statement_id}/edit")
-async def edit_statement(
-    statement_id: uuid.UUID,
-    filename: str = Form(...),
-    account_id: str = Form(...),
+@router.get("/{account_id}", response_class=HTMLResponse)
+async def reconcile_account(
+    account_id: uuid.UUID,
+    request: Request,
+    statement_date: str = Query(...),
+    statement_balance: str = Query(...),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await stmt_svc.update_statement(
-        db, statement_id, user.id,
-        filename=filename.strip(),
-        account_id=uuid.UUID(account_id),
+    acct = await acct_svc.get_account(db, account_id, user.id)
+    if not acct:
+        return RedirectResponse(url="/reconciliation", status_code=302)
+
+    try:
+        s_date = date.fromisoformat(statement_date)
+        s_balance = Decimal(statement_balance)
+    except (ValueError, InvalidOperation):
+        return RedirectResponse(url="/reconciliation", status_code=302)
+
+    cleared_bal = await recon_svc.get_cleared_balance(db, account_id)
+    uncleared = await recon_svc.get_uncleared_transactions(db, user.id, account_id, s_date)
+
+    draft = await recon_svc.get_draft_for_account(db, account_id)
+    draft_ids = recon_svc.parse_draft_ids(draft) if draft else []
+
+    return templates.TemplateResponse(request, "reconciliation/reconcile.html", {
+        "user": user,
+        "account": acct,
+        "statement_date": statement_date,
+        "statement_balance": str(s_balance),
+        "cleared_balance": str(cleared_bal),
+        "transactions": uncleared,
+        "draft_ids": draft_ids,
+    })
+
+
+@router.post("/{account_id}/save-draft")
+async def save_draft(
+    account_id: uuid.UUID,
+    request: Request,
+    statement_date: str = Form(...),
+    statement_balance: str = Form(...),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    form = await request.form()
+    cleared_ids = [uuid.UUID(tid) for tid in form.getlist("cleared_ids")]
+
+    try:
+        s_date = date.fromisoformat(statement_date)
+        s_balance = Decimal(statement_balance)
+    except (ValueError, InvalidOperation):
+        return RedirectResponse(url="/reconciliation", status_code=302)
+
+    await recon_svc.save_draft(
+        db, user.id, account_id, s_date, s_balance, cleared_ids,
     )
     return RedirectResponse(url="/reconciliation", status_code=302)
 
 
-@router.post("/{statement_id}/delete")
-async def delete_statement(
-    statement_id: uuid.UUID,
+@router.post("/{account_id}/finish")
+async def finish_reconciliation(
+    account_id: uuid.UUID,
+    request: Request,
+    statement_date: str = Form(...),
+    statement_balance: str = Form(...),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await stmt_svc.delete_statement(db, statement_id, user.id)
+    form = await request.form()
+    cleared_ids = [uuid.UUID(tid) for tid in form.getlist("cleared_ids")]
+
+    try:
+        s_date = date.fromisoformat(statement_date)
+        s_balance = Decimal(statement_balance)
+    except (ValueError, InvalidOperation):
+        return RedirectResponse(url="/reconciliation", status_code=302)
+
+    await recon_svc.finish_reconciliation(
+        db, user.id, account_id, s_date, s_balance, cleared_ids,
+    )
+    await acct_svc.recalculate_balance(db, account_id)
     return RedirectResponse(url="/reconciliation", status_code=302)
+
+
+@router.post("/{account_id}/discard-draft")
+async def discard_draft(
+    account_id: uuid.UUID,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await recon_svc.discard_draft(db, account_id, user.id)
+    return RedirectResponse(url="/reconciliation", status_code=302)
+
+
+@router.get("/{account_id}/history", response_class=HTMLResponse)
+async def reconciliation_history(
+    account_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    acct = await acct_svc.get_account(db, account_id, user.id)
+    if not acct:
+        return RedirectResponse(url="/reconciliation", status_code=302)
+    history = await recon_svc.get_reconciliation_history(db, user.id, account_id)
+    return templates.TemplateResponse(request, "reconciliation/history.html", {
+        "user": user,
+        "account": acct,
+        "history": history,
+    })

@@ -22,12 +22,10 @@ class Transaction(Base):
     original_description: Mapped[str | None] = mapped_column(String(500))
     reference: Mapped[str | None] = mapped_column(String(100))
     notes: Mapped[str | None] = mapped_column(Text)
-    is_reconciled: Mapped[bool] = mapped_column(default=False)
-    statement_line_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("statement_lines.id", ondelete="SET NULL"))
+    is_cleared: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="transactions")
     account = relationship("Account", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
-    statement_line = relationship("StatementLine", back_populates="matched_transaction")

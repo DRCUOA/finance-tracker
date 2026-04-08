@@ -10,6 +10,7 @@ from app.models.account import AccountTerm, AccountType
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
+from app.services import reconciliation as recon_svc
 from app.services import reports as report_svc
 from app.templating import templates
 
@@ -28,6 +29,16 @@ async def list_accounts(
     total_assets = sum(a.current_balance for a in assets)
     total_liabilities = sum(abs(a.current_balance) for a in liabilities)
     coverage = await report_svc.import_coverage(db, user.id)
+
+    acct_recon = {}
+    for acct in accounts:
+        last = await recon_svc.get_last_reconciliation(db, acct.id)
+        draft = await recon_svc.get_draft_for_account(db, acct.id)
+        cleared_bal = await recon_svc.get_cleared_balance(db, acct.id)
+        acct_recon[str(acct.id)] = {
+            "last": last, "draft": draft, "cleared_balance": cleared_bal,
+        }
+
     return templates.TemplateResponse(request, "accounts/list.html", {
         "user": user,
         "assets": assets, "liabilities": liabilities,
@@ -35,6 +46,7 @@ async def list_accounts(
         "net_worth": total_assets - total_liabilities,
         "account_types": AccountType,
         "coverage": coverage,
+        "acct_recon": acct_recon,
     })
 
 
@@ -55,6 +67,7 @@ async def create_account(
     currency: str = Form("USD"),
     initial_balance: str = Form("0.00"),
     institution: str = Form(""),
+    is_cashflow: bool = Form(True),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -66,6 +79,7 @@ async def create_account(
         db, user.id, name, AccountType(account_type),
         currency, bal, institution or None,
         term=AccountTerm(term),
+        is_cashflow=is_cashflow,
     )
     return RedirectResponse(url="/accounts", status_code=302)
 
@@ -94,6 +108,7 @@ async def update_account(
     currency: str = Form("USD"),
     initial_balance: str = Form("0.00"),
     institution: str = Form(""),
+    is_cashflow: bool = Form(False),
     is_active: bool = Form(False),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
@@ -107,7 +122,8 @@ async def update_account(
         name=name, account_type=AccountType(account_type),
         term=AccountTerm(term),
         currency=currency, initial_balance=bal,
-        institution=institution or None, is_active=is_active,
+        institution=institution or None,
+        is_cashflow=is_cashflow, is_active=is_active,
     )
     await acct_svc.recalculate_balance(db, account_id)
     return RedirectResponse(url="/accounts", status_code=302)

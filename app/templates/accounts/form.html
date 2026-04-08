@@ -45,13 +45,27 @@
             <input type="text" name="institution" id="institution" value="{{ account.institution if account else '' }}"
                    class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
         </div>
-        {% if account %}
-        <div class="flex items-center">
-            <input type="checkbox" name="is_active" id="is_active" value="true" {% if account.is_active %}checked{% endif %}
-                   class="h-4 w-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500">
-            <label for="is_active" class="ml-2.5 text-sm text-gray-700 dark:text-gray-300">Active</label>
+        <div class="space-y-3">
+            <div class="flex items-start gap-3">
+                <input type="checkbox" name="is_cashflow" id="is_cashflow" value="true"
+                       {% if not account or account.is_cashflow %}checked{% endif %}
+                       class="mt-0.5 h-4 w-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500">
+                <div>
+                    <label for="is_cashflow" class="text-sm font-medium text-gray-700 dark:text-gray-300">Track income &amp; expenses</label>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                        Uncheck for asset-only accounts (e.g. investments, property) whose value changes
+                        should not count as income or expenses in reports and budgets.
+                    </p>
+                </div>
+            </div>
+            {% if account %}
+            <div class="flex items-center">
+                <input type="checkbox" name="is_active" id="is_active" value="true" {% if account.is_active %}checked{% endif %}
+                       class="h-4 w-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500">
+                <label for="is_active" class="ml-2.5 text-sm text-gray-700 dark:text-gray-300">Active</label>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
         <div class="flex items-center justify-between pt-6 border-t border-gray-100 dark:border-gray-700">
             <div>
                 {% if account %}

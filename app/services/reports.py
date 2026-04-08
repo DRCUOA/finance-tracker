@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account, ACCOUNT_TYPE_GROUPS, AccountGroup
 from app.models.budget import Budget
 from app.models.category import Category, CategoryType
-from app.models.statement import Statement, StatementStatus
+from app.models.statement import Statement
 from app.models.transaction import Transaction
 
 
@@ -84,6 +84,14 @@ async def period_summary(
             Category.category_type,
             Category.parent_id,
             sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")).label("total"),
+            sa_func.coalesce(
+                sa_func.sum(case((Transaction.amount > 0, Transaction.amount), else_=Decimal("0.00"))),
+                Decimal("0.00"),
+            ).label("pos_total"),
+            sa_func.coalesce(
+                sa_func.sum(case((Transaction.amount < 0, Transaction.amount), else_=Decimal("0.00"))),
+                Decimal("0.00"),
+            ).label("neg_total"),
         )
         .outerjoin(Transaction, and_(*join_conditions))
         .where(Category.user_id == user_id)
@@ -105,10 +113,9 @@ async def period_summary(
             "parent_id": str(row.parent_id) if row.parent_id else None,
             "total": float(total),
         })
-        if row.category_type == CategoryType.INCOME:
-            income += total
-        elif row.category_type == CategoryType.EXPENSE:
-            expenses += abs(total)
+        if row.category_type != CategoryType.TRANSFER:
+            income += row.pos_total or Decimal("0.00")
+            expenses += abs(row.neg_total or Decimal("0.00"))
 
     return {
         "start": start.isoformat(), "end": end.isoformat(),
@@ -178,7 +185,8 @@ async def budget_vs_actual(
         cid = str(cat.id)
         raw_budget = budgets.get(cid, float(cat.budgeted_amount))
         budgeted = round(raw_budget * prorate, 2)
-        actual = abs(actuals.get(cid, 0.0))
+        raw_actual = actuals.get(cid, 0.0)
+        actual = abs(raw_actual) if raw_actual < 0 else 0.0
         rows.append({
             "category_id": cid,
             "category_name": cat.name,
@@ -193,6 +201,7 @@ async def budget_vs_actual(
 async def category_averages(
     db: AsyncSession, user_id: uuid.UUID,
     periods: int = 6, period: str = "month",
+    account_ids: list[uuid.UUID] | None = None,
 ) -> list[dict]:
     today = date.today()
     if period == "week":
@@ -209,16 +218,20 @@ async def category_averages(
         start = date(y, m, 1)
         divisor_label = "Monthly Avg"
 
+    join_conditions = [
+        Transaction.category_id == Category.id,
+        Transaction.date >= start,
+        Transaction.date < end,
+    ]
+    if account_ids is not None:
+        join_conditions.append(Transaction.account_id.in_(account_ids))
+
     stmt = (
         select(
             Category.id, Category.name,
             sa_func.sum(Transaction.amount).label("total"),
         )
-        .outerjoin(Transaction, and_(
-            Transaction.category_id == Category.id,
-            Transaction.date >= start,
-            Transaction.date < end,
-        ))
+        .outerjoin(Transaction, and_(*join_conditions))
         .where(Category.user_id == user_id, Category.category_type == CategoryType.EXPENSE)
         .group_by(Category.id)
         .order_by(Category.sort_order)
@@ -226,7 +239,8 @@ async def category_averages(
     result = await db.execute(stmt)
     rows = []
     for r in result.all():
-        total = float(abs(r.total or 0))
+        raw = float(r.total or 0)
+        total = abs(raw) if raw < 0 else 0.0
         rows.append({
             "category_id": str(r.id),
             "category_name": r.name,
@@ -368,7 +382,7 @@ async def import_coverage(
         select(Statement.account_id, Statement.start_date, Statement.end_date)
         .where(
             Statement.user_id == user_id,
-            Statement.status == StatementStatus.IMPORTED,
+            Statement.status == "imported",
             Statement.start_date.isnot(None),
             Statement.end_date.isnot(None),
         )
@@ -435,9 +449,172 @@ async def import_coverage(
     return {"months": month_labels, "accounts": account_rows}
 
 
+async def category_spending_trend(
+    db: AsyncSession, user_id: uuid.UUID,
+    category_id: uuid.UUID,
+    periods: int = 12,
+    ref_date: date | None = None,
+    account_ids: list[uuid.UUID] | None = None,
+) -> dict | None:
+    """Monthly spending trend for a single category over *periods* months."""
+    anchor = ref_date or date.today()
+
+    cat = (await db.execute(
+        select(Category).where(Category.id == category_id, Category.user_id == user_id)
+    )).scalar_one_or_none()
+    if not cat:
+        return None
+
+    month_ranges: list[tuple[date, date, str]] = []
+    for i in range(periods - 1, -1, -1):
+        m = anchor.month - i
+        y = anchor.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        s = date(y, m, 1)
+        e = date(y, m + 1, 1) if m < 12 else date(y + 1, 1, 1)
+        month_ranges.append((s, e, s.strftime("%b %y")))
+
+    conditions = [
+        Transaction.user_id == user_id,
+        Transaction.category_id == category_id,
+        Transaction.amount < 0,
+    ]
+    if account_ids is not None:
+        conditions.append(Transaction.account_id.in_(account_ids))
+
+    stmt = (
+        select(
+            extract("year", Transaction.date).label("yr"),
+            extract("month", Transaction.date).label("mo"),
+            sa_func.sum(Transaction.amount).label("total"),
+            sa_func.count().label("cnt"),
+        )
+        .where(*conditions)
+        .group_by("yr", "mo")
+    )
+    result = await db.execute(stmt)
+    monthly = {
+        (int(r.yr), int(r.mo)): {"total": float(abs(r.total)), "count": r.cnt}
+        for r in result.all()
+    }
+
+    labels = []
+    amounts = []
+    for s, _e, lbl in month_ranges:
+        labels.append(lbl)
+        amounts.append(monthly.get((s.year, s.month), {"total": 0.0})["total"])
+
+    tx_stmt = (
+        select(Transaction)
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.category_id == category_id,
+            Transaction.date >= month_ranges[0][0],
+            Transaction.date < month_ranges[-1][1],
+        )
+        .order_by(Transaction.date.desc())
+        .limit(50)
+    )
+    if account_ids is not None:
+        tx_stmt = tx_stmt.where(Transaction.account_id.in_(account_ids))
+    txs = (await db.execute(tx_stmt)).scalars().all()
+
+    total = sum(amounts)
+    return {
+        "category_name": cat.name,
+        "labels": labels,
+        "amounts": [round(a, 2) for a in amounts],
+        "total": round(total, 2),
+        "average": round(total / max(periods, 1), 2),
+        "transactions": [
+            {
+                "id": str(tx.id),
+                "date": tx.date.isoformat(),
+                "amount": float(tx.amount),
+                "description": tx.description,
+                "is_cleared": tx.is_cleared,
+            }
+            for tx in txs
+        ],
+    }
+
+
+async def category_transactions_detail(
+    db: AsyncSession, user_id: uuid.UUID,
+    category_id: uuid.UUID,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    account_ids: list[uuid.UUID] | None = None,
+) -> dict | None:
+    """Detailed transactions and summary for a single category (deepdive modal)."""
+    from sqlalchemy.orm import selectinload
+
+    cat = (await db.execute(
+        select(Category).where(Category.id == category_id, Category.user_id == user_id)
+    )).scalar_one_or_none()
+    if not cat:
+        return None
+
+    conditions = [
+        Transaction.user_id == user_id,
+        Transaction.category_id == category_id,
+    ]
+    if date_from:
+        conditions.append(Transaction.date >= date_from)
+    if date_to:
+        conditions.append(Transaction.date <= date_to)
+    if account_ids is not None:
+        conditions.append(Transaction.account_id.in_(account_ids))
+
+    tx_stmt = (
+        select(Transaction)
+        .options(selectinload(Transaction.account))
+        .where(*conditions)
+        .order_by(Transaction.date.desc())
+    )
+    txs = (await db.execute(tx_stmt)).scalars().all()
+
+    total = sum(float(tx.amount) for tx in txs)
+    count = len(txs)
+    months = set()
+    amounts = []
+    for tx in txs:
+        months.add((tx.date.year, tx.date.month))
+        amounts.append(float(tx.amount))
+    num_months = max(len(months), 1)
+
+    return {
+        "category_name": cat.name,
+        "category_type": cat.category_type.value,
+        "summary": {
+            "total": round(total, 2),
+            "count": count,
+            "avg_monthly": round(total / num_months, 2),
+            "min_amount": round(min(amounts), 2) if amounts else 0,
+            "max_amount": round(max(amounts), 2) if amounts else 0,
+            "num_months": num_months,
+        },
+        "transactions": [
+            {
+                "id": str(tx.id),
+                "date": tx.date.isoformat(),
+                "description": tx.description,
+                "amount": float(tx.amount),
+                "account_name": tx.account.name if tx.account else "",
+                "reference": tx.reference or "",
+                "is_cleared": tx.is_cleared,
+            }
+            for tx in txs
+        ],
+    }
+
+
 async def spending_breakdown(
     db: AsyncSession, user_id: uuid.UUID,
     category_id: uuid.UUID, start: date, end: date,
+    account_ids: list[uuid.UUID] | None = None,
 ) -> list[dict]:
     stmt = (
         select(Transaction)
@@ -449,6 +626,8 @@ async def spending_breakdown(
         )
         .order_by(Transaction.date)
     )
+    if account_ids is not None:
+        stmt = stmt.where(Transaction.account_id.in_(account_ids))
     result = await db.execute(stmt)
     return [
         {
@@ -456,6 +635,7 @@ async def spending_breakdown(
             "date": tx.date.isoformat(),
             "amount": float(tx.amount),
             "description": tx.description,
+            "is_cleared": tx.is_cleared,
         }
         for tx in result.scalars()
     ]

@@ -1,11 +1,13 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import select, func as sa_func
+from sqlalchemy import select, update, delete, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.budget import Budget
 from app.models.category import Category, CategoryKeyword, CategoryType
+from app.models.transaction import Transaction
 
 
 DEFAULT_CATEGORIES = [
@@ -102,6 +104,13 @@ async def get_all_categories_flat(db: AsyncSession, user_id: uuid.UUID) -> list[
     return list(result.scalars().all())
 
 
+async def get_category(db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID) -> Category | None:
+    cat = await db.get(Category, category_id, options=[selectinload(Category.keywords)])
+    if not cat or cat.user_id != user_id:
+        return None
+    return cat
+
+
 async def create_category(
     db: AsyncSession, user_id: uuid.UUID, name: str,
     category_type: CategoryType, parent_id: uuid.UUID | None = None,
@@ -166,6 +175,33 @@ async def delete_keyword(db: AsyncSession, keyword_id: uuid.UUID, user_id: uuid.
     return True
 
 
+async def update_keyword(
+    db: AsyncSession, keyword_id: uuid.UUID, user_id: uuid.UUID, new_keyword: str,
+) -> CategoryKeyword | None:
+    """Change the text of a keyword; normalises to lowercase. Returns None if not found or duplicate in category."""
+    text = new_keyword.lower().strip()
+    if not text:
+        return None
+    kw = await db.get(CategoryKeyword, keyword_id)
+    if not kw:
+        return None
+    cat = await db.get(Category, kw.category_id)
+    if not cat or cat.user_id != user_id:
+        return None
+    dup = await db.execute(
+        select(CategoryKeyword.id).where(
+            CategoryKeyword.category_id == kw.category_id,
+            CategoryKeyword.keyword == text,
+            CategoryKeyword.id != keyword_id,
+        ).limit(1)
+    )
+    if dup.scalar():
+        return None
+    kw.keyword = text
+    await db.flush()
+    return kw
+
+
 async def sync_keywords(
     db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID, keywords: list[str],
 ) -> bool:
@@ -187,3 +223,62 @@ async def sync_keywords(
 
     await db.flush()
     return True
+
+
+async def merge_categories(
+    db: AsyncSession, source_id: uuid.UUID, target_id: uuid.UUID, user_id: uuid.UUID,
+) -> dict | None:
+    """Merge source category into target: move transactions, budgets, keywords, then delete source."""
+    source = await db.get(Category, source_id, options=[selectinload(Category.keywords)])
+    target = await db.get(Category, target_id, options=[selectinload(Category.keywords)])
+    if not source or source.user_id != user_id:
+        return None
+    if not target or target.user_id != user_id:
+        return None
+    if source_id == target_id:
+        return None
+
+    # Move transactions
+    tx_result = await db.execute(
+        update(Transaction)
+        .where(Transaction.category_id == source_id, Transaction.user_id == user_id)
+        .values(category_id=target_id)
+    )
+    tx_count = tx_result.rowcount
+
+    # Merge budgets: sum amounts for overlapping periods, move non-overlapping
+    target_kw_set = {kw.keyword for kw in target.keywords}
+    source_budgets = (await db.execute(
+        select(Budget).where(Budget.category_id == source_id, Budget.user_id == user_id)
+    )).scalars().all()
+
+    for sb in source_budgets:
+        existing = (await db.execute(
+            select(Budget).where(
+                Budget.category_id == target_id,
+                Budget.user_id == user_id,
+                Budget.year == sb.year,
+                Budget.month == sb.month,
+            )
+        )).scalar_one_or_none()
+        if existing:
+            existing.amount += sb.amount
+            await db.delete(sb)
+        else:
+            sb.category_id = target_id
+    await db.flush()
+
+    # Move keywords (skip duplicates)
+    for kw in list(source.keywords):
+        if kw.keyword not in target_kw_set:
+            kw.category_id = target_id
+            target_kw_set.add(kw.keyword)
+        else:
+            await db.delete(kw)
+    await db.flush()
+
+    # Delete source category
+    await db.delete(source)
+    await db.flush()
+
+    return {"transactions_moved": tx_count, "source_name": source.name, "target_name": target.name}

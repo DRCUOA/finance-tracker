@@ -41,17 +41,19 @@ async def list_transactions(
         date_to = end.isoformat()
 
     aid = uuid.UUID(account_id) if account_id else None
-    cid = uuid.UUID(category_id) if category_id else None
+    uncategorized = category_id == "__none__"
+    cid = uuid.UUID(category_id) if category_id and not uncategorized else None
     df = date.fromisoformat(date_from) if date_from else None
     dt = date.fromisoformat(date_to) if date_to else None
 
     txs, total = await tx_svc.get_transactions(
         db, user.id, account_id=aid, category_id=cid,
+        uncategorized=uncategorized,
         date_from=df, date_to=dt, search=search or None,
         sort_by=sort_by, sort_dir=sort_dir, page=page,
     )
     accounts = await acct_svc.get_accounts(db, user.id)
-    cats = await cat_svc.get_all_categories_flat(db, user.id)
+    cat_tree = await cat_svc.get_category_tree(db, user.id)
     total_pages = max(1, (total + 49) // 50)
 
     is_htmx = request.headers.get("HX-Request") == "true"
@@ -60,7 +62,7 @@ async def list_transactions(
     return templates.TemplateResponse(request, template_name, {
         "user": user,
         "transactions": txs, "total": total,
-        "accounts": accounts, "categories": cats,
+        "accounts": accounts, "category_tree": cat_tree,
         "page": page, "total_pages": total_pages,
         "account_id": account_id, "category_id": category_id,
         "date_from": date_from, "date_to": date_to,
@@ -86,12 +88,14 @@ async def filtered_ids(
         date_to = end.isoformat()
 
     aid = uuid.UUID(account_id) if account_id else None
-    cid = uuid.UUID(category_id) if category_id else None
+    uncategorized = category_id == "__none__"
+    cid = uuid.UUID(category_id) if category_id and not uncategorized else None
     df = date.fromisoformat(date_from) if date_from else None
     dt = date.fromisoformat(date_to) if date_to else None
 
     ids = await tx_svc.get_filtered_transaction_ids(
         db, user.id, account_id=aid, category_id=cid,
+        uncategorized=uncategorized,
         date_from=df, date_to=dt, search=search or None,
     )
     return JSONResponse(content=ids)
@@ -104,10 +108,10 @@ async def create_form(
     db: AsyncSession = Depends(get_db),
 ):
     accounts = await acct_svc.get_accounts(db, user.id)
-    cats = await cat_svc.get_all_categories_flat(db, user.id)
+    cat_tree = await cat_svc.get_category_tree(db, user.id)
     return templates.TemplateResponse(request, "transactions/form.html", {
         "user": user,
-        "tx": None, "accounts": accounts, "categories": cats,
+        "tx": None, "accounts": accounts, "category_tree": cat_tree,
     })
 
 
@@ -143,10 +147,10 @@ async def create_transaction(
         )
     except DuplicateTransactionError as exc:
         accounts = await acct_svc.get_accounts(db, user.id)
-        cats = await cat_svc.get_all_categories_flat(db, user.id)
+        cat_tree = await cat_svc.get_category_tree(db, user.id)
         return templates.TemplateResponse(request, "transactions/form.html", {
             "user": user,
-            "tx": None, "accounts": accounts, "categories": cats,
+            "tx": None, "accounts": accounts, "category_tree": cat_tree,
             "duplicate_warning": str(exc),
             "form_data": {
                 "account_id": account_id, "tx_date": tx_date,
@@ -160,6 +164,27 @@ async def create_transaction(
         await categoriser.record_categorisation(db, user.id, cid, description)
     await acct_svc.recalculate_balance(db, uuid.UUID(account_id))
     return RedirectResponse(url="/transactions", status_code=302)
+
+
+@router.post("/{tx_id}/update-category")
+async def update_category_inline(
+    tx_id: uuid.UUID,
+    request: Request,
+    category_id: str = Form(""),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if await tx_svc.is_tx_locked(db, tx_id):
+        return JSONResponse({"error": "Transaction is locked by reconciliation"}, status_code=403)
+    cid = uuid.UUID(category_id) if category_id else None
+    tx = await tx_svc.get_transaction(db, tx_id, user.id)
+    if not tx:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    tx.category_id = cid
+    await db.flush()
+    if cid:
+        await categoriser.record_categorisation(db, user.id, cid, tx.description)
+    return JSONResponse({"ok": True})
 
 
 @router.post("/batch/categorise")
@@ -211,13 +236,13 @@ async def review_uncategorised(
     db: AsyncSession = Depends(get_db),
 ):
     matches, total_uncat = await categoriser.batch_suggest_categories(db, user.id)
-    cats = await cat_svc.get_all_categories_flat(db, user.id)
+    cat_tree = await cat_svc.get_category_tree(db, user.id)
     return templates.TemplateResponse(request, "transactions/review.html", {
         "user": user,
         "matches": matches,
         "total_uncategorised": total_uncat,
         "total_matched": len(matches),
-        "categories": cats,
+        "category_tree": cat_tree,
     })
 
 
@@ -246,6 +271,64 @@ async def apply_review(
     return RedirectResponse(url="/transactions?review_applied=" + str(applied), status_code=302)
 
 
+@router.get("/{tx_id}/detail")
+async def transaction_detail(
+    tx_id: uuid.UUID,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await tx_svc.get_tx_detail(db, tx_id, user.id)
+    if not data:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    cats = await cat_svc.get_category_tree(db, user.id)
+    accts = await acct_svc.get_accounts(db, user.id)
+    data["accounts"] = [{"id": str(a.id), "name": a.name} for a in accts]
+    data["categories"] = []
+    for parent in cats:
+        data["categories"].append({"id": str(parent.id), "name": parent.name, "children": []})
+        for child in (parent.children or []):
+            data["categories"][-1]["children"].append({"id": str(child.id), "name": child.name})
+    return data
+
+
+@router.post("/{tx_id}/edit-modal")
+async def edit_transaction_modal(
+    tx_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if await tx_svc.is_tx_locked(db, tx_id):
+        return JSONResponse({"error": "Transaction is locked by reconciliation"}, status_code=403)
+
+    body = await request.json()
+    kwargs = {}
+    if "date" in body and body["date"]:
+        kwargs["date"] = date.fromisoformat(body["date"])
+    if "description" in body:
+        kwargs["description"] = body["description"]
+    if "amount" in body and body["amount"] is not None:
+        kwargs["amount"] = Decimal(str(body["amount"]))
+    if "account_id" in body and body["account_id"]:
+        kwargs["account_id"] = uuid.UUID(body["account_id"])
+    if "category_id" in body:
+        kwargs["category_id"] = uuid.UUID(body["category_id"]) if body["category_id"] else None
+    if "reference" in body:
+        kwargs["reference"] = body["reference"] or None
+    if "notes" in body:
+        kwargs["notes"] = body["notes"] or None
+
+    tx = await tx_svc.update_transaction(db, tx_id, user.id, **kwargs)
+    if not tx:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+
+    if kwargs.get("category_id"):
+        await categoriser.record_categorisation(db, user.id, kwargs["category_id"], tx.description)
+    if kwargs.get("account_id"):
+        await acct_svc.recalculate_balance(db, kwargs["account_id"])
+    return JSONResponse({"ok": True})
+
+
 @router.get("/{tx_id}/edit", response_class=HTMLResponse)
 async def edit_form(
     tx_id: uuid.UUID, request: Request,
@@ -256,16 +339,17 @@ async def edit_form(
     if not tx:
         return RedirectResponse(url="/transactions", status_code=302)
     accounts = await acct_svc.get_accounts(db, user.id)
-    cats = await cat_svc.get_all_categories_flat(db, user.id)
+    cat_tree = await cat_svc.get_category_tree(db, user.id)
     return templates.TemplateResponse(request, "transactions/form.html", {
         "user": user,
-        "tx": tx, "accounts": accounts, "categories": cats,
+        "tx": tx, "accounts": accounts, "category_tree": cat_tree,
     })
 
 
 @router.post("/{tx_id}/edit")
 async def update_transaction(
     tx_id: uuid.UUID,
+    request: Request,
     account_id: str = Form(...),
     tx_date: str = Form(...),
     amount: str = Form(...),
@@ -276,6 +360,8 @@ async def update_transaction(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if await tx_svc.is_tx_locked(db, tx_id):
+        return RedirectResponse(url="/transactions", status_code=302)
     try:
         amt = Decimal(amount)
     except InvalidOperation:
@@ -301,6 +387,10 @@ async def delete_transaction(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if await tx_svc.is_tx_locked(db, tx_id):
+        if request.headers.get("HX-Request") == "true":
+            return HTMLResponse("Locked by reconciliation", status_code=403)
+        return RedirectResponse(url="/transactions", status_code=302)
     tx = await tx_svc.get_transaction(db, tx_id, user.id)
     if tx:
         acct_id = tx.account_id

@@ -52,7 +52,8 @@ async def full_backup(db: AsyncSession, user_id: uuid.UUID) -> dict:
             {
                 "id": str(a.id), "name": a.name, "account_type": a.account_type.value,
                 "currency": a.currency, "initial_balance": float(a.initial_balance),
-                "institution": a.institution, "is_active": a.is_active, "sort_order": a.sort_order,
+                "institution": a.institution, "is_cashflow": a.is_cashflow,
+                "is_active": a.is_active, "sort_order": a.sort_order,
             }
             for a in accounts
         ],
@@ -73,7 +74,7 @@ async def full_backup(db: AsyncSession, user_id: uuid.UUID) -> dict:
                 "description": t.description,
                 "original_description": t.original_description,
                 "reference": t.reference, "notes": t.notes,
-                "is_reconciled": t.is_reconciled,
+                "is_cleared": t.is_cleared,
             }
             for t in transactions
         ],
@@ -102,7 +103,8 @@ async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> di
             account_type=a["account_type"], currency=a.get("currency", "USD"),
             initial_balance=Decimal(str(a.get("initial_balance", 0))),
             current_balance=Decimal(str(a.get("initial_balance", 0))),
-            institution=a.get("institution"), is_active=a.get("is_active", True),
+            institution=a.get("institution"), is_cashflow=a.get("is_cashflow", True),
+            is_active=a.get("is_active", True),
             sort_order=a.get("sort_order", 0),
         )
         db.add(acct)
@@ -157,7 +159,7 @@ async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> di
             description=t["description"],
             original_description=t.get("original_description"),
             reference=t.get("reference"), notes=t.get("notes"),
-            is_reconciled=t.get("is_reconciled", False),
+            is_cleared=t.get("is_cleared", t.get("is_reconciled", False)),
         )
         db.add(tx)
         tx_count += 1

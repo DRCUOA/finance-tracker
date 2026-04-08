@@ -3,7 +3,7 @@
 {% block page_title %}Categories{% endblock %}
 
 {% block content %}
-<div x-data="{ view: localStorage.getItem('catView') || 'card' }" x-init="$watch('view', v => localStorage.setItem('catView', v))">
+<div x-data="{ view: new URLSearchParams(location.search).get('view') || localStorage.getItem('catView') || 'card' }" x-init="$watch('view', v => localStorage.setItem('catView', v))">
 
     <!-- View Toggle + Add Category button -->
     <div class="flex items-center justify-between mb-6">
@@ -110,6 +110,10 @@
                             <button @click="editing = !editing" class="text-gray-300 dark:text-gray-600 hover:text-brand-600 transition-colors" title="Edit">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </button>
+                            <button @click="$dispatch('open-merge', { id: '{{ parent.id }}', name: '{{ parent.name }}' })"
+                                    class="text-gray-300 dark:text-gray-600 hover:text-amber-500 transition-colors" title="Merge into...">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                            </button>
                             <button class="text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors" title="Delete"
                                     data-confirm="This will permanently delete this category and all its children."
                                     data-confirm-title="Delete category?"
@@ -156,6 +160,10 @@
                                     {% endif %}
                                     <button @click="childEditing = !childEditing" class="text-gray-300 dark:text-gray-600 hover:text-brand-600 transition-colors" title="Edit">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
+                                    <button @click="$dispatch('open-merge', { id: '{{ child.id }}', name: '{{ child.name }}' })"
+                                            class="text-gray-300 dark:text-gray-600 hover:text-amber-500 transition-colors" title="Merge into...">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                                     </button>
                                     <button class="text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors" title="Delete"
                                             data-confirm="This subcategory will be permanently deleted."
@@ -254,7 +262,7 @@
                     <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
                         {% for parent in tree %}
                         {# ---- Parent group header ---- #}
-                        <tr class="bg-gray-50/80 dark:bg-gray-700/40" x-data='catRow("{{ parent.id }}", {{ parent.budgeted_amount|float }}, {{ parent.name|tojson }}, [])'>
+                        <tr class="bg-gray-50/80 dark:bg-gray-700/40" data-cat-id="{{ parent.id }}" x-data='catRow("{{ parent.id }}", {{ parent.budgeted_amount|float }}, {{ parent.name|tojson }}, [])'>
                             <td class="px-6 py-2.5">
                                 <div class="flex items-center gap-2.5">
                                     <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full shrink-0
@@ -299,7 +307,7 @@
 
                         {# ---- Child rows ---- #}
                         {% for child in parent.children | sort(attribute='sort_order') %}
-                        <tr x-data='catRow("{{ child.id }}", {{ child.budgeted_amount|float }}, {{ child.name|tojson }}, {{ child.keywords|map(attribute="keyword")|list|tojson }})'>
+                        <tr data-cat-id="{{ child.id }}" x-data='catRow("{{ child.id }}", {{ child.budgeted_amount|float }}, {{ child.name|tojson }}, {{ child.keywords|map(attribute="keyword")|list|tojson }})'>
                             <td class="pl-12 pr-6 py-2">
                                 <input type="text" x-model="name"
                                        @blur="saveRow()"
@@ -375,6 +383,40 @@
                         {% endif %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== MERGE MODAL ===================== -->
+<div x-data="mergeModal()" x-cloak>
+    <div x-show="open" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" @keydown.escape.window="open = false">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-md p-6" @click.away="open = false">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">Merge Category</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Move all transactions, budgets, and keywords from
+                <span class="font-medium text-gray-700 dark:text-gray-300" x-text="sourceName"></span>
+                into the selected target, then delete the source.
+            </p>
+            <div class="mb-4">
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Merge into</label>
+                <select x-model="targetId" class="block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm px-3 py-2 focus:border-brand-500 focus:ring-brand-500">
+                    <option value="">Select target category...</option>
+                    {% for parent in tree %}
+                    <option value="{{ parent.id }}">{{ parent.name }}</option>
+                    {% for child in parent.children | sort(attribute='sort_order') %}
+                    <option value="{{ child.id }}">&nbsp;&nbsp;{{ child.name }}</option>
+                    {% endfor %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button @click="open = false" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">Cancel</button>
+                <button @click="doMerge()" :disabled="!targetId || targetId === sourceId || merging"
+                        class="px-4 py-2 text-sm font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!merging">Merge</span>
+                    <span x-show="merging" x-cloak>Merging...</span>
+                </button>
             </div>
         </div>
     </div>
@@ -570,6 +612,44 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
+    Alpine.data('mergeModal', () => ({
+        open: false,
+        sourceId: '',
+        sourceName: '',
+        targetId: '',
+        merging: false,
+
+        init() {
+            window.addEventListener('open-merge', (e) => {
+                this.sourceId = e.detail.id;
+                this.sourceName = e.detail.name;
+                this.targetId = '';
+                this.merging = false;
+                this.open = true;
+            });
+        },
+
+        async doMerge() {
+            if (!this.targetId || this.targetId === this.sourceId || this.merging) return;
+            this.merging = true;
+            try {
+                const resp = await fetch(`/categories/${this.sourceId}/merge-into/${this.targetId}`, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (resp.ok) {
+                    window.location.reload();
+                } else {
+                    const data = await resp.json().catch(() => ({}));
+                    alert(data.error || 'Merge failed');
+                }
+            } catch {
+                alert('Merge failed');
+            }
+            this.merging = false;
+        },
+    }));
+
     Alpine.data('addCategoryModal', () => ({
         open: false,
         name: '',
@@ -603,5 +683,19 @@ document.addEventListener('alpine:init', () => {
     }));
 
 });
+
+(function() {
+    const focusId = new URLSearchParams(window.location.search).get('focus');
+    if (!focusId || !/^[0-9a-f-]+$/i.test(focusId)) return;
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            const row = document.querySelector('tr[data-cat-id="' + CSS.escape(focusId) + '"]');
+            if (!row) return;
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const input = row.querySelector('input[type="number"]');
+            if (input) { input.focus(); input.select(); }
+        }, 250);
+    });
+})();
 </script>
 {% endblock %}

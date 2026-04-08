@@ -13,12 +13,15 @@ async def get_accounts(
     user_id: uuid.UUID,
     active_only: bool = True,
     term: AccountTerm | None = None,
+    cashflow_only: bool = False,
 ) -> list[Account]:
     stmt = select(Account).where(Account.user_id == user_id).order_by(Account.name)
     if active_only:
         stmt = stmt.where(Account.is_active.is_(True))
     if term is not None:
         stmt = stmt.where(Account.term.in_(CUMULATIVE_TERMS[term]))
+    if cashflow_only:
+        stmt = stmt.where(Account.is_cashflow.is_(True))
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
@@ -36,6 +39,7 @@ async def create_account(
     initial_balance: Decimal = Decimal("0.00"),
     institution: str | None = None,
     term: AccountTerm = AccountTerm.SHORT,
+    is_cashflow: bool = True,
 ) -> Account:
     max_order = await db.execute(
         select(sa_func.coalesce(sa_func.max(Account.sort_order), -1))
@@ -46,7 +50,7 @@ async def create_account(
         user_id=user_id, name=name, account_type=account_type,
         currency=currency, initial_balance=initial_balance,
         current_balance=initial_balance, institution=institution,
-        term=term, sort_order=next_order,
+        term=term, is_cashflow=is_cashflow, sort_order=next_order,
     )
     db.add(acct)
     await db.flush()
