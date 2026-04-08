@@ -9,7 +9,7 @@
     <div class="h-6 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
 
     <div class="inline-flex rounded-lg bg-gray-100 dark:bg-gray-700 p-0.5">
-        <a href="{{ term_base_url }}"
+        <a href="{{ term_base_url }}&term="
            class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all
                   {% if not active_term %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
             All
@@ -64,7 +64,7 @@
                 <span class="font-normal text-gray-400 dark:text-gray-500 ml-1">({{ period }}ly)</span>
             </h3>
             <div class="inline-flex rounded-lg bg-gray-100 dark:bg-gray-700 p-0.5" hx-boost="true" hx-push-url="true">
-                <a href="{{ span_base_url }}"
+                <a href="{{ span_base_url }}&span="
                    class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
                           {% if not span %}bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500{% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
                     {% if period == 'week' %}1W{% else %}1M{% endif %}

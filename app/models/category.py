@@ -26,6 +26,7 @@ class Category(Base):
     category_type: Mapped[CategoryType] = mapped_column(Enum(CategoryType, values_callable=lambda x: [e.value for e in x]), nullable=False, default=CategoryType.EXPENSE)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     budgeted_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"))
+    is_fixed: Mapped[bool] = mapped_column(default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="categories")

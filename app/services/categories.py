@@ -115,6 +115,7 @@ async def create_category(
     db: AsyncSession, user_id: uuid.UUID, name: str,
     category_type: CategoryType, parent_id: uuid.UUID | None = None,
     budgeted_amount: Decimal = Decimal("0.00"),
+    is_fixed: bool = False,
 ) -> Category:
     max_order = await db.execute(
         select(sa_func.coalesce(sa_func.max(Category.sort_order), -1))
@@ -125,6 +126,7 @@ async def create_category(
     cat = Category(
         user_id=user_id, name=name, category_type=category_type,
         parent_id=parent_id, sort_order=next_order, budgeted_amount=budgeted_amount,
+        is_fixed=is_fixed,
     )
     db.add(cat)
     await db.flush()

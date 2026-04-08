@@ -443,9 +443,17 @@ document.addEventListener('click', function(e) {
                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Monthly Budget</label>
                     <input type="number" step="0.01" id="catEditBudget" class="w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500">
                 </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
-                    <input type="text" id="catEditType" class="w-full rounded-lg border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm py-2 px-3 text-gray-500 dark:text-gray-400 capitalize" readonly>
+                <div class="flex items-center gap-3">
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
+                        <input type="text" id="catEditType" class="w-full rounded-lg border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm py-2 px-3 text-gray-500 dark:text-gray-400 capitalize" readonly>
+                    </div>
+                    <div class="pt-4">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" id="catEditFixed" class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                            <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Fixed cost</span>
+                        </label>
+                    </div>
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
@@ -582,6 +590,7 @@ function openCatEdit(catId) {
             document.getElementById('catEditName').value = d.name;
             document.getElementById('catEditBudget').value = d.budgeted_amount;
             document.getElementById('catEditType').value = d.category_type;
+            document.getElementById('catEditFixed').checked = d.is_fixed || false;
             document.getElementById('catEditLoading').classList.add('hidden');
             document.getElementById('catEditForm').classList.remove('hidden');
         })
@@ -607,6 +616,7 @@ document.getElementById('catEditForm').addEventListener('submit', function(e) {
     var body = {
         name: document.getElementById('catEditName').value,
         budgeted_amount: parseFloat(document.getElementById('catEditBudget').value) || 0,
+        is_fixed: document.getElementById('catEditFixed').checked,
     };
     fetch('/categories/' + id + '/edit-modal', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
