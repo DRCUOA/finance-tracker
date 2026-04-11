@@ -1,0 +1,550 @@
+{% extends "base.html" %}
+{% block title %}Spending — Finance Tracker{% endblock %}
+{% block page_title %}Live Position{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-4">
+    {% include "components/period_toggle.html" %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% set p = pulse %}
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- HERO SECTION                                                -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <!-- Live Available Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 border-t border-t-white/80 dark:border-t-gray-600 border-b-[3px]
+        {% if p.status == 'on_track' %}border-b-emerald-400/60{% elif p.status == 'watch' %}border-b-amber-400/60{% elif p.status == 'tight' %}border-b-orange-400/60{% else %}border-b-red-400/60{% endif %}
+        p-6 flex flex-col justify-between">
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
+                {% if p.days_remaining > 0 %}Live Available / day{% else %}Period complete{% endif %}
+            </p>
+            <p class="text-4xl font-bold tabular-nums
+                {% if p.status == 'on_track' %}text-emerald-600 dark:text-emerald-400{% elif p.status == 'watch' %}text-amber-600 dark:text-amber-400{% elif p.status == 'tight' %}text-orange-600 dark:text-orange-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+                {{ p.safe_to_spend|nzd }}
+            </p>
+            <p class="text-sm mt-1 tabular-nums
+                {% if p.live_available >= 0 %}text-gray-500 dark:text-gray-400{% else %}text-red-500{% endif %}">
+                {{ p.live_available|nzd }} available after all obligations
+            </p>
+        </div>
+        <div class="mt-4 flex items-start gap-2">
+            {% if p.status == 'on_track' %}
+            <svg class="w-5 h-5 flex-shrink-0 text-emerald-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {% elif p.status == 'watch' %}
+            <svg class="w-5 h-5 flex-shrink-0 text-amber-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            {% elif p.status == 'tight' %}
+            <svg class="w-5 h-5 flex-shrink-0 text-orange-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            {% else %}
+            <svg class="w-5 h-5 flex-shrink-0 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {% endif %}
+            <p class="text-sm
+                {% if p.status == 'on_track' %}text-emerald-700 dark:text-emerald-400{% elif p.status == 'watch' %}text-amber-700 dark:text-amber-400{% elif p.status == 'tight' %}text-orange-700 dark:text-orange-400{% else %}text-red-700 dark:text-red-400{% endif %}">
+                {{ p.message }}
+            </p>
+        </div>
+        <div class="mt-4 flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+            <span>Day {{ p.days_elapsed }} of {{ p.days_total }}</span>
+            <span class="text-gray-300 dark:text-gray-600">&middot;</span>
+            <span>{{ p.days_remaining }} day{{ 's' if p.days_remaining != 1 else '' }} left</span>
+        </div>
+    </div>
+
+    <!-- Waterfall Breakdown Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 border-t border-t-white/80 dark:border-t-gray-600 border-b-[3px] border-b-gray-300/80 dark:border-b-gray-950/60 p-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-4">Where your budget stands</p>
+
+        <!-- Stacked position bar -->
+        {% set bar_total = p.period_budget if p.period_budget > 0 else 1 %}
+        {% set actual_pct = (p.total_actual / bar_total * 100) %}
+        {% set commit_pct = (p.total_committed / bar_total * 100) %}
+        {% set reserve_pct = (p.total_reserved / bar_total * 100) %}
+        {% set avail_pct = [p.live_available / bar_total * 100, 0] | max %}
+        {% set commit_w = [[commit_pct, 100 - actual_pct] | min, 0] | max %}
+        {% set reserve_w = [[reserve_pct, 100 - actual_pct - commit_pct] | min, 0] | max %}
+        <div class="h-6 rounded-full overflow-hidden flex bg-gray-100 dark:bg-gray-700 mb-3">
+            {% if actual_pct > 0 %}
+            <div class="bg-red-500 h-full" style="width: {{ [actual_pct, 100] | min }}%" title="Spent: {{ p.total_actual|nzd }}"></div>
+            {% endif %}
+            {% if commit_pct > 0 %}
+            <div class="bg-amber-500 h-full" style="width: {{ commit_w }}%" title="Committed: {{ p.total_committed|nzd }}"></div>
+            {% endif %}
+            {% if reserve_pct > 0 %}
+            <div class="bg-violet-400 h-full" style="width: {{ reserve_w }}%" title="Reserved: {{ p.total_reserved|nzd }}"></div>
+            {% endif %}
+            {% if avail_pct > 0 %}
+            <div class="bg-emerald-500 h-full" style="width: {{ avail_pct }}%" title="Available: {{ p.live_available|nzd }}"></div>
+            {% endif %}
+        </div>
+        <div class="flex flex-wrap gap-x-5 gap-y-1.5 text-xs mb-5">
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span><span class="text-gray-500 dark:text-gray-400">Spent</span><span class="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{{ p.total_actual|nzd }}</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span class="text-gray-500 dark:text-gray-400">Committed</span><span class="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{{ p.total_committed|nzd }}</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-violet-400"></span><span class="text-gray-500 dark:text-gray-400">Reserved</span><span class="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{{ p.total_reserved|nzd }}</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span class="text-gray-500 dark:text-gray-400">Available</span><span class="font-semibold tabular-nums {% if p.live_available >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ p.live_available|nzd }}</span></div>
+        </div>
+
+        <!-- Summary stats -->
+        <div class="grid grid-cols-3 gap-3" x-data="{ showBudget: false, showSpoken: false }">
+            <button @click="showBudget = true" class="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3 text-center hover:ring-2 hover:ring-brand-400 transition-all cursor-pointer group">
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 group-hover:text-brand-500 transition-colors">Budget</p>
+                <p class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums">{{ p.period_budget|nzd }}</p>
+            </button>
+            <button @click="showSpoken = true" class="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3 text-center hover:ring-2 hover:ring-brand-400 transition-all cursor-pointer group">
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 group-hover:text-brand-500 transition-colors">Spoken For</p>
+                <p class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums">{{ p.total_spoken_for|nzd }}</p>
+            </button>
+            <div class="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3 text-center">
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Pace</p>
+                <p class="text-sm font-bold tabular-nums {% if p.pace_pct <= 100 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ "%.0f"|format(p.pace_pct) }}%</p>
+            </div>
+
+            <!-- Budget breakdown modal -->
+            <template x-teleport="body">
+                <div x-show="showBudget" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="showBudget = false">
+                    <div x-show="showBudget" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                         class="absolute inset-0 bg-black/40" @click="showBudget = false"></div>
+                    <div x-show="showBudget" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+                         class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Budget Breakdown</h3>
+                                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{{ period_label }} &middot; prorated to period</p>
+                            </div>
+                            <button @click="showBudget = false" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        <div class="overflow-y-auto flex-1">
+                            <table class="w-full">
+                                <thead class="sticky top-0 bg-gray-50 dark:bg-gray-700/60">
+                                    <tr>
+                                        <th class="px-6 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Category</th>
+                                        <th class="px-6 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Budget</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
+                                    {% for cat in p.categories %}
+                                    {% if cat.budgeted > 0 %}
+                                    <tr>
+                                        <td class="px-6 py-2.5 text-sm text-gray-700 dark:text-gray-300">{{ cat.category_name }}</td>
+                                        <td class="px-6 py-2.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums text-right font-medium">{{ cat.budgeted|nzd }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot class="border-t-2 border-gray-200 dark:border-gray-600">
+                                    <tr>
+                                        <td class="px-6 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Total</td>
+                                        <td class="px-6 py-3 text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums text-right">{{ p.period_budget|nzd }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Spoken For breakdown modal -->
+            <template x-teleport="body">
+                <div x-show="showSpoken" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="showSpoken = false">
+                    <div x-show="showSpoken" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                         class="absolute inset-0 bg-black/40" @click="showSpoken = false"></div>
+                    <div x-show="showSpoken" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+                         class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Spoken For Breakdown</h3>
+                                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Actual + committed + reserved</p>
+                            </div>
+                            <button @click="showSpoken = false" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        <div class="overflow-y-auto flex-1">
+                            <table class="w-full">
+                                <thead class="sticky top-0 bg-gray-50 dark:bg-gray-700/60">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Category</th>
+                                        <th class="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-red-400">Spent</th>
+                                        <th class="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-amber-400">Committed</th>
+                                        <th class="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-violet-400">Reserved</th>
+                                        <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
+                                    {% for cat in p.categories %}
+                                    {% if cat.spoken_for > 0 %}
+                                    <tr>
+                                        <td class="px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 truncate max-w-[140px]">{{ cat.category_name }}</td>
+                                        <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.actual > 0 %}text-red-600 dark:text-red-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ cat.actual|nzd if cat.actual > 0 else '—' }}</td>
+                                        <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.committed > 0 %}text-amber-600 dark:text-amber-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ cat.committed|nzd if cat.committed > 0 else '—' }}</td>
+                                        <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.reserve_gap > 0 %}text-violet-600 dark:text-violet-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ cat.reserve_gap|nzd if cat.reserve_gap > 0 else '—' }}</td>
+                                        <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums text-right font-semibold">{{ cat.spoken_for|nzd }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot class="border-t-2 border-gray-200 dark:border-gray-600">
+                                    <tr>
+                                        <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Total</td>
+                                        <td class="px-2 py-3 text-xs font-bold tabular-nums text-right text-red-600 dark:text-red-400">{{ p.total_actual|nzd }}</td>
+                                        <td class="px-2 py-3 text-xs font-bold tabular-nums text-right text-amber-600 dark:text-amber-400">{{ p.total_committed|nzd }}</td>
+                                        <td class="px-2 py-3 text-xs font-bold tabular-nums text-right text-violet-600 dark:text-violet-400">{{ p.total_reserved|nzd }}</td>
+                                        <td class="px-4 py-3 text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums text-right">{{ p.total_spoken_for|nzd }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+        {% if p.committed_in > 0 %}
+        <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-3 tabular-nums">
+            Expected income this period: <span class="text-emerald-500 font-semibold">{{ p.committed_in|nzd }}</span>
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- DAILY TIMELINE                                              -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Daily Spending</h3>
+        <span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums">Daily budget rate: {{ p.budget_daily_rate|nzd }}</span>
+    </div>
+    <canvas id="dailyChart" height="160"></canvas>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- COMMITMENTS                                                 -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div x-data="{ showForm: false }" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden mb-8">
+    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+        <div>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Commitments</h3>
+            <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Known obligations not yet cleared through the bank</p>
+        </div>
+        <button @click="showForm = !showForm" class="text-xs font-semibold text-brand-600 hover:text-brand-500 dark:text-brand-400 flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Add
+        </button>
+    </div>
+
+    <!-- Add commitment form -->
+    <div x-show="showForm" x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 -translate-y-1"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         class="px-6 py-4 bg-gray-50 dark:bg-gray-900/30 border-b border-gray-100 dark:border-gray-700">
+        <form action="/spending/commitments/add" method="POST" class="space-y-3">
+            <input type="hidden" name="period" value="{{ period }}">
+            <input type="hidden" name="ref" value="{{ start }}">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Title</label>
+                    <input type="text" name="title" required placeholder="e.g. Rent, Insurance" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Amount</label>
+                    <input type="number" name="amount" step="0.01" min="0" required placeholder="0.00" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Due Date</label>
+                    <input type="date" name="due_date" required value="{{ start }}" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Direction</label>
+                    <select name="direction" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="outflow" selected>Outflow (bill/expense)</option>
+                        <option value="inflow">Inflow (expected income)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Category</label>
+                    <select name="category_id" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="">— None —</option>
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% if cat.children %}
+                        {% for child in cat.children %}
+                        <option value="{{ child.id }}">&nbsp;&nbsp;└ {{ child.name }}</option>
+                        {% endfor %}
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Confidence</label>
+                    <select name="confidence" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="confirmed" selected>Confirmed</option>
+                        <option value="expected">Expected</option>
+                        <option value="estimated">Estimated</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        <input type="checkbox" name="is_recurring" class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                        Recurring
+                    </label>
+                    <select name="recurrence" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="">—</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="fortnightly">Fortnightly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                        <option value="annually">Annually</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Notes</label>
+                    <input type="text" name="notes" placeholder="Optional" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors">Save</button>
+                    <button type="button" @click="showForm = false" class="px-4 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold rounded-lg transition-colors">Cancel</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Commitment list -->
+    <div class="divide-y divide-gray-50 dark:divide-gray-700/50">
+        {% for c in commitments %}
+        <div class="px-6 py-3 flex items-center gap-3 group
+            {% if c.cleared_at %}opacity-50{% endif %}">
+            {% if c.direction.value == 'outflow' %}
+            <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
+                {% if c.cleared_at %}bg-gray-100 dark:bg-gray-700{% else %}bg-amber-100 dark:bg-amber-900/40{% endif %}">
+                <svg class="w-3.5 h-3.5 {% if c.cleared_at %}text-gray-400{% else %}text-amber-600 dark:text-amber-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+            </span>
+            {% else %}
+            <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/40">
+                <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            </span>
+            {% endif %}
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ c.title }}</span>
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase
+                        {% if c.confidence.value == 'confirmed' %}bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400
+                        {% elif c.confidence.value == 'expected' %}bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400
+                        {% else %}bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400{% endif %}">{{ c.confidence.value }}</span>
+                    {% if c.is_recurring %}
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-400">{{ c.recurrence.value if c.recurrence else 'recurring' }}</span>
+                    {% endif %}
+                    {% if c.cleared_at %}
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Cleared</span>
+                    {% endif %}
+                </div>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 tabular-nums">
+                    Due {{ c.due_date }}{% if c.category %} · {{ c.category.name }}{% endif %}{% if c.notes %} · {{ c.notes }}{% endif %}
+                </p>
+            </div>
+            <span class="text-sm font-semibold tabular-nums whitespace-nowrap
+                {% if c.direction.value == 'outflow' %}text-red-600 dark:text-red-400{% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
+                {% if c.direction.value == 'outflow' %}-{% else %}+{% endif %}{{ c.amount|nzd }}
+            </span>
+            {% if not c.cleared_at %}
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <form action="/spending/commitments/{{ c.id }}/clear" method="POST" class="inline">
+                    <input type="hidden" name="period" value="{{ period }}">
+                    <input type="hidden" name="ref" value="{{ start }}">
+                    <button type="submit" title="Mark as cleared" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    </button>
+                </form>
+                <form action="/spending/commitments/{{ c.id }}/delete" method="POST" class="inline">
+                    <input type="hidden" name="period" value="{{ period }}">
+                    <input type="hidden" name="ref" value="{{ start }}">
+                    <button type="submit" title="Remove" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No commitments this period. Add known bills, dues, and expected payments.</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- CATEGORY BREAKDOWN                                          -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+        <div>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Category Breakdown</h3>
+            <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Actual + committed + reserved vs budget &middot; sorted by % spoken for</p>
+        </div>
+    </div>
+    <div class="divide-y divide-gray-50 dark:divide-gray-700/50">
+        {% for cat in p.categories %}
+        {% if cat.budgeted > 0 or cat.spoken_for > 0 %}
+        <div x-data="{ open: false }">
+            <button @click="open = !open"
+                    class="w-full px-6 py-4 flex flex-col gap-2.5 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors text-left cursor-pointer">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <svg class="w-3.5 h-3.5 transition-transform flex-shrink-0" :class="open ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ cat.category_name }}</span>
+                        {% if cat.status == 'over' %}
+                        <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">Over</span>
+                        {% elif cat.status == 'tight' %}
+                        <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400">Tight</span>
+                        {% elif cat.status == 'watch' %}
+                        <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">Watch</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-3 ml-4 flex-shrink-0">
+                        <span class="text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100">{{ cat.spoken_for|nzd }}</span>
+                        {% if cat.budgeted > 0 %}
+                        <span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums">/ {{ cat.budgeted|nzd }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if cat.budgeted > 0 %}
+                <!-- Stacked progress bar: actual (red) + committed (amber) + reserve gap (violet) -->
+                <div class="w-full h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden flex">
+                    {% set a_pct = (cat.actual / cat.budgeted * 100) if cat.budgeted else 0 %}
+                    {% set c_pct = (cat.committed / cat.budgeted * 100) if cat.budgeted else 0 %}
+                    {% set r_pct = (cat.reserve_gap / cat.budgeted * 100) if cat.budgeted else 0 %}
+                    {% set cw = [[c_pct, 100 - a_pct] | min, 0] | max %}
+                    {% set rw = [[r_pct, 100 - a_pct - c_pct] | min, 0] | max %}
+                    {% if a_pct > 0 %}
+                    <div class="h-full bg-red-500 transition-all" style="width: {{ [a_pct, 100] | min }}%"></div>
+                    {% endif %}
+                    {% if c_pct > 0 %}
+                    <div class="h-full bg-amber-500 transition-all" style="width: {{ cw }}%"></div>
+                    {% endif %}
+                    {% if r_pct > 0 %}
+                    <div class="h-full bg-violet-400 transition-all" style="width: {{ rw }}%"></div>
+                    {% endif %}
+                </div>
+                <div class="flex items-center justify-between text-[11px] tabular-nums">
+                    <div class="flex items-center gap-3 text-gray-400 dark:text-gray-500">
+                        <span>{{ "%.0f"|format(cat.pct) }}% spoken for</span>
+                        {% if cat.committed > 0 %}
+                        <span class="text-amber-500">{{ cat.committed|nzd }} pending</span>
+                        {% endif %}
+                        {% if cat.reserve_gap > 0 %}
+                        <span class="text-violet-500">{{ cat.reserve_gap|nzd }} reserved</span>
+                        {% endif %}
+                    </div>
+                    <span class="{% if cat.variance >= 0 %}text-emerald-500{% else %}text-red-500{% endif %}">
+                        {% if cat.variance >= 0 %}{{ cat.variance|nzd }} left{% else %}{{ (cat.variance * -1)|nzd }} over{% endif %}
+                    </span>
+                </div>
+                {% else %}
+                <p class="text-[11px] text-gray-400 dark:text-gray-500">No budget set &middot; {{ cat.actual|nzd }} spent</p>
+                {% endif %}
+            </button>
+            <div x-show="open" x-cloak
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 -translate-y-1"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 -translate-y-1"
+                 hx-get="/spending/category/{{ cat.category_id }}/transactions?period={{ period }}&ref={{ start }}"
+                 hx-trigger="intersect once"
+                 hx-swap="innerHTML"
+                 class="bg-gray-50/50 dark:bg-gray-900/30 border-t border-gray-100 dark:border-gray-700/50">
+                <div class="px-4 py-3 flex items-center justify-center">
+                    <svg class="animate-spin h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+(function() {
+requestAnimationFrame(function() {
+    const fmt = v => '$' + Number(v).toLocaleString('en-NZ', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const isDark = document.documentElement.classList.contains('dark');
+
+    const dailyData = {{ p.daily_spending | tojson }};
+    const dailyRate = {{ p.budget_daily_rate }};
+    const daysElapsed = {{ p.days_elapsed }};
+    const dailyCanvas = document.getElementById('dailyChart');
+
+    if (dailyCanvas && dailyData.length > 0) {
+        const existing = Chart.getChart(dailyCanvas);
+        if (existing) existing.destroy();
+
+        Chart.defaults.color = isDark ? '#9ca3af' : '#666';
+        Chart.defaults.borderColor = isDark ? 'rgba(75, 85, 99, 0.5)' : 'rgba(0, 0, 0, 0.1)';
+
+        new Chart(dailyCanvas, {
+            type: 'bar',
+            data: {
+                labels: dailyData.map(d => d.label),
+                datasets: [
+                    {
+                        label: 'Spent',
+                        data: dailyData.map(d => d.amount),
+                        backgroundColor: dailyData.map((d, i) => {
+                            if (i >= daysElapsed) return isDark ? 'rgba(75,85,99,0.2)' : 'rgba(229,231,235,0.6)';
+                            return d.amount > dailyRate
+                                ? 'rgba(239,68,68,0.35)'
+                                : 'rgba(16,185,129,0.35)';
+                        }),
+                        borderColor: dailyData.map((d, i) => {
+                            if (i >= daysElapsed) return isDark ? 'rgba(75,85,99,0.4)' : 'rgba(209,213,219,0.8)';
+                            return d.amount > dailyRate ? 'rgb(239,68,68)' : 'rgb(16,185,129)';
+                        }),
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    },
+                    {
+                        label: 'Daily Budget',
+                        data: dailyData.map(() => dailyRate),
+                        type: 'line',
+                        borderColor: '#6366f1',
+                        borderWidth: 2,
+                        borderDash: [6, 3],
+                        pointRadius: 0,
+                        fill: false,
+                    },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { callback: fmt } },
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: { label: ctx => (ctx.datasetIndex === 0 ? 'Spent: ' : 'Budget: ') + fmt(ctx.raw) },
+                        backgroundColor: 'rgba(17,24,39,0.9)',
+                        padding: 8,
+                        cornerRadius: 6,
+                    },
+                },
+            }
+        });
+    }
+});
+})();
+</script>
+{% endblock %}

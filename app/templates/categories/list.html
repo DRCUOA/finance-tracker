@@ -110,6 +110,9 @@
                             {% if parent.budgeted_amount > 0 %}
                             <span class="text-sm text-gray-400 dark:text-gray-500 tabular-nums">{{ parent.budgeted_amount|nzd }}/mo</span>
                             {% endif %}
+                            {% if parent.reserve_amount > 0 %}
+                            <span class="text-xs text-violet-400 dark:text-violet-500 tabular-nums">{{ parent.reserve_amount|nzd }} rsv</span>
+                            {% endif %}
                             <button @click="editing = !editing" class="text-gray-300 dark:text-gray-600 hover:text-brand-600 transition-colors" title="Edit">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </button>
@@ -144,6 +147,11 @@
                                 <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 dark:text-gray-500 mt-1 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
                             </div>
                             {% if parent.category_type.value == 'expense' %}
+                            <div>
+                                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Reserve/mo</label>
+                                <input type="number" step="0.01" name="reserve_amount" value="{{ parent.reserve_amount }}" placeholder="0.00"
+                                       class="block w-24 rounded-lg border-gray-300 text-sm px-3 py-1.5 focus:border-brand-500 focus:ring-brand-500 tabular-nums">
+                            </div>
                             <div class="pt-5">
                                 <label class="flex items-center gap-2 cursor-pointer select-none">
                                     <input type="checkbox" name="is_fixed" {% if parent.is_fixed %}checked{% endif %}
@@ -172,6 +180,9 @@
                                 <div class="flex items-center gap-3">
                                     {% if child.budgeted_amount > 0 %}
                                     <span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums">{{ child.budgeted_amount|nzd }}/mo</span>
+                                    {% endif %}
+                                    {% if child.reserve_amount > 0 %}
+                                    <span class="text-xs text-violet-400 dark:text-violet-500 tabular-nums">{{ child.reserve_amount|nzd }} rsv</span>
                                     {% endif %}
                                     <button @click="childEditing = !childEditing" class="text-gray-300 dark:text-gray-600 hover:text-brand-600 transition-colors" title="Edit">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -204,6 +215,10 @@
                                         <p x-show="showPeriod && period !== 'month'" x-transition class="text-xs text-gray-400 dark:text-gray-500 mt-1 tabular-nums">= <span x-text="monthly.toFixed(2)"></span>/mo</p>
                                     </div>
                                     {% if parent.category_type.value == 'expense' %}
+                                    <div>
+                                        <input type="number" step="0.01" name="reserve_amount" value="{{ child.reserve_amount }}" placeholder="Rsv/mo"
+                                               class="block w-20 rounded-lg border-gray-300 text-sm px-2 py-1.5 focus:border-brand-500 focus:ring-brand-500 tabular-nums">
+                                    </div>
                                     <div class="pt-1">
                                         <label class="flex items-center gap-2 cursor-pointer select-none">
                                             <input type="checkbox" name="is_fixed" {% if child.is_fixed %}checked{% endif %}
@@ -280,6 +295,7 @@
                             <th class="px-2 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-16">Per</th>
                             <th class="px-2 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">/month</th>
                             <th class="px-2 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-14">Fixed</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24" title="Monthly reserve for irregular/lumpy costs">Reserve</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Keywords</th>
                             <th class="px-3 py-3 w-10"></th>
                         </tr>
@@ -287,7 +303,7 @@
                     <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
                         {% for parent in tree %}
                         {# ---- Parent group header ---- #}
-                        <tr class="bg-gray-50/80 dark:bg-gray-700/40" data-cat-id="{{ parent.id }}" x-data='catRow("{{ parent.id }}", {{ parent.budgeted_amount|float }}, {{ parent.name|tojson }}, [], {{ parent.is_fixed|tojson }})'>
+                        <tr class="bg-gray-50/80 dark:bg-gray-700/40" data-cat-id="{{ parent.id }}" x-data='catRow("{{ parent.id }}", {{ parent.budgeted_amount|float }}, {{ parent.name|tojson }}, [], {{ parent.is_fixed|tojson }}, {{ parent.reserve_amount|float }})'>
                             <td class="px-6 py-2.5">
                                 <div class="flex items-center gap-2.5">
                                     <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full shrink-0
@@ -329,6 +345,16 @@
                                 {% endif %}
                             </td>
                             <td class="px-4 py-2.5">
+                                {% if parent.category_type.value == 'expense' %}
+                                <input type="number" step="0.01" x-model.number="reserveAmt"
+                                       @blur="saveRow()"
+                                       class="bg-transparent border-0 p-0 text-sm text-gray-700 dark:text-gray-300 focus:ring-0 w-full tabular-nums text-right placeholder-gray-300"
+                                       placeholder="0.00">
+                                {% else %}
+                                <span class="text-xs text-gray-300 dark:text-gray-600">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2.5">
                                 <span class="text-xs text-gray-300 dark:text-gray-600 italic">--</span>
                             </td>
                             <td class="px-3 py-2.5 text-center">
@@ -340,7 +366,7 @@
 
                         {# ---- Child rows ---- #}
                         {% for child in parent.children | sort(attribute='sort_order') %}
-                        <tr data-cat-id="{{ child.id }}" x-data='catRow("{{ child.id }}", {{ child.budgeted_amount|float }}, {{ child.name|tojson }}, {{ child.keywords|map(attribute="keyword")|list|tojson }}, {{ child.is_fixed|tojson }})'>
+                        <tr data-cat-id="{{ child.id }}" x-data='catRow("{{ child.id }}", {{ child.budgeted_amount|float }}, {{ child.name|tojson }}, {{ child.keywords|map(attribute="keyword")|list|tojson }}, {{ child.is_fixed|tojson }}, {{ child.reserve_amount|float }})'>
                             <td class="pl-12 pr-6 py-2">
                                 <input type="text" x-model="name"
                                        @blur="saveRow()"
@@ -369,6 +395,16 @@
                                 {% if parent.category_type.value == 'expense' %}
                                 <input type="checkbox" x-model="isFixed" @change="saveRow()"
                                        class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500 cursor-pointer">
+                                {% else %}
+                                <span class="text-xs text-gray-300 dark:text-gray-600">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2">
+                                {% if parent.category_type.value == 'expense' %}
+                                <input type="number" step="0.01" x-model.number="reserveAmt"
+                                       @blur="saveRow()"
+                                       class="bg-transparent border-0 p-0 text-sm text-gray-700 dark:text-gray-300 focus:ring-0 w-full tabular-nums text-right placeholder-gray-300"
+                                       placeholder="0.00">
                                 {% else %}
                                 <span class="text-xs text-gray-300 dark:text-gray-600">—</span>
                                 {% endif %}
@@ -497,16 +533,18 @@ document.addEventListener('alpine:init', () => {
         }
     }));
 
-    Alpine.data('catRow', (id, initialBudget, initialName, _kw, initialFixed) => ({
+    Alpine.data('catRow', (id, initialBudget, initialName, _kw, initialFixed, initialReserve) => ({
         id,
         name: initialName,
         amt: parseFloat(initialBudget) || 0,
         period: 'month',
         isFixed: initialFixed || false,
+        reserveAmt: parseFloat(initialReserve) || 0,
         flash: '',
         _origName: initialName,
         _origAmt: parseFloat(initialBudget) || 0,
         _origFixed: initialFixed || false,
+        _origReserve: parseFloat(initialReserve) || 0,
 
         get monthly() {
             const v = parseFloat(this.amt) || 0;
@@ -516,7 +554,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         get dirty() {
-            return this.name !== this._origName || this.monthly !== this._origAmt || this.isFixed !== this._origFixed;
+            return this.name !== this._origName || this.monthly !== this._origAmt || this.isFixed !== this._origFixed || this.reserveAmt !== this._origReserve;
         },
 
         async saveRow() {
@@ -525,6 +563,7 @@ document.addEventListener('alpine:init', () => {
             if (this.name !== this._origName) payload.name = this.name;
             payload.budgeted_amount = this.monthly.toFixed(2);
             payload.is_fixed = this.isFixed;
+            payload.reserve_amount = (parseFloat(this.reserveAmt) || 0).toFixed(2);
 
             try {
                 const resp = await fetch(`/categories/${this.id}/inline`, {
@@ -536,6 +575,7 @@ document.addEventListener('alpine:init', () => {
                     this._origName = this.name;
                     this._origAmt = this.monthly;
                     this._origFixed = this.isFixed;
+                    this._origReserve = this.reserveAmt;
                     this.showFlash('flash-ok');
                 } else {
                     this.showFlash('flash-err');

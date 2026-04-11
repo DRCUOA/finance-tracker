@@ -923,3 +923,249 @@ async def spending_breakdown(
         }
         for tx in result.scalars()
     ]
+
+
+# ---------------------------------------------------------------------------
+# Spending Pulse — Live Position
+# ---------------------------------------------------------------------------
+
+def _spending_status(pct: float) -> str:
+    if pct > 100:
+        return "over"
+    if pct > 90:
+        return "tight"
+    if pct > 70:
+        return "watch"
+    return "on_track"
+
+
+_HERO_MESSAGES = {
+    "on_track": "You\u2019re in a good position \u2014 comfortably within your {period} means",
+    "watch": "Worth keeping an eye on \u2014 commitments are eating into your buffer",
+    "tight": "Getting tight \u2014 most of your {period} cash is spoken for",
+    "over": "You\u2019re overcommitted for this {period} \u2014 review what can shift",
+}
+
+
+async def weekly_spending_pulse(
+    db: AsyncSession, user_id: uuid.UUID,
+    start: date, end: date,
+    period: str = "week",
+    account_ids: list[uuid.UUID] | None = None,
+) -> dict:
+    """Live position data: actuals + commitments + reserves."""
+    from app.services.commitments import (
+        commitment_totals_for_period, commitments_by_category,
+        project_recurring_commitments,
+    )
+
+    today = date.today()
+    total_days = (end - start).days
+    days_elapsed = max(min((today - start).days + 1, total_days), 1)
+    days_remaining = max(total_days - days_elapsed, 0)
+
+    # Budget overrides
+    by, bm = start.year, start.month
+    budget_result = await db.execute(
+        select(Budget.category_id, Budget.amount)
+        .where(Budget.user_id == user_id, Budget.year == by, Budget.month == bm)
+    )
+    budgets = {str(r.category_id): float(r.amount) for r in budget_result.all()}
+
+    # Categories
+    cats = (await db.execute(
+        select(Category).where(
+            Category.user_id == user_id,
+            Category.category_type == CategoryType.EXPENSE,
+        ).order_by(Category.sort_order)
+    )).scalars().all()
+
+    prorate = total_days / 30.0 if period == "week" else 1.0
+
+    # Actuals by category
+    actual_stmt = (
+        select(
+            Transaction.category_id,
+            sa_func.sum(Transaction.amount).label("actual"),
+        )
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.date >= start,
+            Transaction.date < end,
+            Transaction.category_id.isnot(None),
+            Transaction.amount < 0,
+        )
+        .group_by(Transaction.category_id)
+    )
+    if account_ids is not None:
+        actual_stmt = actual_stmt.where(Transaction.account_id.in_(account_ids))
+    actuals = {
+        str(r.category_id): float(abs(r.actual))
+        for r in (await db.execute(actual_stmt)).all()
+    }
+
+    # Commitments — query against the enclosing month so a weekly view
+    # still sees obligations due later in the month (matching how budgets
+    # are prorated from the monthly total).  Prorate to the view period.
+    m_start, m_end = month_bounds(start.year, start.month)
+
+    await project_recurring_commitments(db, user_id, m_end)
+
+    month_commit_totals = await commitment_totals_for_period(db, user_id, m_start, m_end)
+    month_commit_by_cat = await commitments_by_category(db, user_id, m_start, m_end)
+
+    commit_totals = {
+        "committed_out": round(month_commit_totals["committed_out"] * prorate, 2),
+        "committed_in": round(month_commit_totals["committed_in"] * prorate, 2),
+    }
+    commit_by_cat = {
+        cid: round(v * prorate, 2) for cid, v in month_commit_by_cat.items()
+    }
+
+    # Build per-category rows with live position
+    period_budget = 0.0
+    total_reserved = 0.0
+    cat_rows = []
+    for cat in cats:
+        cid = str(cat.id)
+        raw_budget = budgets.get(cid, float(cat.budgeted_amount))
+        budgeted = round(raw_budget * prorate, 2)
+        actual = actuals.get(cid, 0.0)
+        committed = commit_by_cat.get(cid, 0.0)
+
+        # Reserve: for categories with reserve_amount, the minimum "spoken for"
+        # is the prorated reserve even if actual+committed is lower
+        reserve_raw = float(cat.reserve_amount) * prorate
+        reserve = round(reserve_raw, 2)
+        # "spoken for" = max(actual + committed, reserve) for reserved categories
+        # For non-reserved categories, spoken_for = actual + committed
+        if reserve > 0:
+            spoken_for = round(max(actual + committed, reserve), 2)
+            reserve_gap = round(max(reserve - actual - committed, 0), 2)
+        else:
+            spoken_for = round(actual + committed, 2)
+            reserve_gap = 0.0
+
+        total_reserved += reserve_gap
+        period_budget += budgeted
+
+        pct = round(spoken_for / budgeted * 100, 1) if budgeted else (100.0 if spoken_for > 0 else 0.0)
+
+        cat_rows.append({
+            "category_id": cid,
+            "category_name": cat.name,
+            "budgeted": budgeted,
+            "actual": round(actual, 2),
+            "committed": round(committed, 2),
+            "reserve": reserve,
+            "reserve_gap": reserve_gap,
+            "spoken_for": spoken_for,
+            "pct": pct,
+            "status": _spending_status(pct),
+            "variance": round(budgeted - spoken_for, 2),
+        })
+    cat_rows.sort(key=lambda r: r["pct"], reverse=True)
+
+    total_actual = sum(r["actual"] for r in cat_rows)
+    total_committed = commit_totals["committed_out"]
+    total_spoken_for = round(total_actual + total_committed + total_reserved, 2)
+
+    live_available = round(period_budget - total_spoken_for, 2)
+    overall_pct = round(total_spoken_for / period_budget * 100, 1) if period_budget else 0.0
+    status = _spending_status(overall_pct)
+
+    safe_to_spend = round(max(live_available, 0) / max(days_remaining, 1), 2)
+
+    budget_daily_rate = round(period_budget / max(total_days, 1), 2)
+    elapsed_budget = budget_daily_rate * days_elapsed
+    pace_pct = round(total_actual / elapsed_budget * 100, 1) if elapsed_budget else 0.0
+
+    # Day-by-day actual spending
+    daily_stmt = (
+        select(
+            Transaction.date,
+            sa_func.sum(Transaction.amount).label("total"),
+        )
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.date >= start,
+            Transaction.date < end,
+            Transaction.amount < 0,
+        )
+        .group_by(Transaction.date)
+        .order_by(Transaction.date)
+    )
+    if account_ids is not None:
+        daily_stmt = daily_stmt.where(Transaction.account_id.in_(account_ids))
+    daily_result = await db.execute(daily_stmt)
+    daily_map = {r.date: float(abs(r.total)) for r in daily_result.all()}
+
+    daily_spending = []
+    for i in range(total_days):
+        d = start + timedelta(days=i)
+        daily_spending.append({
+            "date": d.isoformat(),
+            "label": d.strftime("%a"),
+            "amount": round(daily_map.get(d, 0.0), 2),
+        })
+
+    period_word = "week" if period == "week" else "month"
+
+    return {
+        "period_budget": round(period_budget, 2),
+        "total_actual": round(total_actual, 2),
+        "total_committed": round(total_committed, 2),
+        "total_reserved": round(total_reserved, 2),
+        "total_spoken_for": total_spoken_for,
+        "committed_in": round(commit_totals["committed_in"], 2),
+        "live_available": live_available,
+        "days_elapsed": days_elapsed,
+        "days_remaining": days_remaining,
+        "days_total": total_days,
+        "safe_to_spend": safe_to_spend,
+        "pace_pct": pace_pct,
+        "overall_pct": overall_pct,
+        "status": status,
+        "message": _HERO_MESSAGES[status].format(period=period_word),
+        "daily_spending": daily_spending,
+        "budget_daily_rate": budget_daily_rate,
+        "categories": cat_rows,
+    }
+
+
+async def spending_category_transactions(
+    db: AsyncSession, user_id: uuid.UUID,
+    category_id: uuid.UUID,
+    start: date, end: date,
+    account_ids: list[uuid.UUID] | None = None,
+) -> list[dict] | None:
+    """Transactions for a single category within a period (for HTMX drill-down)."""
+    cat = (await db.execute(
+        select(Category).where(Category.id == category_id, Category.user_id == user_id)
+    )).scalar_one_or_none()
+    if not cat:
+        return None
+
+    conditions = [
+        Transaction.user_id == user_id,
+        Transaction.category_id == category_id,
+        Transaction.date >= start,
+        Transaction.date < end,
+    ]
+    if account_ids is not None:
+        conditions.append(Transaction.account_id.in_(account_ids))
+
+    txs = (await db.execute(
+        select(Transaction).where(*conditions).order_by(Transaction.date.desc())
+    )).scalars().all()
+
+    return [
+        {
+            "id": str(tx.id),
+            "date": tx.date.isoformat(),
+            "description": tx.description,
+            "amount": float(tx.amount),
+            "is_cleared": tx.is_cleared,
+        }
+        for tx in txs
+    ]
