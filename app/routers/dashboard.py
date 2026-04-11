@@ -26,8 +26,8 @@ async def dashboard(
     request: Request,
     period: str = Query("month"),
     ref: str = Query(""),
-    term: str = Query(""),
-    span: str = Query(""),
+    term: str = Query("medium"),
+    span: str = Query("1y"),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):

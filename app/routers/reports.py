@@ -55,6 +55,19 @@ async def reports_page(
         db, user.id, steps=12, period=period,
     )
 
+    income_trend = await report_svc.income_vs_spending_trend(
+        db, user.id, periods=6, period=period, account_ids=cashflow_ids,
+    )
+    category_comparison = await report_svc.spending_by_category_comparison(
+        db, user.id, start, end, period=period, account_ids=cashflow_ids,
+    )
+    fixed_flexible = await report_svc.fixed_vs_flexible_summary(
+        db, user.id, start, end, account_ids=cashflow_ids,
+    )
+    cashflow = await report_svc.cashflow_trend(
+        db, user.id, periods=12, account_ids=cashflow_ids,
+    )
+
     prev_ref = report_svc.step_period(ref_date, -1, period)
     next_ref = report_svc.step_period(ref_date, 1, period)
     prev_url = f"/reports?period={period}&ref={prev_ref.isoformat()}"
@@ -72,6 +85,10 @@ async def reports_page(
         "averages": averages,
         "avg_label": avg_label,
         "net_history": net_history,
+        "income_trend": income_trend,
+        "category_comparison": category_comparison,
+        "fixed_flexible": fixed_flexible,
+        "cashflow": cashflow,
         "prev_url": prev_url,
         "next_url": next_url,
         "base_url": base_url,

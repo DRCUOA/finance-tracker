@@ -14,121 +14,462 @@
 {% endblock %}
 
 {% block content %}
-<!-- Period Summary -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Income</p>
-        <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ summary.income|nzd }}</p>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Expenses</p>
-        <p class="text-xl font-bold text-red-600 dark:text-red-400 tabular-nums">{{ summary.expenses|nzd }}</p>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Net Savings</p>
-        <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ summary.net|nzd }}</p>
-    </div>
-</div>
+<div x-data="{ tab: new URLSearchParams(location.search).get('tab') || 'income' }"
+     x-init="$watch('tab', v => { const u = new URL(location); u.searchParams.set('tab', v); history.replaceState(null, '', u); })">
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
-    <!-- Budget vs Actual Chart -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Budget vs Actual</h3>
-        <div id="budgetChartWrap"><canvas id="budgetChart"></canvas></div>
+    <!-- Tab Navigation -->
+    <div class="mb-8 border-b border-gray-200 dark:border-gray-700">
+        <nav class="flex gap-1 -mb-px overflow-x-auto" aria-label="Report tabs">
+            {% set tabs = [
+                ("income", "Income vs Spending"),
+                ("budget", "Budget vs Actual"),
+                ("category", "Spending by Category"),
+                ("fixed", "Fixed vs Flexible"),
+                ("cashflow", "Cash Flow Trend"),
+            ] %}
+            {% for key, label in tabs %}
+            <button @click="tab = '{{ key }}'"
+                    :class="tab === '{{ key }}'
+                        ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'"
+                    class="px-4 py-3 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors">
+                {{ label }}
+            </button>
+            {% endfor %}
+        </nav>
     </div>
 
-    <!-- Spending by Category (Doughnut) -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Spending by Category</h3>
-        <canvas id="categoryChart" height="300"></canvas>
-    </div>
-</div>
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- TAB 1: Income vs Spending Summary                      -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div x-show="tab === 'income'" x-cloak>
+        <!-- Period Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Income</p>
+                <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ summary.income|nzd }}</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Expenses</p>
+                <p class="text-xl font-bold text-red-600 dark:text-red-400 tabular-nums">{{ summary.expenses|nzd }}</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Net Result</p>
+                <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ summary.net|nzd }}</p>
+                {% if summary.net >= 0 %}
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500 mt-1">Surplus</p>
+                {% else %}
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-red-500 mt-1">Deficit</p>
+                {% endif %}
+            </div>
+        </div>
 
-<!-- Budget vs Actual Table -->
-<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 mb-10 overflow-hidden">
-    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Budget vs Actual Detail</h3>
-    </div>
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
-            <thead class="bg-gray-50/60 dark:bg-gray-700/60">
-                <tr>
-                    <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Budgeted</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actual</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Variance</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">%</th>
-                    <th class="px-6 py-3.5 w-20"></th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
-                {% for row in budget_data %}
-                <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors group">
-                    <td class="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">
-                        <div class="flex items-center gap-1.5">
-                            {{ row.category_name }}
-                            <button onclick="openCatEdit('{{ row.category_id }}')" class="p-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-brand-600 dark:hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-all" title="Edit category">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                            </button>
-                        </div>
-                    </td>
-                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.budgeted|nzd }}</td>
-                    <td class="px-6 py-3.5 text-sm text-right font-medium text-gray-900 dark:text-gray-100 tabular-nums">{{ row.actual|nzd }}</td>
-                    <td class="px-6 py-3.5 text-sm text-right tabular-nums {% if row.variance >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">
-                        {{ row.variance|nzd }}
-                    </td>
-                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.pct }}%</td>
-                    <td class="px-6 py-3.5 text-right">
-                        <a href="/reports/breakdown/{{ row.category_id }}?period={{ period }}&ref={{ start }}" class="text-brand-600 hover:text-brand-800 text-xs font-medium">Details</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+        <!-- Income vs Spending Trend Chart -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Month-by-Month Trend</h3>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">Last 6 {{ period }}s — bars show income & expenses, line shows rolling 3-period average net</p>
+            <canvas id="incomeTrendChart" height="240"></canvas>
+        </div>
 
-<!-- Category Averages -->
-<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 mb-10 overflow-hidden">
-    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ avg_label }} <span class="font-normal text-gray-400 dark:text-gray-500">(last 6 periods)</span></h3>
+        <!-- Trend Summary Table -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Period Detail</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                    <thead class="bg-gray-50/60 dark:bg-gray-700/60">
+                        <tr>
+                            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Period</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Income</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Expenses</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Net</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Rolling Avg</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+                        {% for pt in income_trend.points %}
+                        <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                            <td class="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">{{ pt.label }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right text-emerald-600 dark:text-emerald-400 tabular-nums">{{ pt.income|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right text-red-600 dark:text-red-400 tabular-nums">{{ pt.expenses|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right font-medium tabular-nums {% if pt.net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ pt.net|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ pt.rolling_avg_net|nzd }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="bg-gray-50/60 dark:bg-gray-700/60">
+                        <tr>
+                            <td class="px-6 py-3.5 text-sm font-semibold text-gray-900 dark:text-gray-100">Total</td>
+                            <td class="px-6 py-3.5 text-sm text-right font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ income_trend.total_income|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right font-semibold text-red-600 dark:text-red-400 tabular-nums">{{ income_trend.total_expenses|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right font-semibold tabular-nums {% if income_trend.total_net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ income_trend.total_net|nzd }}</td>
+                            <td class="px-6 py-3.5"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
     </div>
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
-            <thead class="bg-gray-50/60 dark:bg-gray-700/60">
-                <tr>
-                    <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total</th>
-                    <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ avg_label }}</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
-                {% for row in averages %}
-                <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors group">
-                    <td class="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">
-                        <div class="flex items-center gap-1.5">
-                            {{ row.category_name }}
-                            <button onclick="openCatEdit('{{ row.category_id }}')" class="p-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-brand-600 dark:hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-all" title="Edit category">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                            </button>
-                        </div>
-                    </td>
-                    <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.total|nzd }}</td>
-                    <td class="px-6 py-3.5 text-sm text-right font-medium text-gray-900 dark:text-gray-100 tabular-nums">{{ row.average|nzd }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
 
-<!-- Net Worth Trend -->
-<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
-    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
-        Net Worth Trend
-        <span class="font-normal text-gray-400 dark:text-gray-500 ml-1">(12 {{ period }}s)</span>
-    </h3>
-    <canvas id="netWorthChart" height="200"></canvas>
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- TAB 2: Budget vs Actual                                -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div x-show="tab === 'budget'" x-cloak>
+        <!-- Budget vs Actual Chart -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Budget vs Actual</h3>
+            <div id="budgetChartWrap"><canvas id="budgetChart"></canvas></div>
+        </div>
+
+        <!-- Budget vs Actual Table -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Budget vs Actual Detail</h3>
+                <span class="text-xs text-gray-400 dark:text-gray-500">{{ period_label }}</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                    <thead class="bg-gray-50/60 dark:bg-gray-700/60">
+                        <tr>
+                            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Budgeted</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actual</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Variance</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">%</th>
+                            <th class="px-6 py-3.5 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3.5 w-20"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+                        {% for row in budget_data %}
+                        <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors group">
+                            <td class="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">
+                                <div class="flex items-center gap-1.5">
+                                    {{ row.category_name }}
+                                    <button onclick="openCatEdit('{{ row.category_id }}')" class="p-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-brand-600 dark:hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-all" title="Edit category">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
+                                </div>
+                            </td>
+                            <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.budgeted|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right font-medium text-gray-900 dark:text-gray-100 tabular-nums">{{ row.actual|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right tabular-nums {% if row.variance >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+                                {{ row.variance|nzd }}
+                            </td>
+                            <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.pct }}%</td>
+                            <td class="px-6 py-3.5 text-center">
+                                {% if row.budgeted > 0 %}
+                                    {% if row.pct > 100 %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">Over</span>
+                                    {% elif row.pct > 85 %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">Caution</span>
+                                    {% else %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400">OK</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-[10px] text-gray-300 dark:text-gray-600">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-3.5 text-right">
+                                <a href="/reports/breakdown/{{ row.category_id }}?period={{ period }}&ref={{ start }}" class="text-brand-600 hover:text-brand-800 text-xs font-medium">Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- TAB 3: Spending by Category                            -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div x-show="tab === 'category'" x-cloak>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Spending Doughnut -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Spending by Category</h3>
+                <canvas id="categoryChart" height="300"></canvas>
+            </div>
+
+            <!-- Category Averages -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">{{ avg_label }}</h3>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">Last 6 periods</p>
+                <div class="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                    {% for row in averages %}
+                    {% if row.total > 0 %}
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ row.category_name }}</span>
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 tabular-nums ml-3">{{ row.average|nzd }}</span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Comparison Table -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Category Comparison — Current vs Prior {{ period | title }}</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                    <thead class="bg-gray-50/60 dark:bg-gray-700/60">
+                        <tr>
+                            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">This Period</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Period</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Change</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">% of Total</th>
+                            <th class="px-6 py-3.5 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+                        {% for row in category_comparison %}
+                        <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                            <td class="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">{{ row.category_name }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right text-gray-900 dark:text-gray-100 tabular-nums font-medium">{{ row.current|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.previous|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right tabular-nums
+                                {% if row.change > 0 %}text-red-600 dark:text-red-400{% elif row.change < 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-gray-400{% endif %}">
+                                {{ row.change|nzd(show_sign=True) }}
+                                {% if row.change_pct != 0 %}
+                                <span class="text-[10px] text-gray-400 dark:text-gray-500 ml-0.5">({{ row.change_pct }}%)</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">
+                                <div class="flex items-center justify-end gap-2">
+                                    <div class="w-16 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-brand-500 rounded-full" style="width: {{ [row.pct_of_total, 100] | min }}%"></div>
+                                    </div>
+                                    {{ row.pct_of_total }}%
+                                </div>
+                            </td>
+                            <td class="px-6 py-3.5 text-center">
+                                {% if row.is_fixed %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400">Fixed</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Flexible</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- TAB 4: Fixed vs Flexible Spending                      -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div x-show="tab === 'fixed'" x-cloak>
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Income</p>
+                <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ fixed_flexible.income|nzd }}</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Fixed Costs</p>
+                <p class="text-xl font-bold text-blue-600 dark:text-blue-400 tabular-nums">{{ fixed_flexible.fixed_total|nzd }}</p>
+                <p class="text-[10px] font-semibold text-blue-500 mt-1">{{ fixed_flexible.fixed_pct_income }}% of income</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Flexible Spending</p>
+                <p class="text-xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">{{ fixed_flexible.flexible_total|nzd }}</p>
+                <p class="text-[10px] font-semibold text-amber-500 mt-1">{{ fixed_flexible.flexible_pct_income }}% of income</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Discretionary Buffer</p>
+                <p class="text-xl font-bold tabular-nums {% if fixed_flexible.remaining_buffer >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ fixed_flexible.remaining_buffer|nzd }}</p>
+                <p class="text-[10px] font-semibold {% if fixed_flexible.remaining_pct >= 0 %}text-emerald-500{% else %}text-red-500{% endif %} mt-1">{{ fixed_flexible.remaining_pct }}% of income</p>
+            </div>
+        </div>
+
+        <!-- Income Allocation Bar -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Income Allocation</h3>
+            <div class="h-8 rounded-full overflow-hidden flex bg-gray-100 dark:bg-gray-700">
+                {% if fixed_flexible.income > 0 %}
+                <div class="bg-blue-500 h-full flex items-center justify-center" style="width: {{ [fixed_flexible.fixed_pct_income, 100] | min }}%">
+                    {% if fixed_flexible.fixed_pct_income > 8 %}
+                    <span class="text-[10px] font-semibold text-white">Fixed {{ fixed_flexible.fixed_pct_income }}%</span>
+                    {% endif %}
+                </div>
+                <div class="bg-amber-500 h-full flex items-center justify-center" style="width: {{ [fixed_flexible.flexible_pct_income, 100 - fixed_flexible.fixed_pct_income] | min }}%">
+                    {% if fixed_flexible.flexible_pct_income > 8 %}
+                    <span class="text-[10px] font-semibold text-white">Flexible {{ fixed_flexible.flexible_pct_income }}%</span>
+                    {% endif %}
+                </div>
+                {% if fixed_flexible.remaining_pct > 0 %}
+                <div class="bg-emerald-500 h-full flex items-center justify-center" style="width: {{ fixed_flexible.remaining_pct }}%">
+                    {% if fixed_flexible.remaining_pct > 8 %}
+                    <span class="text-[10px] font-semibold text-white">Buffer {{ fixed_flexible.remaining_pct }}%</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-6 mt-3">
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-500"></span><span class="text-xs text-gray-500 dark:text-gray-400">Fixed</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span><span class="text-xs text-gray-500 dark:text-gray-400">Flexible</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span><span class="text-xs text-gray-500 dark:text-gray-400">Buffer</span></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Doughnut Chart -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Fixed vs Flexible Split</h3>
+                <canvas id="fixedFlexChart" height="280"></canvas>
+            </div>
+
+            <!-- Guidance -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">What This Means</h3>
+                <div class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                    {% if fixed_flexible.fixed_pct_income > 70 %}
+                    <div class="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
+                        <p class="font-semibold mb-1">High fixed cost burden</p>
+                        <p class="text-xs">{{ fixed_flexible.fixed_pct_income }}% of income is locked into fixed costs. This leaves very little room for daily choices or savings. Consider reviewing subscriptions, insurance, and debt repayments.</p>
+                    </div>
+                    {% elif fixed_flexible.fixed_pct_income > 50 %}
+                    <div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
+                        <p class="font-semibold mb-1">Moderate fixed cost load</p>
+                        <p class="text-xs">{{ fixed_flexible.fixed_pct_income }}% of income goes to fixed costs. There's some room to manoeuvre, but watch for category creep in subscriptions and commitments.</p>
+                    </div>
+                    {% else %}
+                    <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+                        <p class="font-semibold mb-1">Healthy fixed cost ratio</p>
+                        <p class="text-xs">Only {{ fixed_flexible.fixed_pct_income }}% of income is committed to fixed costs. This gives you good flexibility for savings and discretionary spending.</p>
+                    </div>
+                    {% endif %}
+                    <p class="text-xs text-gray-400 dark:text-gray-500 pt-2">Mark categories as "Fixed" in the category edit modal. Fixed costs are obligations you cannot easily reduce month-to-month (rent, insurance, loan repayments, subscriptions).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fixed & Flexible Breakdown Tables -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Fixed Costs -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Fixed Costs</h3>
+                    <span class="text-xs text-gray-400 dark:text-gray-500 ml-auto tabular-nums">{{ fixed_flexible.fixed_total|nzd }}</span>
+                </div>
+                <div class="divide-y divide-gray-50 dark:divide-gray-700">
+                    {% for item in fixed_flexible.fixed_items %}
+                    <div class="px-6 py-3 flex items-center justify-between hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                        <span class="text-sm text-gray-700 dark:text-gray-300">{{ item.category_name }}</span>
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 tabular-nums">{{ item.amount|nzd }}</span>
+                    </div>
+                    {% else %}
+                    <p class="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No categories marked as fixed. Edit categories to set the "Fixed cost" flag.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Flexible Spending -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Flexible Spending</h3>
+                    <span class="text-xs text-gray-400 dark:text-gray-500 ml-auto tabular-nums">{{ fixed_flexible.flexible_total|nzd }}</span>
+                </div>
+                <div class="divide-y divide-gray-50 dark:divide-gray-700">
+                    {% for item in fixed_flexible.flexible_items %}
+                    <div class="px-6 py-3 flex items-center justify-between hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                        <span class="text-sm text-gray-700 dark:text-gray-300">{{ item.category_name }}</span>
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 tabular-nums">{{ item.amount|nzd }}</span>
+                    </div>
+                    {% else %}
+                    <p class="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No flexible spending this period.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- TAB 5: Cash Flow Trend / Runway                        -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div x-show="tab === 'cashflow'" x-cloak>
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Current Balance</p>
+                <p class="text-xl font-bold tabular-nums {% if cashflow.latest_balance >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ cashflow.latest_balance|nzd }}</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Avg Monthly Expenses</p>
+                <p class="text-xl font-bold text-red-600 dark:text-red-400 tabular-nums">{{ cashflow.avg_monthly_expenses|nzd }}</p>
+                <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Based on last 3 months</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Days of Buffer</p>
+                <p class="text-xl font-bold tabular-nums {% if cashflow.days_of_buffer > 90 %}text-emerald-600 dark:text-emerald-400{% elif cashflow.days_of_buffer > 30 %}text-amber-600 dark:text-amber-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ cashflow.days_of_buffer }}</p>
+                <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">At current spending rate</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Months of Runway</p>
+                <p class="text-xl font-bold tabular-nums {% if cashflow.days_of_buffer > 90 %}text-emerald-600 dark:text-emerald-400{% elif cashflow.days_of_buffer > 30 %}text-amber-600 dark:text-amber-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ (cashflow.days_of_buffer / 30)|round(1) }}</p>
+            </div>
+        </div>
+
+        <!-- Cash Flow Trend Chart -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Cash Flow Trend</h3>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">12-month closing balances and net monthly flow</p>
+            <canvas id="cashflowChart" height="240"></canvas>
+        </div>
+
+        <!-- Net Worth Trend (kept from original) -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                Net Worth Trend
+                <span class="font-normal text-gray-400 dark:text-gray-500 ml-1">(12 {{ period }}s)</span>
+            </h3>
+            <canvas id="netWorthChart" height="200"></canvas>
+        </div>
+
+        <!-- Cash Flow Detail Table -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Monthly Cash Flow Detail</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                    <thead class="bg-gray-50/60 dark:bg-gray-700/60">
+                        <tr>
+                            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Month</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Opening</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Closing</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Net Flow</th>
+                            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Rolling Avg</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+                        {% for pt in cashflow.points %}
+                        <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                            <td class="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">{{ pt.label }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ pt.opening|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right text-gray-900 dark:text-gray-100 tabular-nums font-medium">{{ pt.closing|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right tabular-nums {% if pt.net_flow >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+                                {{ pt.net_flow|nzd(show_sign=True) }}
+                            </td>
+                            <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ pt.rolling_net|nzd }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -141,6 +482,61 @@ function initReportCharts() {
     const fmt = v => '$' + Number(v).toLocaleString('en-NZ', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     const ttCb = { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } };
 
+    // ──── Income vs Spending Trend Chart ────
+    const trendData = {{ income_trend.points | tojson }};
+    if (trendData.length > 0) {
+        var trendCanvas = document.getElementById('incomeTrendChart');
+        var etc = Chart.getChart(trendCanvas); if (etc) etc.destroy();
+        new Chart(trendCanvas, {
+            type: 'bar',
+            data: {
+                labels: trendData.map(d => d.label),
+                datasets: [
+                    {
+                        label: 'Income',
+                        data: trendData.map(d => d.income),
+                        backgroundColor: 'rgba(16,185,129,0.30)',
+                        borderColor: 'rgb(16,185,129)',
+                        borderWidth: 1,
+                        borderRadius: 3,
+                        order: 2,
+                    },
+                    {
+                        label: 'Expenses',
+                        data: trendData.map(d => d.expenses),
+                        backgroundColor: 'rgba(239,68,68,0.25)',
+                        borderColor: 'rgb(239,68,68)',
+                        borderWidth: 1,
+                        borderRadius: 3,
+                        order: 2,
+                    },
+                    {
+                        label: 'Rolling 3-period Avg Net',
+                        data: trendData.map(d => d.rolling_avg_net),
+                        type: 'line',
+                        borderColor: '#6366f1',
+                        borderWidth: 2,
+                        borderDash: [5, 3],
+                        pointRadius: 3,
+                        pointBackgroundColor: '#6366f1',
+                        fill: false,
+                        tension: 0.4,
+                        order: 1,
+                    },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { callback: fmt } },
+                },
+                plugins: { tooltip: ttCb, legend: { position: 'top' } },
+            }
+        });
+    }
+
+    // ──── Budget vs Actual Chart ────
     const budgetData = {{ budget_data | tojson }};
     const allCats = {{ summary.categories | tojson }};
 
@@ -198,6 +594,7 @@ function initReportCharts() {
         });
     }
 
+    // ──── Spending by Category Doughnut ────
     const spendCats = allCats.filter(c => c.type !== 'transfer' && c.total < 0);
     if (spendCats.length > 0) {
         const colors = ['#6366f1','#ef4444','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b'];
@@ -213,6 +610,94 @@ function initReportCharts() {
         });
     }
 
+    // ──── Fixed vs Flexible Doughnut ────
+    const ffData = {{ fixed_flexible | tojson }};
+    if (ffData.fixed_total > 0 || ffData.flexible_total > 0) {
+        var ffCanvas = document.getElementById('fixedFlexChart');
+        var eff = Chart.getChart(ffCanvas); if (eff) eff.destroy();
+        var ffLabels = [];
+        var ffValues = [];
+        var ffColors = [];
+        ffData.fixed_items.forEach(function(item) {
+            ffLabels.push(item.category_name + ' (Fixed)');
+            ffValues.push(item.amount);
+            ffColors.push('#3b82f6');
+        });
+        ffData.flexible_items.forEach(function(item) {
+            ffLabels.push(item.category_name);
+            ffValues.push(item.amount);
+            ffColors.push('#f59e0b');
+        });
+        new Chart(ffCanvas, {
+            type: 'doughnut',
+            data: {
+                labels: ffLabels,
+                datasets: [{ data: ffValues, backgroundColor: ffColors, borderWidth: 2, borderColor: isDark ? '#1f2937' : '#fff' }]
+            },
+            options: { responsive: true, cutout: '55%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx.raw) } } } }
+        });
+    }
+
+    // ──── Cash Flow Trend Chart ────
+    const cfData = {{ cashflow.points | tojson }};
+    if (cfData.length > 0) {
+        var cfCanvas = document.getElementById('cashflowChart');
+        var ecf = Chart.getChart(cfCanvas); if (ecf) ecf.destroy();
+        new Chart(cfCanvas, {
+            type: 'bar',
+            data: {
+                labels: cfData.map(d => d.label),
+                datasets: [
+                    {
+                        label: 'Net Monthly Flow',
+                        data: cfData.map(d => d.net_flow),
+                        backgroundColor: cfData.map(d => d.net_flow >= 0 ? 'rgba(16,185,129,0.30)' : 'rgba(239,68,68,0.25)'),
+                        borderColor: cfData.map(d => d.net_flow >= 0 ? 'rgb(16,185,129)' : 'rgb(239,68,68)'),
+                        borderWidth: 1,
+                        borderRadius: 3,
+                        order: 2,
+                    },
+                    {
+                        label: 'Closing Balance',
+                        data: cfData.map(d => d.closing),
+                        type: 'line',
+                        borderColor: '#6366f1',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#6366f1',
+                        fill: false,
+                        tension: 0.4,
+                        yAxisID: 'y1',
+                        order: 1,
+                    },
+                    {
+                        label: 'Rolling Avg Net',
+                        data: cfData.map(d => d.rolling_net),
+                        type: 'line',
+                        borderColor: '#f59e0b',
+                        borderWidth: 2,
+                        borderDash: [5, 3],
+                        pointRadius: 2,
+                        pointBackgroundColor: '#f59e0b',
+                        fill: false,
+                        tension: 0.4,
+                        order: 1,
+                    },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { callback: fmt }, position: 'left' },
+                    y1: { ticks: { callback: fmt }, position: 'right', grid: { drawOnChartArea: false } },
+                },
+                plugins: { tooltip: ttCb, legend: { position: 'top' } },
+            }
+        });
+    }
+
+    // ──── Net Worth Trend Chart ────
     const netData = {{ net_history | tojson }};
     if (netData.length > 0) {
         var nwCanvas = document.getElementById('netWorthChart');

@@ -611,6 +611,290 @@ async def category_transactions_detail(
     }
 
 
+async def income_vs_spending_trend(
+    db: AsyncSession, user_id: uuid.UUID,
+    periods: int = 6, period: str = "month",
+    account_ids: list[uuid.UUID] | None = None,
+) -> dict:
+    """Multi-period income/expenses/net trend with rolling 3-period average."""
+    today = date.today()
+    data_points: list[dict] = []
+
+    for i in range(periods - 1, -1, -1):
+        ref = step_period(today, -i, period)
+        start, end = period_bounds(ref, period)
+        label = period_label(ref, period) if period == "week" else ref.strftime("%b %y")
+
+        conditions = [
+            Transaction.category_id == Category.id,
+            Transaction.date >= start,
+            Transaction.date < end,
+        ]
+        if account_ids is not None:
+            conditions.append(Transaction.account_id.in_(account_ids))
+
+        stmt = (
+            select(
+                Category.category_type,
+                sa_func.coalesce(
+                    sa_func.sum(case((Transaction.amount > 0, Transaction.amount), else_=Decimal("0.00"))),
+                    Decimal("0.00"),
+                ).label("pos"),
+                sa_func.coalesce(
+                    sa_func.sum(case((Transaction.amount < 0, Transaction.amount), else_=Decimal("0.00"))),
+                    Decimal("0.00"),
+                ).label("neg"),
+            )
+            .outerjoin(Transaction, and_(*conditions))
+            .where(Category.user_id == user_id, Category.category_type != CategoryType.TRANSFER)
+            .group_by(Category.category_type)
+        )
+        result = await db.execute(stmt)
+        income = Decimal("0.00")
+        expenses = Decimal("0.00")
+        for row in result.all():
+            income += row.pos or Decimal("0.00")
+            expenses += abs(row.neg or Decimal("0.00"))
+
+        data_points.append({
+            "label": label,
+            "income": float(income),
+            "expenses": float(expenses),
+            "net": float(income - expenses),
+        })
+
+    for i, dp in enumerate(data_points):
+        window = data_points[max(0, i - 2):i + 1]
+        dp["rolling_avg_net"] = round(sum(p["net"] for p in window) / len(window), 2)
+
+    return {
+        "points": data_points,
+        "total_income": sum(p["income"] for p in data_points),
+        "total_expenses": sum(p["expenses"] for p in data_points),
+        "total_net": sum(p["net"] for p in data_points),
+    }
+
+
+async def spending_by_category_comparison(
+    db: AsyncSession, user_id: uuid.UUID,
+    start: date, end: date,
+    period: str = "month",
+    account_ids: list[uuid.UUID] | None = None,
+) -> list[dict]:
+    """Per-category spending with % of total and prior period comparison."""
+    prev_ref = step_period(start, -1, period)
+    prev_start, prev_end = period_bounds(prev_ref, period)
+
+    async def _category_totals(s: date, e: date) -> dict[str, float]:
+        conditions = [
+            Transaction.user_id == user_id,
+            Transaction.category_id.isnot(None),
+            Transaction.date >= s,
+            Transaction.date < e,
+            Transaction.amount < 0,
+        ]
+        if account_ids is not None:
+            conditions.append(Transaction.account_id.in_(account_ids))
+        stmt = (
+            select(
+                Transaction.category_id,
+                sa_func.sum(Transaction.amount).label("total"),
+            )
+            .where(*conditions)
+            .group_by(Transaction.category_id)
+        )
+        result = await db.execute(stmt)
+        return {str(r.category_id): float(abs(r.total)) for r in result.all()}
+
+    current = await _category_totals(start, end)
+    previous = await _category_totals(prev_start, prev_end)
+
+    cats_stmt = select(Category).where(
+        Category.user_id == user_id,
+        Category.category_type == CategoryType.EXPENSE,
+    ).order_by(Category.sort_order)
+    cats = (await db.execute(cats_stmt)).scalars().all()
+
+    grand_total = sum(current.values()) or 1.0
+
+    rows = []
+    for cat in cats:
+        cid = str(cat.id)
+        curr_val = current.get(cid, 0.0)
+        prev_val = previous.get(cid, 0.0)
+        if curr_val == 0 and prev_val == 0:
+            continue
+        change = curr_val - prev_val
+        rows.append({
+            "category_id": cid,
+            "category_name": cat.name,
+            "is_fixed": cat.is_fixed,
+            "current": round(curr_val, 2),
+            "previous": round(prev_val, 2),
+            "change": round(change, 2),
+            "change_pct": round(change / prev_val * 100, 1) if prev_val else 0,
+            "pct_of_total": round(curr_val / grand_total * 100, 1),
+        })
+    rows.sort(key=lambda r: r["current"], reverse=True)
+    return rows
+
+
+async def fixed_vs_flexible_summary(
+    db: AsyncSession, user_id: uuid.UUID,
+    start: date, end: date,
+    account_ids: list[uuid.UUID] | None = None,
+) -> dict:
+    """Split spending and income into fixed vs flexible categories."""
+    conditions = [
+        Transaction.category_id == Category.id,
+        Transaction.date >= start,
+        Transaction.date < end,
+    ]
+    if account_ids is not None:
+        conditions.append(Transaction.account_id.in_(account_ids))
+
+    stmt = (
+        select(
+            Category.id,
+            Category.name,
+            Category.category_type,
+            Category.is_fixed,
+            sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")).label("total"),
+        )
+        .outerjoin(Transaction, and_(*conditions))
+        .where(Category.user_id == user_id, Category.category_type != CategoryType.TRANSFER)
+        .group_by(Category.id)
+        .order_by(Category.sort_order)
+    )
+    result = await db.execute(stmt)
+
+    income = Decimal("0.00")
+    fixed_items: list[dict] = []
+    flexible_items: list[dict] = []
+    fixed_total = Decimal("0.00")
+    flexible_total = Decimal("0.00")
+
+    for row in result.all():
+        total = row.total or Decimal("0.00")
+        if row.category_type == CategoryType.INCOME:
+            income += max(total, Decimal("0.00"))
+            continue
+        spent = abs(min(total, Decimal("0.00")))
+        if spent == 0:
+            continue
+        item = {
+            "category_id": str(row.id),
+            "category_name": row.name,
+            "amount": float(spent),
+            "is_fixed": row.is_fixed,
+        }
+        if row.is_fixed:
+            fixed_items.append(item)
+            fixed_total += spent
+        else:
+            flexible_items.append(item)
+            flexible_total += spent
+
+    total_spending = fixed_total + flexible_total
+    income_f = float(income) or 1.0
+
+    return {
+        "income": float(income),
+        "fixed_total": float(fixed_total),
+        "flexible_total": float(flexible_total),
+        "total_spending": float(total_spending),
+        "fixed_pct_income": round(float(fixed_total) / income_f * 100, 1),
+        "flexible_pct_income": round(float(flexible_total) / income_f * 100, 1),
+        "remaining_buffer": float(income - total_spending),
+        "remaining_pct": round(float(income - total_spending) / income_f * 100, 1),
+        "fixed_items": sorted(fixed_items, key=lambda x: x["amount"], reverse=True),
+        "flexible_items": sorted(flexible_items, key=lambda x: x["amount"], reverse=True),
+    }
+
+
+async def cashflow_trend(
+    db: AsyncSession, user_id: uuid.UUID,
+    periods: int = 12,
+    account_ids: list[uuid.UUID] | None = None,
+) -> dict:
+    """Monthly cashflow: opening/closing balances, net flow, rolling trend, buffer."""
+    acct_stmt = select(Account).where(
+        Account.user_id == user_id, Account.is_active.is_(True), Account.is_cashflow.is_(True),
+    )
+    if account_ids is not None:
+        acct_stmt = acct_stmt.where(Account.id.in_(account_ids))
+    accounts = (await db.execute(acct_stmt)).scalars().all()
+
+    today = date.today()
+    points: list[dict] = []
+
+    for i in range(periods - 1, -1, -1):
+        ref = step_period(today, -i, "month")
+        m_start, m_end = month_bounds(ref.year, ref.month)
+        label = ref.strftime("%b %y")
+
+        opening = Decimal("0.00")
+        closing = Decimal("0.00")
+
+        for acct in accounts:
+            open_tx = (await db.execute(
+                select(sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")))
+                .where(Transaction.account_id == acct.id, Transaction.date < m_start)
+            )).scalar()
+            close_tx = (await db.execute(
+                select(sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")))
+                .where(Transaction.account_id == acct.id, Transaction.date < m_end)
+            )).scalar()
+            opening += acct.initial_balance + open_tx
+            closing += acct.initial_balance + close_tx
+
+        net_flow = closing - opening
+        points.append({
+            "label": label,
+            "opening": float(opening),
+            "closing": float(closing),
+            "net_flow": float(net_flow),
+        })
+
+    for i, dp in enumerate(points):
+        window = points[max(0, i - 2):i + 1]
+        dp["rolling_net"] = round(sum(p["net_flow"] for p in window) / len(window), 2)
+
+    latest_closing = points[-1]["closing"] if points else 0.0
+    recent_expenses = []
+    for p in points[-3:]:
+        ref_d = date.today()
+        for j in range(len(points) - 1, -1, -1):
+            if points[j] is p:
+                ref_d = step_period(today, -(len(points) - 1 - j), "month")
+                break
+        ms, me = month_bounds(ref_d.year, ref_d.month)
+        conditions = [
+            Transaction.user_id == user_id,
+            Transaction.date >= ms,
+            Transaction.date < me,
+            Transaction.amount < 0,
+        ]
+        if account_ids is not None:
+            conditions.append(Transaction.account_id.in_(account_ids))
+        exp = (await db.execute(
+            select(sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")))
+            .where(*conditions)
+        )).scalar()
+        recent_expenses.append(float(abs(exp)))
+
+    avg_monthly_expenses = sum(recent_expenses) / max(len(recent_expenses), 1)
+    avg_daily_expenses = avg_monthly_expenses / 30.0
+    days_buffer = round(latest_closing / avg_daily_expenses, 0) if avg_daily_expenses > 0 else 0
+
+    return {
+        "points": points,
+        "latest_balance": latest_closing,
+        "avg_monthly_expenses": round(avg_monthly_expenses, 2),
+        "days_of_buffer": int(days_buffer),
+    }
+
+
 async def spending_breakdown(
     db: AsyncSession, user_id: uuid.UUID,
     category_id: uuid.UUID, start: date, end: date,
@@ -638,4 +922,250 @@ async def spending_breakdown(
             "is_cleared": tx.is_cleared,
         }
         for tx in result.scalars()
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Spending Pulse — Live Position
+# ---------------------------------------------------------------------------
+
+def _spending_status(pct: float) -> str:
+    if pct > 100:
+        return "over"
+    if pct > 90:
+        return "tight"
+    if pct > 70:
+        return "watch"
+    return "on_track"
+
+
+_HERO_MESSAGES = {
+    "on_track": "You\u2019re in a good position \u2014 comfortably within your {period} means",
+    "watch": "Worth keeping an eye on \u2014 commitments are eating into your buffer",
+    "tight": "Getting tight \u2014 most of your {period} cash is spoken for",
+    "over": "You\u2019re overcommitted for this {period} \u2014 review what can shift",
+}
+
+
+async def weekly_spending_pulse(
+    db: AsyncSession, user_id: uuid.UUID,
+    start: date, end: date,
+    period: str = "week",
+    account_ids: list[uuid.UUID] | None = None,
+) -> dict:
+    """Live position data: actuals + commitments + reserves."""
+    from app.services.commitments import (
+        commitment_totals_for_period, commitments_by_category,
+        project_recurring_commitments,
+    )
+
+    today = date.today()
+    total_days = (end - start).days
+    days_elapsed = max(min((today - start).days + 1, total_days), 1)
+    days_remaining = max(total_days - days_elapsed, 0)
+
+    # Budget overrides
+    by, bm = start.year, start.month
+    budget_result = await db.execute(
+        select(Budget.category_id, Budget.amount)
+        .where(Budget.user_id == user_id, Budget.year == by, Budget.month == bm)
+    )
+    budgets = {str(r.category_id): float(r.amount) for r in budget_result.all()}
+
+    # Categories
+    cats = (await db.execute(
+        select(Category).where(
+            Category.user_id == user_id,
+            Category.category_type == CategoryType.EXPENSE,
+        ).order_by(Category.sort_order)
+    )).scalars().all()
+
+    prorate = total_days / 30.0 if period == "week" else 1.0
+
+    # Actuals by category
+    actual_stmt = (
+        select(
+            Transaction.category_id,
+            sa_func.sum(Transaction.amount).label("actual"),
+        )
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.date >= start,
+            Transaction.date < end,
+            Transaction.category_id.isnot(None),
+            Transaction.amount < 0,
+        )
+        .group_by(Transaction.category_id)
+    )
+    if account_ids is not None:
+        actual_stmt = actual_stmt.where(Transaction.account_id.in_(account_ids))
+    actuals = {
+        str(r.category_id): float(abs(r.actual))
+        for r in (await db.execute(actual_stmt)).all()
+    }
+
+    # Commitments — query against the enclosing month so a weekly view
+    # still sees obligations due later in the month (matching how budgets
+    # are prorated from the monthly total).  Prorate to the view period.
+    m_start, m_end = month_bounds(start.year, start.month)
+
+    await project_recurring_commitments(db, user_id, m_end)
+
+    month_commit_totals = await commitment_totals_for_period(db, user_id, m_start, m_end)
+    month_commit_by_cat = await commitments_by_category(db, user_id, m_start, m_end)
+
+    commit_totals = {
+        "committed_out": round(month_commit_totals["committed_out"] * prorate, 2),
+        "committed_in": round(month_commit_totals["committed_in"] * prorate, 2),
+    }
+    commit_by_cat = {
+        cid: round(v * prorate, 2) for cid, v in month_commit_by_cat.items()
+    }
+
+    # Build per-category rows with live position
+    period_budget = 0.0
+    total_reserved = 0.0
+    cat_rows = []
+    for cat in cats:
+        cid = str(cat.id)
+        raw_budget = budgets.get(cid, float(cat.budgeted_amount))
+        budgeted = round(raw_budget * prorate, 2)
+        actual = actuals.get(cid, 0.0)
+        committed = commit_by_cat.get(cid, 0.0)
+
+        # Reserve: for categories with reserve_amount, the minimum "spoken for"
+        # is the prorated reserve even if actual+committed is lower
+        reserve_raw = float(cat.reserve_amount) * prorate
+        reserve = round(reserve_raw, 2)
+        # "spoken for" = max(actual + committed, reserve) for reserved categories
+        # For non-reserved categories, spoken_for = actual + committed
+        if reserve > 0:
+            spoken_for = round(max(actual + committed, reserve), 2)
+            reserve_gap = round(max(reserve - actual - committed, 0), 2)
+        else:
+            spoken_for = round(actual + committed, 2)
+            reserve_gap = 0.0
+
+        total_reserved += reserve_gap
+        period_budget += budgeted
+
+        pct = round(spoken_for / budgeted * 100, 1) if budgeted else (100.0 if spoken_for > 0 else 0.0)
+
+        cat_rows.append({
+            "category_id": cid,
+            "category_name": cat.name,
+            "budgeted": budgeted,
+            "actual": round(actual, 2),
+            "committed": round(committed, 2),
+            "reserve": reserve,
+            "reserve_gap": reserve_gap,
+            "spoken_for": spoken_for,
+            "pct": pct,
+            "status": _spending_status(pct),
+            "variance": round(budgeted - spoken_for, 2),
+        })
+    cat_rows.sort(key=lambda r: r["pct"], reverse=True)
+
+    total_actual = sum(r["actual"] for r in cat_rows)
+    total_committed = commit_totals["committed_out"]
+    total_spoken_for = round(total_actual + total_committed + total_reserved, 2)
+
+    live_available = round(period_budget - total_spoken_for, 2)
+    overall_pct = round(total_spoken_for / period_budget * 100, 1) if period_budget else 0.0
+    status = _spending_status(overall_pct)
+
+    safe_to_spend = round(max(live_available, 0) / max(days_remaining, 1), 2)
+
+    budget_daily_rate = round(period_budget / max(total_days, 1), 2)
+    elapsed_budget = budget_daily_rate * days_elapsed
+    pace_pct = round(total_actual / elapsed_budget * 100, 1) if elapsed_budget else 0.0
+
+    # Day-by-day actual spending
+    daily_stmt = (
+        select(
+            Transaction.date,
+            sa_func.sum(Transaction.amount).label("total"),
+        )
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.date >= start,
+            Transaction.date < end,
+            Transaction.amount < 0,
+        )
+        .group_by(Transaction.date)
+        .order_by(Transaction.date)
+    )
+    if account_ids is not None:
+        daily_stmt = daily_stmt.where(Transaction.account_id.in_(account_ids))
+    daily_result = await db.execute(daily_stmt)
+    daily_map = {r.date: float(abs(r.total)) for r in daily_result.all()}
+
+    daily_spending = []
+    for i in range(total_days):
+        d = start + timedelta(days=i)
+        daily_spending.append({
+            "date": d.isoformat(),
+            "label": d.strftime("%a"),
+            "amount": round(daily_map.get(d, 0.0), 2),
+        })
+
+    period_word = "week" if period == "week" else "month"
+
+    return {
+        "period_budget": round(period_budget, 2),
+        "total_actual": round(total_actual, 2),
+        "total_committed": round(total_committed, 2),
+        "total_reserved": round(total_reserved, 2),
+        "total_spoken_for": total_spoken_for,
+        "committed_in": round(commit_totals["committed_in"], 2),
+        "live_available": live_available,
+        "days_elapsed": days_elapsed,
+        "days_remaining": days_remaining,
+        "days_total": total_days,
+        "safe_to_spend": safe_to_spend,
+        "pace_pct": pace_pct,
+        "overall_pct": overall_pct,
+        "status": status,
+        "message": _HERO_MESSAGES[status].format(period=period_word),
+        "daily_spending": daily_spending,
+        "budget_daily_rate": budget_daily_rate,
+        "categories": cat_rows,
+    }
+
+
+async def spending_category_transactions(
+    db: AsyncSession, user_id: uuid.UUID,
+    category_id: uuid.UUID,
+    start: date, end: date,
+    account_ids: list[uuid.UUID] | None = None,
+) -> list[dict] | None:
+    """Transactions for a single category within a period (for HTMX drill-down)."""
+    cat = (await db.execute(
+        select(Category).where(Category.id == category_id, Category.user_id == user_id)
+    )).scalar_one_or_none()
+    if not cat:
+        return None
+
+    conditions = [
+        Transaction.user_id == user_id,
+        Transaction.category_id == category_id,
+        Transaction.date >= start,
+        Transaction.date < end,
+    ]
+    if account_ids is not None:
+        conditions.append(Transaction.account_id.in_(account_ids))
+
+    txs = (await db.execute(
+        select(Transaction).where(*conditions).order_by(Transaction.date.desc())
+    )).scalars().all()
+
+    return [
+        {
+            "id": str(tx.id),
+            "date": tx.date.isoformat(),
+            "description": tx.description,
+            "amount": float(tx.amount),
+            "is_cleared": tx.is_cleared,
+        }
+        for tx in txs
     ]

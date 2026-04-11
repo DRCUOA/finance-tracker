@@ -186,6 +186,7 @@
         <nav class="flex-1 py-2 space-y-0.5 flex flex-col items-center">
             {% set nav_items = [
                 ("/dashboard", "Dashboard", "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4"),
+                ("/spending", "Spending", "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"),
                 ("/accounts", "Accounts", "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"),
                 ("/transactions", "Transactions", "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"),
                 ("/categories", "Categories", "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"),
@@ -443,9 +444,17 @@ document.addEventListener('click', function(e) {
                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Monthly Budget</label>
                     <input type="number" step="0.01" id="catEditBudget" class="w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-2 px-3 focus:ring-brand-500 focus:border-brand-500">
                 </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
-                    <input type="text" id="catEditType" class="w-full rounded-lg border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm py-2 px-3 text-gray-500 dark:text-gray-400 capitalize" readonly>
+                <div class="flex items-center gap-3">
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
+                        <input type="text" id="catEditType" class="w-full rounded-lg border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm py-2 px-3 text-gray-500 dark:text-gray-400 capitalize" readonly>
+                    </div>
+                    <div class="pt-4">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" id="catEditFixed" class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                            <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Fixed cost</span>
+                        </label>
+                    </div>
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
@@ -582,6 +591,7 @@ function openCatEdit(catId) {
             document.getElementById('catEditName').value = d.name;
             document.getElementById('catEditBudget').value = d.budgeted_amount;
             document.getElementById('catEditType').value = d.category_type;
+            document.getElementById('catEditFixed').checked = d.is_fixed || false;
             document.getElementById('catEditLoading').classList.add('hidden');
             document.getElementById('catEditForm').classList.remove('hidden');
         })
@@ -607,6 +617,7 @@ document.getElementById('catEditForm').addEventListener('submit', function(e) {
     var body = {
         name: document.getElementById('catEditName').value,
         budgeted_amount: parseFloat(document.getElementById('catEditBudget').value) || 0,
+        is_fixed: document.getElementById('catEditFixed').checked,
     };
     fetch('/categories/' + id + '/edit-modal', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)

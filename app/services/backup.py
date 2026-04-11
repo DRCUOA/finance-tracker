@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.models.account import Account
 from app.models.budget import Budget
 from app.models.category import Category, CategoryKeyword
+from app.models.commitment import Commitment
 from app.models.transaction import Transaction
 
 
@@ -45,8 +46,13 @@ async def full_backup(db: AsyncSession, user_id: uuid.UUID) -> dict:
         select(Budget).where(Budget.user_id == user_id)
     )).scalars().all()
 
+    commitments = (await db.execute(
+        select(Commitment).where(Commitment.user_id == user_id)
+        .order_by(Commitment.due_date)
+    )).scalars().all()
+
     return {
-        "version": "1.0",
+        "version": "1.1",
         "exported_at": datetime.utcnow().isoformat(),
         "accounts": [
             {
@@ -62,6 +68,7 @@ async def full_backup(db: AsyncSession, user_id: uuid.UUID) -> dict:
                 "id": str(c.id), "name": c.name, "category_type": c.category_type.value,
                 "parent_id": str(c.parent_id) if c.parent_id else None,
                 "sort_order": c.sort_order, "budgeted_amount": float(c.budgeted_amount),
+                "reserve_amount": float(c.reserve_amount), "is_fixed": c.is_fixed,
                 "keywords": [{"keyword": kw.keyword, "hit_count": kw.hit_count} for kw in c.keywords],
             }
             for c in categories
@@ -85,11 +92,26 @@ async def full_backup(db: AsyncSession, user_id: uuid.UUID) -> dict:
             }
             for b in budgets
         ],
+        "commitments": [
+            {
+                "id": str(cm.id), "category_id": str(cm.category_id) if cm.category_id else None,
+                "title": cm.title, "amount": float(cm.amount),
+                "direction": cm.direction.value, "due_date": cm.due_date.isoformat(),
+                "is_recurring": cm.is_recurring,
+                "recurrence": cm.recurrence.value if cm.recurrence else None,
+                "confidence": cm.confidence.value,
+                "is_active": cm.is_active,
+                "cleared_at": cm.cleared_at.isoformat() if cm.cleared_at else None,
+                "notes": cm.notes,
+            }
+            for cm in commitments
+        ],
     }
 
 
 async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> dict:
     """Restore user data from a backup JSON. Clears existing data first."""
+    await db.execute(Commitment.__table__.delete().where(Commitment.user_id == user_id))
     await db.execute(Transaction.__table__.delete().where(Transaction.user_id == user_id))
     await db.execute(Budget.__table__.delete().where(Budget.user_id == user_id))
     await db.execute(Category.__table__.delete().where(Category.user_id == user_id))
@@ -120,6 +142,8 @@ async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> di
             user_id=user_id, name=c["name"], category_type=c["category_type"],
             sort_order=c.get("sort_order", 0),
             budgeted_amount=Decimal(str(c.get("budgeted_amount", 0))),
+            reserve_amount=Decimal(str(c.get("reserve_amount", 0))),
+            is_fixed=c.get("is_fixed", False),
         )
         db.add(cat)
         await db.flush()
@@ -136,6 +160,8 @@ async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> di
             user_id=user_id, name=c["name"], category_type=c["category_type"],
             parent_id=parent_new_id, sort_order=c.get("sort_order", 0),
             budgeted_amount=Decimal(str(c.get("budgeted_amount", 0))),
+            reserve_amount=Decimal(str(c.get("reserve_amount", 0))),
+            is_fixed=c.get("is_fixed", False),
         )
         db.add(cat)
         await db.flush()
@@ -174,6 +200,26 @@ async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> di
             amount=Decimal(str(b["amount"])),
         ))
 
+    cm_count = 0
+    for cm in data.get("commitments", []):
+        cat_id = id_map_cats.get(cm["category_id"]) if cm.get("category_id") else None
+        commit = Commitment(
+            user_id=user_id, category_id=cat_id,
+            title=cm["title"],
+            amount=Decimal(str(cm["amount"])),
+            direction=cm.get("direction", "outflow"),
+            due_date=date.fromisoformat(cm["due_date"]),
+            is_recurring=cm.get("is_recurring", False),
+            recurrence=cm.get("recurrence"),
+            confidence=cm.get("confidence", "confirmed"),
+            is_active=cm.get("is_active", True),
+            notes=cm.get("notes"),
+        )
+        if cm.get("cleared_at"):
+            commit.cleared_at = datetime.fromisoformat(cm["cleared_at"])
+        db.add(commit)
+        cm_count += 1
+
     await db.flush()
 
     return {
@@ -181,6 +227,7 @@ async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> di
         "categories": len(id_map_cats),
         "transactions": tx_count,
         "budgets": len(data.get("budgets", [])),
+        "commitments": cm_count,
     }
 
 
