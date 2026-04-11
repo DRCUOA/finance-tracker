@@ -6,6 +6,20 @@ Format: [Semantic Versioning](https://semver.org/) &mdash; `MAJOR.MINOR.PATCH`
 
 ---
 
+## [5.4.0] &ndash; 2026-04-12
+
+### Added
+- Commitments hub with full CRUD, stats strip, tab filtering, and inline editing
+- Planning wizards: Monthly Bills Setup, Annual Expense Planner, Event/Project Budget
+- Review History wizard — analyses past transactions to suggest recurring commitments
+- Spending page integration showing commitments alongside actuals
+- Commitment projection for recurring series (auto-generate upcoming instances)
+
+### Fixed
+- Review History wizard now only creates commitments for selected suggestions
+
+---
+
 ## [5.3.16] &ndash; 2026-04-11
 
 ### Added
