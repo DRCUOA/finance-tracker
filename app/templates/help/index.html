@@ -662,41 +662,551 @@
 
         <!-- ═══════════ COMMITMENTS ═══════════ -->
         <div x-show="active === 'commitments'" x-cloak>
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-8">
+
                 <div>
                     <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Commitments</h2>
                     <p class="text-sm text-gray-600 dark:text-gray-400">
-                        Commitments are planned future expenses or income that you know about but haven't happened yet. They help you plan ahead by accounting for money that's going to leave (or arrive in) your accounts.
+                        Commitments are planned future expenses or income that you know about but haven't happened yet. Think of them as financial sticky notes — reminders of money that's on its way out (or in). They help you see the <em>full</em> picture of your finances, not just what's already hit your bank account.
                     </p>
                 </div>
 
-                <div class="space-y-5">
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Adding a Commitment</h3>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">
-                            From the <span class="font-medium text-brand-600 dark:text-brand-400">Spending</span> page, you can add a commitment with a title, amount, due date, and direction (outflow for expenses, inflow for income). Optionally assign it to a category and set a confidence level.
-                        </p>
-                    </div>
+                <!-- ─── WHY TRACK COMMITMENTS? ─── -->
+                <div class="space-y-4">
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold">?</span>
+                        Why Track Commitments?
+                    </h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Without commitments, your budget only shows money that's <em>already</em> been spent. But what about the rent due next week, or the insurance premium coming in three months? Commitments fill that gap.
+                    </p>
 
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Confidence Levels</h3>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">
-                            A commitment can be "confirmed" (definitely happening), "expected" (very likely), or "tentative" (might happen). This helps you gauge how certain your planned spending is.
-                        </p>
-                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div class="rounded-xl border-2 border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/30 p-5 space-y-3">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                <span class="text-sm font-bold text-red-700 dark:text-red-400">Without Commitments</span>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 rounded-lg p-4 space-y-2 ring-1 ring-gray-200 dark:ring-gray-700">
+                                <div class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Bank Balance</div>
+                                <div class="text-2xl font-bold text-green-600 dark:text-green-400">$2,000</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Spent this month: $800</div>
+                            </div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">"Looks like I have plenty of money!"</p>
+                            <div class="bg-red-100 dark:bg-red-900/40 rounded-lg p-3 text-xs text-red-700 dark:text-red-300">
+                                <span class="font-semibold">But wait…</span> Rent ($1,200) and phone ($65) are due next week. Actually available: <span class="font-bold">$735</span>
+                            </div>
+                        </div>
 
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Recurring Commitments</h3>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">
-                            Tick "recurring" and set a recurrence pattern (like "monthly" or "fortnightly") to have the commitment automatically projected into future periods. The app creates future instances so you can see expected bills in upcoming months without re-entering them.
-                        </p>
+                        <div class="rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/30 p-5 space-y-3">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                <span class="text-sm font-bold text-emerald-700 dark:text-emerald-400">With Commitments</span>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 rounded-lg p-4 space-y-2 ring-1 ring-gray-200 dark:ring-gray-700">
+                                <div class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Bank Balance</div>
+                                <div class="text-2xl font-bold text-green-600 dark:text-green-400">$2,000</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Spent this month: $800</div>
+                                <div class="border-t border-gray-200 dark:border-gray-600 pt-2 mt-2 space-y-1">
+                                    <div class="flex justify-between text-xs">
+                                        <span class="text-amber-600 dark:text-amber-400 font-medium">Rent (due 15th)</span>
+                                        <span class="text-amber-600 dark:text-amber-400 font-medium">&minus;$1,200</span>
+                                    </div>
+                                    <div class="flex justify-between text-xs">
+                                        <span class="text-amber-600 dark:text-amber-400 font-medium">Phone (due 18th)</span>
+                                        <span class="text-amber-600 dark:text-amber-400 font-medium">&minus;$65</span>
+                                    </div>
+                                </div>
+                                <div class="border-t border-gray-200 dark:border-gray-600 pt-2">
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Truly available</div>
+                                    <div class="text-lg font-bold text-blue-600 dark:text-blue-400">$735</div>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">"I know exactly what I can spend safely."</p>
+                        </div>
                     </div>
+                </div>
 
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Clearing a Commitment</h3>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">
-                            When the expected expense or income actually happens (and you've added the real transaction), clear the commitment to mark it as done. This removes it from the pending view.
-                        </p>
+                <!-- ─── LIFECYCLE FLOW ─── -->
+                <div class="space-y-4">
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold">&circlearrowleft;</span>
+                        The Commitment Lifecycle
+                    </h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Every commitment follows a simple journey from "planned" to "done":
+                    </p>
+
+                    <div class="overflow-x-auto">
+                        <div class="flex items-center gap-2 min-w-[600px] py-4">
+                            <div class="flex-1 text-center">
+                                <div class="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-200 dark:shadow-purple-900/40">
+                                    <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                                </div>
+                                <div class="mt-2 text-xs font-bold text-purple-700 dark:text-purple-400">Add</div>
+                                <div class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">Create your<br>commitment</div>
+                            </div>
+                            <svg class="w-8 h-8 text-gray-300 dark:text-gray-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                            <div class="flex-1 text-center">
+                                <div class="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-200 dark:shadow-amber-900/40">
+                                    <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                </div>
+                                <div class="mt-2 text-xs font-bold text-amber-700 dark:text-amber-400">Pending</div>
+                                <div class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">Shows in your<br>spending plan</div>
+                            </div>
+                            <svg class="w-8 h-8 text-gray-300 dark:text-gray-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                            <div class="flex-1 text-center">
+                                <div class="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-200 dark:shadow-blue-900/40">
+                                    <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                                </div>
+                                <div class="mt-2 text-xs font-bold text-blue-700 dark:text-blue-400">Expense Hits</div>
+                                <div class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">The real transaction<br>appears in your bank</div>
+                            </div>
+                            <svg class="w-8 h-8 text-gray-300 dark:text-gray-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                            <div class="flex-1 text-center">
+                                <div class="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center shadow-lg shadow-green-200 dark:shadow-green-900/40">
+                                    <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                                <div class="mt-2 text-xs font-bold text-emerald-700 dark:text-emerald-400">Clear It</div>
+                                <div class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">Mark done &amp;<br>remove from pending</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ─── EXAMPLE 1: MONTHLY RENT ─── -->
+                <div class="space-y-4">
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white text-xs font-bold">1</span>
+                        Example: Monthly Rent
+                    </h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        You pay $1,200 rent on the 1st of every month. Set it up once as a <strong>recurring commitment</strong>, and each month it automatically appears in your plan.
+                    </p>
+
+                    <div class="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-gray-900/60 dark:to-gray-800 rounded-xl p-5 ring-1 ring-gray-200 dark:ring-gray-700">
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="space-y-2">
+                                <div class="text-xs font-bold text-gray-700 dark:text-gray-300 text-center uppercase tracking-wider">January</div>
+                                <div class="rounded-lg bg-white dark:bg-gray-800 p-3 ring-1 ring-gray-200 dark:ring-gray-600 space-y-2">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                                        <span class="text-[11px] text-amber-700 dark:text-amber-400 font-medium">Rent pending</span>
+                                    </div>
+                                    <div class="text-lg font-bold text-amber-600 dark:text-amber-400">&minus;$1,200</div>
+                                    <div class="border-t border-dashed border-gray-200 dark:border-gray-600 pt-2">
+                                        <div class="flex items-center gap-1">
+                                            <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                            <span class="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Paid Jan 1 &rarr; Cleared</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="text-xs font-bold text-gray-700 dark:text-gray-300 text-center uppercase tracking-wider">February</div>
+                                <div class="rounded-lg bg-white dark:bg-gray-800 p-3 ring-1 ring-gray-200 dark:ring-gray-600 space-y-2">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                                        <span class="text-[11px] text-amber-700 dark:text-amber-400 font-medium">Rent pending</span>
+                                    </div>
+                                    <div class="text-lg font-bold text-amber-600 dark:text-amber-400">&minus;$1,200</div>
+                                    <div class="border-t border-dashed border-gray-200 dark:border-gray-600 pt-2">
+                                        <div class="flex items-center gap-1">
+                                            <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                            <span class="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Paid Feb 1 &rarr; Cleared</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="text-xs font-bold text-gray-700 dark:text-gray-300 text-center uppercase tracking-wider">March</div>
+                                <div class="rounded-lg bg-white dark:bg-gray-800 p-3 ring-1 ring-gray-200 dark:ring-gray-600 space-y-2">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                                        <span class="text-[11px] text-amber-700 dark:text-amber-400 font-medium">Rent pending</span>
+                                    </div>
+                                    <div class="text-lg font-bold text-amber-600 dark:text-amber-400">&minus;$1,200</div>
+                                    <div class="border-t border-dashed border-gray-200 dark:border-gray-600 pt-2">
+                                        <div class="flex items-center gap-1">
+                                            <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                            <span class="text-[11px] text-gray-500 dark:text-gray-400">Awaiting payment&hellip;</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <svg class="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            <span>The app auto-creates each month's commitment because it's set to <strong>recurring monthly</strong>.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ─── EXAMPLE 2: ACCRUING FOR A BIG BILL ─── -->
+                <div class="space-y-4">
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold">2</span>
+                        Example: Saving for a Big Annual Bill
+                    </h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Your car insurance is $1,200 per year, due every December. Instead of being surprised by a large hit, you can track it as a commitment months in advance&nbsp;&mdash; essentially "accruing" for it. Each month you mentally (or actually) set aside $100 toward it. The commitment keeps that future cost visible in your spending plan all year.
+                    </p>
+
+                    <div class="bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/30 dark:to-cyan-950/30 rounded-xl p-5 ring-1 ring-teal-200 dark:ring-teal-800 space-y-4">
+                        <div class="text-xs font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider">Car Insurance &mdash; $1,200 due in December</div>
+
+                        <div class="flex items-end gap-1.5 h-32">
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$100</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:8.3%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">Jan</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$200</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:16.6%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">Feb</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$300</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:25%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">Mar</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$400</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:33.3%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">Apr</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$500</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:41.6%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">May</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$600</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:50%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">Jun</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$700</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:58.3%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">Jul</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$800</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:66.6%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">Aug</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$900</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:75%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">Sep</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$1k</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:83.3%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">Oct</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-teal-700 dark:text-teal-400 font-medium">$1.1k</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-teal-500 to-teal-400" style="height:91.6%"></div>
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400">Nov</div>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center gap-1">
+                                <div class="text-[9px] text-emerald-700 dark:text-emerald-400 font-bold">$1.2k</div>
+                                <div class="w-full rounded-t-md bg-gradient-to-t from-emerald-500 to-emerald-400 ring-2 ring-emerald-300 dark:ring-emerald-600" style="height:100%"></div>
+                                <div class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">Dec&nbsp;&check;</div>
+                            </div>
+                        </div>
+
+                        <div class="grid md:grid-cols-3 gap-3 mt-2">
+                            <div class="flex items-start gap-2 bg-white/70 dark:bg-gray-800/70 rounded-lg p-3">
+                                <span class="mt-0.5 w-5 h-5 rounded-full bg-violet-100 dark:bg-violet-900 flex items-center justify-center text-[10px] font-bold text-violet-600 dark:text-violet-400 flex-shrink-0">1</span>
+                                <div class="text-xs text-gray-600 dark:text-gray-400"><strong class="text-gray-800 dark:text-gray-200">January:</strong> Add a commitment for "$1,200 Car Insurance due Dec" with confidence "confirmed"</div>
+                            </div>
+                            <div class="flex items-start gap-2 bg-white/70 dark:bg-gray-800/70 rounded-lg p-3">
+                                <span class="mt-0.5 w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center text-[10px] font-bold text-amber-600 dark:text-amber-400 flex-shrink-0">2</span>
+                                <div class="text-xs text-gray-600 dark:text-gray-400"><strong class="text-gray-800 dark:text-gray-200">All year:</strong> The commitment sits in your spending plan so you always see that $1,200 is spoken for</div>
+                            </div>
+                            <div class="flex items-start gap-2 bg-white/70 dark:bg-gray-800/70 rounded-lg p-3">
+                                <span class="mt-0.5 w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex-shrink-0">3</span>
+                                <div class="text-xs text-gray-600 dark:text-gray-400"><strong class="text-gray-800 dark:text-gray-200">December:</strong> You pay the premium, add the real transaction, and clear the commitment</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ─── EXAMPLE 3: EXPECTED INCOME (TAX REFUND) ─── -->
+                <div class="space-y-4">
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center text-white text-xs font-bold">3</span>
+                        Example: Expecting a Tax Refund
+                    </h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        You filed your taxes and expect a $2,500 refund&nbsp;&mdash; but you're not 100% sure of the exact amount or timing. Commitments handle income too, and confidence levels let you express that uncertainty. As better information arrives, update the commitment.
+                    </p>
+
+                    <div class="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 rounded-xl p-5 ring-1 ring-green-200 dark:ring-green-800 space-y-3">
+                        <!-- Stage 1: Tentative -->
+                        <div class="flex items-center gap-3">
+                            <div class="w-20 text-right flex-shrink-0">
+                                <div class="text-[10px] text-gray-500 dark:text-gray-400 uppercase">March</div>
+                            </div>
+                            <div class="relative flex-shrink-0">
+                                <div class="w-3 h-3 rounded-full bg-yellow-400 ring-4 ring-yellow-100 dark:ring-yellow-900/60"></div>
+                                <div class="absolute top-3 left-1.5 w-0.5 h-10 bg-gray-200 dark:bg-gray-600"></div>
+                            </div>
+                            <div class="flex-1 bg-white dark:bg-gray-800 rounded-lg p-3 ring-1 ring-yellow-200 dark:ring-yellow-800">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 uppercase">Tentative</span>
+                                    <span class="text-xs text-gray-600 dark:text-gray-400">Tax Refund</span>
+                                    <span class="ml-auto text-sm font-bold text-green-600 dark:text-green-400">+$2,500</span>
+                                </div>
+                                <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">"I think I'll get about this much back, but I haven't filed yet."</div>
+                            </div>
+                        </div>
+                        <!-- Stage 2: Expected -->
+                        <div class="flex items-center gap-3">
+                            <div class="w-20 text-right flex-shrink-0">
+                                <div class="text-[10px] text-gray-500 dark:text-gray-400 uppercase">April</div>
+                            </div>
+                            <div class="relative flex-shrink-0">
+                                <div class="w-3 h-3 rounded-full bg-blue-400 ring-4 ring-blue-100 dark:ring-blue-900/60"></div>
+                                <div class="absolute top-3 left-1.5 w-0.5 h-10 bg-gray-200 dark:bg-gray-600"></div>
+                            </div>
+                            <div class="flex-1 bg-white dark:bg-gray-800 rounded-lg p-3 ring-1 ring-blue-200 dark:ring-blue-800">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 uppercase">Expected</span>
+                                    <span class="text-xs text-gray-600 dark:text-gray-400">Tax Refund</span>
+                                    <span class="ml-auto text-sm font-bold text-green-600 dark:text-green-400">+$2,380</span>
+                                </div>
+                                <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">"Filed! The return shows $2,380. Should arrive in 3&ndash;4 weeks."</div>
+                            </div>
+                        </div>
+                        <!-- Stage 3: Confirmed & Cleared -->
+                        <div class="flex items-center gap-3">
+                            <div class="w-20 text-right flex-shrink-0">
+                                <div class="text-[10px] text-gray-500 dark:text-gray-400 uppercase">May</div>
+                            </div>
+                            <div class="relative flex-shrink-0">
+                                <div class="w-3 h-3 rounded-full bg-emerald-400 ring-4 ring-emerald-100 dark:ring-emerald-900/60"></div>
+                            </div>
+                            <div class="flex-1 bg-white dark:bg-gray-800 rounded-lg p-3 ring-1 ring-emerald-200 dark:ring-emerald-800">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 uppercase">Confirmed &rarr; Cleared</span>
+                                    <span class="text-xs text-gray-600 dark:text-gray-400">Tax Refund</span>
+                                    <span class="ml-auto text-sm font-bold text-green-600 dark:text-green-400">+$2,380</span>
+                                </div>
+                                <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">"Money arrived! Added the real deposit transaction and cleared the commitment."</div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 bg-white/60 dark:bg-gray-800/60 rounded-lg p-3 mt-2">
+                            <svg class="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>Notice how the amount changed from $2,500 to $2,380&nbsp;&mdash; you can update commitments as better information arrives. That's the power of tracking what you <em>expect</em> vs. what actually happens.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ─── EXAMPLE 4: PLANNING A HOLIDAY ─── -->
+                <div class="space-y-4">
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-xs font-bold">4</span>
+                        Example: Planning for a Holiday
+                    </h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        You're planning a trip in June with several expenses at different confidence levels. Use multiple commitments to build the full picture of what the trip will cost&nbsp;&mdash; and watch the picture sharpen as you book each item.
+                    </p>
+
+                    <div class="bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 rounded-xl p-5 ring-1 ring-orange-200 dark:ring-orange-800 space-y-3">
+                        <div class="text-xs font-bold text-orange-800 dark:text-orange-300 uppercase tracking-wider">June Holiday &mdash; Total Committed</div>
+
+                        <div class="space-y-2">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-medium text-gray-700 dark:text-gray-300">Flights (booked &amp; paid deposit)</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">CONFIRMED</span>
+                                        <span class="text-xs font-bold text-gray-800 dark:text-gray-200">$850</span>
+                                    </div>
+                                </div>
+                                <div class="w-full h-3 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                                    <div class="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500" style="width:100%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-medium text-gray-700 dark:text-gray-300">Hotel (researching options)</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">EXPECTED</span>
+                                        <span class="text-xs font-bold text-gray-800 dark:text-gray-200">$1,200</span>
+                                    </div>
+                                </div>
+                                <div class="w-full h-3 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                                    <div class="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-500" style="width:100%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-medium text-gray-700 dark:text-gray-300">Activities &amp; dining</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">TENTATIVE</span>
+                                        <span class="text-xs font-bold text-gray-800 dark:text-gray-200">$500</span>
+                                    </div>
+                                </div>
+                                <div class="w-full h-3 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                                    <div class="h-full rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500" style="width:100%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-orange-200 dark:border-orange-800 pt-3 mt-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-bold text-gray-800 dark:text-gray-200">Total holiday budget</span>
+                                <span class="text-lg font-bold text-orange-600 dark:text-orange-400">$2,550</span>
+                            </div>
+                            <div class="w-full h-4 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden flex">
+                                <div class="h-full bg-gradient-to-r from-emerald-400 to-emerald-500" style="width:33.3%" title="Confirmed: $850"></div>
+                                <div class="h-full bg-gradient-to-r from-blue-400 to-blue-500" style="width:47.1%" title="Expected: $1,200"></div>
+                                <div class="h-full bg-gradient-to-r from-yellow-400 to-yellow-500" style="width:19.6%" title="Tentative: $500"></div>
+                            </div>
+                            <div class="flex items-center gap-4 mt-2">
+                                <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-400"></span><span class="text-[10px] text-gray-600 dark:text-gray-400">Confirmed</span></div>
+                                <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-blue-400"></span><span class="text-[10px] text-gray-600 dark:text-gray-400">Expected</span></div>
+                                <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-yellow-400"></span><span class="text-[10px] text-gray-600 dark:text-gray-400">Tentative</span></div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 bg-white/60 dark:bg-gray-800/60 rounded-lg p-3">
+                            <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                            <span>As you book each item, upgrade its confidence from "tentative" &rarr; "expected" &rarr; "confirmed". When you pay, add the real transaction and clear the commitment.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ─── CONFIDENCE LEVELS ─── -->
+                <div class="space-y-4">
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold">&loz;</span>
+                        Understanding Confidence Levels
+                    </h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Not all future expenses are equally certain. Confidence levels let you express how sure you are about each commitment:
+                    </p>
+
+                    <div class="grid md:grid-cols-3 gap-3">
+                        <div class="rounded-xl bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/40 p-4 ring-1 ring-emerald-200 dark:ring-emerald-800 space-y-2">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                                <span class="text-sm font-bold text-emerald-800 dark:text-emerald-300">Confirmed</span>
+                            </div>
+                            <p class="text-xs text-gray-600 dark:text-gray-400">Definitely happening. You've signed the contract, booked the ticket, or it's a known fixed bill.</p>
+                            <div class="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium italic">"My rent is $1,200 on the 1st. No question."</div>
+                        </div>
+
+                        <div class="rounded-xl bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/40 dark:to-sky-950/40 p-4 ring-1 ring-blue-200 dark:ring-blue-800 space-y-2">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                </div>
+                                <span class="text-sm font-bold text-blue-800 dark:text-blue-300">Expected</span>
+                            </div>
+                            <p class="text-xs text-gray-600 dark:text-gray-400">Very likely to happen. You're fairly sure about the amount and timing, but it's not locked in yet.</p>
+                            <div class="text-[11px] text-blue-700 dark:text-blue-400 font-medium italic">"My power bill is usually around $150."</div>
+                        </div>
+
+                        <div class="rounded-xl bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 p-4 ring-1 ring-yellow-200 dark:ring-yellow-800 space-y-2">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-lg bg-yellow-500 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                </div>
+                                <span class="text-sm font-bold text-yellow-800 dark:text-yellow-300">Tentative</span>
+                            </div>
+                            <p class="text-xs text-gray-600 dark:text-gray-400">Might happen. You're considering it, or it depends on other factors. Great for "planning ahead" scenarios.</p>
+                            <div class="text-[11px] text-yellow-700 dark:text-yellow-400 font-medium italic">"I might need new tyres this quarter&nbsp;&mdash; maybe $600?"</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ─── BIG PICTURE: BUDGET SNAPSHOT ─── -->
+                <div class="space-y-4">
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-400 to-pink-500 flex items-center justify-center text-white text-xs font-bold">&starf;</span>
+                        The Big Picture: How Commitments Fit Your Budget
+                    </h3>
+
+                    <div class="bg-gradient-to-br from-fuchsia-50 to-pink-50 dark:from-fuchsia-950/30 dark:to-pink-950/30 rounded-xl p-5 ring-1 ring-fuchsia-200 dark:ring-fuchsia-800 space-y-4">
+                        <div class="text-xs font-bold text-fuchsia-800 dark:text-fuchsia-300 uppercase tracking-wider">April Budget Snapshot</div>
+
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-24 text-right text-xs text-gray-600 dark:text-gray-400 flex-shrink-0">Income</div>
+                                <div class="flex-1 h-7 rounded-lg bg-gradient-to-r from-green-400 to-emerald-500 flex items-center px-3">
+                                    <span class="text-xs font-bold text-white">$4,500</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-24 text-right text-xs text-gray-600 dark:text-gray-400 flex-shrink-0">Already spent</div>
+                                <div class="flex-1">
+                                    <div class="h-7 rounded-lg bg-gradient-to-r from-red-400 to-rose-500 flex items-center px-3" style="width:45%">
+                                        <span class="text-xs font-bold text-white">&minus;$2,025</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-24 text-right text-xs text-gray-600 dark:text-gray-400 flex-shrink-0">Commitments</div>
+                                <div class="flex-1">
+                                    <div class="h-7 rounded-lg bg-gradient-to-r from-amber-400 to-orange-500 flex items-center px-3" style="width:32%">
+                                        <span class="text-xs font-bold text-white">&minus;$1,465</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 pt-2 border-t border-fuchsia-200 dark:border-fuchsia-800">
+                                <div class="w-24 text-right text-xs font-bold text-gray-800 dark:text-gray-200 flex-shrink-0">Available</div>
+                                <div class="flex-1">
+                                    <div class="h-8 rounded-lg bg-gradient-to-r from-blue-400 to-indigo-500 flex items-center px-3 ring-2 ring-blue-300 dark:ring-blue-700" style="width:22%">
+                                        <span class="text-sm font-bold text-white">$1,010</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 bg-white/60 dark:bg-gray-800/60 rounded-lg p-3">
+                            <svg class="w-4 h-4 text-fuchsia-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>The <span class="font-medium text-amber-600 dark:text-amber-400">amber bar</span> is the key&nbsp;&mdash; it represents money that's technically in your account but is already "spoken for" by upcoming commitments. The <span class="font-medium text-blue-600 dark:text-blue-400">blue bar</span> is what you can <em>actually</em> spend freely.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ─── QUICK REFERENCE ─── -->
+                <div class="space-y-4">
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-full bg-gradient-to-br from-gray-400 to-slate-500 flex items-center justify-center text-white text-xs font-bold">&GreaterGreater;</span>
+                        Quick Reference
+                    </h3>
+
+                    <div class="space-y-5">
+                        <div>
+                            <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Adding a Commitment</h4>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                From the <span class="font-medium text-brand-600 dark:text-brand-400">Spending</span> page, add a commitment with a title, amount, due date, and direction (outflow for expenses, inflow for income). Optionally assign it to a category and set a confidence level.
+                            </p>
+                        </div>
+
+                        <div>
+                            <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Recurring Commitments</h4>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                Tick "recurring" and set a recurrence pattern (like "monthly" or "fortnightly") to have the commitment automatically projected into future periods. The app creates future instances so you can see expected bills in upcoming months without re-entering them.
+                            </p>
+                        </div>
+
+                        <div>
+                            <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Clearing a Commitment</h4>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                When the expected expense or income actually happens (and you've added the real transaction), clear the commitment to mark it as done. This removes it from the pending view&nbsp;&mdash; the "accrual" is released because the real impact is now known.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

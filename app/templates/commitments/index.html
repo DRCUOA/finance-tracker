@@ -1,0 +1,1196 @@
+{% extends "base.html" %}
+{% block title %}Commitments — Finance Tracker{% endblock %}
+{% block page_title %}Commitments{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-2">
+    <button onclick="window.dispatchEvent(new CustomEvent('commit-hub', {detail:'toggleAdd'}))"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors shadow-sm">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add Commitment
+    </button>
+    <form action="/commitments/project-recurring" method="POST" class="inline">
+        <button type="submit" title="Generate upcoming instances of recurring commitments for the next 90 days"
+                class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-xl transition-colors shadow-sm">
+            <svg class="w-3.5 h-3.5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Project Recurring
+        </button>
+    </form>
+    <div x-data="{ open: false }" class="relative">
+        <button @click="open = !open" class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-xl transition-colors shadow-sm">
+            <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            Planning Wizards
+            <svg class="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open" @click.away="open = false" x-cloak x-transition
+             class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-xl ring-1 ring-gray-200 dark:ring-gray-700 z-30 py-1.5">
+            <button @click="open = false; setTimeout(() => window.dispatchEvent(new CustomEvent('commit-hub', {detail:'recurring'})), 50)" class="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3">
+                <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </span>
+                <div>
+                    <div class="font-semibold">Monthly Bills Setup</div>
+                    <div class="text-[11px] text-gray-400">Add all your recurring bills at once</div>
+                </div>
+            </button>
+            <button @click="open = false; setTimeout(() => window.dispatchEvent(new CustomEvent('commit-hub', {detail:'annual'})), 50)" class="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3">
+                <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-teal-500 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                </span>
+                <div>
+                    <div class="font-semibold">Annual Expense Planner</div>
+                    <div class="text-[11px] text-gray-400">Track a big yearly bill ahead of time</div>
+                </div>
+            </button>
+            <button @click="open = false; setTimeout(() => window.dispatchEvent(new CustomEvent('commit-hub', {detail:'event'})), 50)" class="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3">
+                <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </span>
+                <div>
+                    <div class="font-semibold">Event / Project Budget</div>
+                    <div class="text-[11px] text-gray-400">Plan a holiday, wedding, or project</div>
+                </div>
+            </button>
+            <div class="mx-3 my-1 border-t border-gray-100 dark:border-gray-700"></div>
+            <button @click="open = false; setTimeout(() => window.dispatchEvent(new CustomEvent('commit-hub', {detail:'review-history'})), 50)" class="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3">
+                <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </span>
+                <div>
+                    <div class="font-semibold">Review History</div>
+                    <div class="text-[11px] text-gray-400">Suggest commitments from past transactions</div>
+                </div>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="commitHub()"
+     @commit-hub.window="
+        if ($event.detail === 'toggleAdd') { showAdd = !showAdd; activeWizard = ''; }
+        else { activeWizard = $event.detail; showAdd = false; }
+     "
+     @keydown.escape.window="activeWizard = ''; editOpen = false"
+     class="space-y-6">
+
+<!-- ═══════════ STATS STRIP ═══════════ -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-5">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+                <div class="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{{ summary.count_pending }}</div>
+                <div class="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">Pending</div>
+            </div>
+        </div>
+        <div class="mt-3 text-sm font-semibold text-amber-600 dark:text-amber-400 tabular-nums">{{ summary.total_pending_out|nzd }} outflow</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-5">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-red-400 to-rose-500 flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            </div>
+            <div>
+                <div class="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{{ summary.count_overdue }}</div>
+                <div class="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">Overdue</div>
+            </div>
+        </div>
+        <div class="mt-3 text-sm text-gray-400 dark:text-gray-500">Past due, not yet cleared</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-5">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </div>
+            <div>
+                <div class="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{{ summary.count_recurring }}</div>
+                <div class="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">Recurring</div>
+            </div>
+        </div>
+        <div class="mt-3 text-sm text-gray-400 dark:text-gray-500">Auto-renewing series</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-5">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+                <div class="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{{ summary.due_this_month|nzd }}</div>
+                <div class="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">Due This Month</div>
+            </div>
+        </div>
+        {% if summary.total_pending_in > 0 %}
+        <div class="mt-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ summary.total_pending_in|nzd }} expected inflow</div>
+        {% else %}
+        <div class="mt-3 text-sm text-gray-400 dark:text-gray-500">Outflow due this month</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ═══════════ ADD PANEL ═══════════ -->
+<div x-show="showAdd" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Add Commitment</h3>
+            <button @click="showAdd = false" class="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <form action="/commitments/add" method="POST" class="px-6 py-5 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Title</label>
+                    <input type="text" name="title" required placeholder="e.g. Rent, Insurance" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Amount</label>
+                    <input type="number" name="amount" step="0.01" min="0" required placeholder="0.00" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Due Date</label>
+                    <input type="date" name="due_date" required value="{{ today }}" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Direction</label>
+                    <select name="direction" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="outflow" selected>Outflow (bill / expense)</option>
+                        <option value="inflow">Inflow (expected income)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Category</label>
+                    <select name="category_id" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="">&mdash; None &mdash;</option>
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% if cat.children %}{% for child in cat.children %}
+                        <option value="{{ child.id }}">&nbsp;&nbsp;&lfloor; {{ child.name }}</option>
+                        {% endfor %}{% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Confidence</label>
+                    <select name="confidence" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="confirmed" selected>Confirmed</option>
+                        <option value="expected">Expected</option>
+                        <option value="estimated">Estimated</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        <input type="checkbox" name="is_recurring" class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                        Recurring
+                    </label>
+                    <select name="recurrence" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="">&mdash;</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="fortnightly">Fortnightly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                        <option value="annually">Annually</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Notes</label>
+                    <input type="text" name="notes" placeholder="Optional" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors">Save</button>
+                    <button type="button" @click="showAdd = false" class="px-4 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold rounded-lg transition-colors">Cancel</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ═══════════ WIZARD: RECURRING BILLS ═══════════ -->
+<div x-show="activeWizard === 'recurring'" x-cloak
+     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+     class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+         @click.outside="activeWizard = ''" x-data="recurringWizard()"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30">
+            <div class="flex items-center gap-3">
+                <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </span>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Monthly Bills Setup</h3>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">Add all your regular recurring bills in one go</p>
+                </div>
+            </div>
+            <button @click="activeWizard = ''" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <!-- Steps indicator -->
+        <div class="px-6 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-4">
+            <template x-for="(label, idx) in ['Add Bills', 'Review & Save']" :key="idx">
+                <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center transition-colors"
+                          :class="step > idx ? 'bg-emerald-500 text-white' : step === idx ? 'bg-brand-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
+                          x-text="step > idx ? '✓' : idx + 1"></span>
+                    <span class="text-xs font-medium" :class="step === idx ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400'" x-text="label"></span>
+                    <svg x-show="idx < 1" class="w-4 h-4 text-gray-300 dark:text-gray-600 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </div>
+            </template>
+        </div>
+
+        <form action="/commitments/wizard/recurring-bills" method="POST" class="flex-1 overflow-y-auto">
+            <!-- Step 1: Add bills -->
+            <div x-show="step === 0" class="px-6 py-5 space-y-3">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Add each bill you pay regularly. We'll set them up as recurring commitments so they auto-appear each cycle.</p>
+
+                <template x-for="(bill, i) in bills" :key="i">
+                    <div class="rounded-xl ring-1 ring-gray-200 dark:ring-gray-700 bg-gray-50/50 dark:bg-gray-900/20 px-3 py-3 space-y-2">
+                        <div class="grid grid-cols-12 gap-2 items-end">
+                            <div class="col-span-4">
+                                <label x-show="i === 0" class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Bill Name</label>
+                                <input type="text" :name="'bill_'+i+'_title'" x-model="bill.title" placeholder="e.g. Rent" required
+                                       class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                            </div>
+                            <div class="col-span-2">
+                                <label x-show="i === 0" class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Amount</label>
+                                <input type="number" :name="'bill_'+i+'_amount'" x-model="bill.amount" step="0.01" min="0" placeholder="0.00" required
+                                       class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                            </div>
+                            <div class="col-span-2">
+                                <label x-show="i === 0" class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Day of Month</label>
+                                <input type="number" :name="'bill_'+i+'_day'" x-model="bill.day" min="1" max="28" placeholder="1" required
+                                       class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                            </div>
+                            <div class="col-span-3">
+                                <label x-show="i === 0" class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Frequency</label>
+                                <select :name="'bill_'+i+'_recurrence'" x-model="bill.recurrence"
+                                        class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                    <option value="weekly">Weekly</option>
+                                    <option value="fortnightly">Fortnightly</option>
+                                    <option value="monthly" selected>Monthly</option>
+                                    <option value="quarterly">Quarterly</option>
+                                    <option value="annually">Annually</option>
+                                </select>
+                            </div>
+                            <div class="col-span-1 flex justify-center">
+                                <button type="button" @click="bills.splice(i, 1)" x-show="bills.length > 1"
+                                        class="p-1.5 rounded-md text-gray-300 hover:text-red-500 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                            <select :name="'bill_'+i+'_category'" x-model="bill.category"
+                                    class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                <option value="">No category</option>
+                                {% for cat in all_categories %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                {% if cat.children %}{% for child in cat.children %}
+                                <option value="{{ child.id }}">&nbsp;&nbsp;&lfloor; {{ child.name }}</option>
+                                {% endfor %}{% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </template>
+
+                <button type="button" @click="bills.push({title:'', amount:'', day:'1', recurrence:'monthly', category:''})"
+                        class="w-full py-2 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-400 hover:text-brand-600 hover:border-brand-300 dark:hover:text-brand-400 dark:hover:border-brand-700 transition-colors flex items-center justify-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Add another bill
+                </button>
+            </div>
+
+            <!-- Step 2: Review -->
+            <div x-show="step === 1" x-cloak class="px-6 py-5">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Review your bills before saving. Each will be created as a recurring commitment.</p>
+
+                <div class="bg-gray-50 dark:bg-gray-900/30 rounded-xl ring-1 ring-gray-200 dark:ring-gray-700 divide-y divide-gray-200 dark:divide-gray-700 overflow-hidden">
+                    <template x-for="(bill, i) in bills" :key="i">
+                        <div class="px-4 py-3 flex items-center gap-3" x-show="bill.title">
+                            <span class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-violet-600 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </span>
+                            <div class="flex-1 min-w-0">
+                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="bill.title"></span>
+                                <span class="text-xs text-gray-400 ml-2" x-text="bill.recurrence + ', day ' + bill.day"></span>
+                            </div>
+                            <span class="text-sm font-semibold text-red-600 dark:text-red-400 tabular-nums" x-text="'-$' + parseFloat(bill.amount || 0).toFixed(2)"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="mt-4 flex items-center justify-between px-1">
+                    <span class="text-sm text-gray-500 dark:text-gray-400" x-text="bills.filter(b => b.title).length + ' bill(s)'"></span>
+                    <span class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums" x-text="'Total: -$' + bills.reduce((s,b) => s + parseFloat(b.amount || 0), 0).toFixed(2) + '/cycle'"></span>
+                </div>
+
+                <input type="hidden" name="bill_count" :value="bills.length">
+            </div>
+        </form>
+
+        <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-between">
+            <button type="button" x-show="step > 0" @click="step--"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                Back
+            </button>
+            <div x-show="step === 0"></div>
+            <button x-show="step === 0" type="button" @click="step = 1"
+                    class="px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors shadow-sm">
+                Review Bills
+            </button>
+            <button x-show="step === 1" x-cloak type="button"
+                    @click="$el.closest('[x-data]').querySelector('form').submit()"
+                    class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">
+                Create All Bills
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ═══════════ WIZARD: ANNUAL EXPENSE ═══════════ -->
+<div x-show="activeWizard === 'annual'" x-cloak
+     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+     class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden"
+         @click.outside="activeWizard = ''" x-data="{ aTitle: '', aAmount: '', aDue: '', aCat: '', aNotes: '' }"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-teal-50 to-cyan-50 dark:from-teal-950/30 dark:to-cyan-950/30">
+            <div class="flex items-center gap-3">
+                <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-teal-500 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                </span>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Annual Expense Planner</h3>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">Track a large annual bill as a recurring yearly commitment</p>
+                </div>
+            </div>
+            <button @click="activeWizard = ''" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <form action="/commitments/wizard/annual-expense" method="POST" class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            <div class="bg-teal-50 dark:bg-teal-950/30 rounded-xl p-4 text-sm text-teal-800 dark:text-teal-300 flex items-start gap-3">
+                <svg class="w-5 h-5 text-teal-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span>This wizard creates a single <strong>confirmed, annually recurring</strong> commitment. It will appear in your spending plan each year so you always know this big expense is coming. Think: insurance premiums, registration fees, annual subscriptions.</span>
+            </div>
+            <div>
+                <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">What's the expense?</label>
+                <input type="text" name="title" x-model="aTitle" required placeholder="e.g. Car Insurance Annual Premium" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Total Amount</label>
+                    <input type="number" name="amount" x-model="aAmount" step="0.01" min="0" required placeholder="1200.00" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 tabular-nums focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">When is it due?</label>
+                    <input type="date" name="due_date" x-model="aDue" required class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Category</label>
+                    <select name="category_id" x-model="aCat" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="">&mdash; None &mdash;</option>
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% if cat.children %}{% for child in cat.children %}
+                        <option value="{{ child.id }}">&nbsp;&nbsp;&lfloor; {{ child.name }}</option>
+                        {% endfor %}{% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Notes</label>
+                    <input type="text" name="notes" x-model="aNotes" placeholder="e.g. Policy #12345" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+            </div>
+
+            <!-- Preview -->
+            <div x-show="aTitle && aAmount" x-cloak class="bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/30 dark:to-cyan-950/30 rounded-xl p-4 ring-1 ring-teal-200 dark:ring-teal-800 space-y-2">
+                <div class="text-xs font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider">Preview</div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="aTitle"></span>
+                    <span class="text-sm font-bold text-red-600 dark:text-red-400 tabular-nums" x-text="'-$' + parseFloat(aAmount || 0).toFixed(2) + '/year'"></span>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                    That's roughly <strong class="text-gray-700 dark:text-gray-300" x-text="'$' + (parseFloat(aAmount || 0) / 12).toFixed(2)"></strong>/month to mentally set aside.
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" @click="activeWizard = ''"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">Cancel</button>
+                <button type="submit" class="px-5 py-2 text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm">Create Annual Commitment</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ═══════════ WIZARD: EVENT BUDGET ═══════════ -->
+<div x-show="activeWizard === 'event'" x-cloak
+     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+     class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+         @click.outside="activeWizard = ''" x-data="eventWizard()"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30">
+            <div class="flex items-center gap-3">
+                <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </span>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Event / Project Budget</h3>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">Plan multiple line items for a holiday, wedding, or project</p>
+                </div>
+            </div>
+            <button @click="activeWizard = ''" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <!-- Steps -->
+        <div class="px-6 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-4">
+            <template x-for="(label, idx) in ['Event Details', 'Line Items', 'Review']" :key="idx">
+                <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center transition-colors"
+                          :class="step > idx ? 'bg-emerald-500 text-white' : step === idx ? 'bg-orange-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
+                          x-text="step > idx ? '✓' : idx + 1"></span>
+                    <span class="text-xs font-medium" :class="step === idx ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400'" x-text="label"></span>
+                    <svg x-show="idx < 2" class="w-4 h-4 text-gray-300 dark:text-gray-600 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </div>
+            </template>
+        </div>
+
+        <form action="/commitments/wizard/event-budget" method="POST" class="flex-1 overflow-y-auto">
+            <!-- Step 1: Event details -->
+            <div x-show="step === 0" class="px-6 py-5 space-y-4">
+                <p class="text-sm text-gray-600 dark:text-gray-400">What are you planning? Give your event or project a name and a default target date. You can set different dates for individual items in the next step.</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Event Name</label>
+                        <input type="text" name="event_name" x-model="eventName" required placeholder="e.g. Summer Holiday"
+                               class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Default Due Date</label>
+                        <input type="date" name="event_date" x-model="eventDate" required
+                               class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Line items -->
+            <div x-show="step === 1" x-cloak class="px-6 py-5 space-y-3">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Break down your budget into individual items. Each item can have its own due date &mdash; leave blank to use the default event date.</p>
+
+                <template x-for="(item, i) in items" :key="i">
+                    <div class="rounded-xl ring-1 ring-gray-200 dark:ring-gray-700 bg-gray-50/50 dark:bg-gray-900/20 px-3 py-3 space-y-2">
+                        <div class="grid grid-cols-12 gap-2 items-end">
+                            <div class="col-span-5">
+                                <label x-show="i === 0" class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Item</label>
+                                <input type="text" :name="'item_'+i+'_title'" x-model="item.title" placeholder="e.g. Flights" required
+                                       class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                            </div>
+                            <div class="col-span-3">
+                                <label x-show="i === 0" class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Amount</label>
+                                <input type="number" :name="'item_'+i+'_amount'" x-model="item.amount" step="0.01" min="0" placeholder="0.00" required
+                                       class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                            </div>
+                            <div class="col-span-3">
+                                <label x-show="i === 0" class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Confidence</label>
+                                <select :name="'item_'+i+'_confidence'" x-model="item.confidence"
+                                        class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                    <option value="confirmed">Confirmed</option>
+                                    <option value="expected" selected>Expected</option>
+                                    <option value="estimated">Estimated</option>
+                                </select>
+                            </div>
+                            <div class="col-span-1 flex justify-center">
+                                <button type="button" @click="items.splice(i, 1)" x-show="items.length > 1"
+                                        class="p-1.5 rounded-md text-gray-300 hover:text-red-500 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            <input type="date" :name="'item_'+i+'_due_date'" x-model="item.due_date"
+                                   class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                            <span class="text-[10px] text-gray-400 dark:text-gray-500" x-show="!item.due_date">Uses event default: <span x-text="eventDate || 'not set'" class="font-medium"></span></span>
+                            <button type="button" x-show="item.due_date" @click="item.due_date = ''"
+                                    class="text-[10px] text-gray-400 hover:text-red-500 transition-colors underline">Reset to default</button>
+                            <span class="mx-1 text-gray-200 dark:text-gray-700">|</span>
+                            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                            <select :name="'item_'+i+'_category'" x-model="item.category"
+                                    class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                <option value="">No category</option>
+                                {% for cat in all_categories %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                {% if cat.children %}{% for child in cat.children %}
+                                <option value="{{ child.id }}">&nbsp;&nbsp;&lfloor; {{ child.name }}</option>
+                                {% endfor %}{% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </template>
+
+                <button type="button" @click="items.push({title:'', amount:'', confidence:'expected', due_date:'', category:''})"
+                        class="w-full py-2 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-400 hover:text-orange-600 hover:border-orange-300 dark:hover:text-orange-400 dark:hover:border-orange-700 transition-colors flex items-center justify-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Add another item
+                </button>
+            </div>
+
+            <!-- Step 3: Review -->
+            <div x-show="step === 2" x-cloak class="px-6 py-5 space-y-4">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </span>
+                    <div>
+                        <div class="text-base font-bold text-gray-900 dark:text-gray-100" x-text="eventName"></div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">Default date: <span x-text="eventDate"></span></div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 dark:bg-gray-900/30 rounded-xl ring-1 ring-gray-200 dark:ring-gray-700 divide-y divide-gray-200 dark:divide-gray-700 overflow-hidden">
+                    <template x-for="(item, i) in items" :key="i">
+                        <div class="px-4 py-3 flex items-center gap-3" x-show="item.title">
+                            <div class="flex-1 min-w-0">
+                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="eventName + ': ' + item.title"></span>
+                                <span class="ml-2 text-xs tabular-nums" :class="item.due_date ? 'text-orange-500 dark:text-orange-400 font-medium' : 'text-gray-400 dark:text-gray-500'" x-text="item.due_date || eventDate"></span>
+                            </div>
+                            <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase"
+                                  :class="item.confidence === 'confirmed' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400' : item.confidence === 'expected' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400'"
+                                  x-text="item.confidence"></span>
+                            <span class="text-sm font-semibold text-red-600 dark:text-red-400 tabular-nums" x-text="'-$' + parseFloat(item.amount || 0).toFixed(2)"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Budget bar -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <span class="font-semibold text-gray-900 dark:text-gray-100">Total Budget</span>
+                        <span class="font-bold text-orange-600 dark:text-orange-400 tabular-nums" x-text="'-$' + items.reduce((s,i) => s + parseFloat(i.amount || 0), 0).toFixed(2)"></span>
+                    </div>
+                    <div class="w-full h-4 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden flex">
+                        <template x-for="item in items.filter(i => i.title && i.amount)">
+                            <div class="h-full transition-all"
+                                 :class="item.confidence === 'confirmed' ? 'bg-emerald-400' : item.confidence === 'expected' ? 'bg-blue-400' : 'bg-yellow-400'"
+                                 :style="'width:' + (parseFloat(item.amount) / items.reduce((s,i) => s + parseFloat(i.amount || 0), 0) * 100) + '%'"></div>
+                        </template>
+                    </div>
+                    <div class="flex items-center gap-4 text-[10px] text-gray-500 dark:text-gray-400">
+                        <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-400"></span>Confirmed</div>
+                        <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-blue-400"></span>Expected</div>
+                        <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-yellow-400"></span>Estimated</div>
+                    </div>
+                </div>
+
+                <input type="hidden" name="item_count" :value="items.length">
+            </div>
+        </form>
+
+        <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-between">
+            <button type="button" x-show="step > 0" @click="step--"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                Back
+            </button>
+            <div x-show="step === 0"></div>
+            <button x-show="step < 2" type="button" @click="step++"
+                    class="px-5 py-2 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-xl transition-colors shadow-sm"
+                    x-text="step === 0 ? 'Next: Add Items' : 'Review Budget'">
+            </button>
+            <button x-show="step === 2" x-cloak type="button"
+                    @click="$el.closest('[x-data]').querySelector('form').submit()"
+                    class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">
+                Create All Commitments
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ═══════════ WIZARD: REVIEW HISTORY ═══════════ -->
+<div x-show="activeWizard === 'review-history'" x-cloak
+     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+     class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+         @click.outside="activeWizard = ''" x-data="reviewHistoryWizard()"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30">
+            <div class="flex items-center gap-3">
+                <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </span>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Review History</h3>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">Analyse past transactions and suggest commitments going forward</p>
+                </div>
+            </div>
+            <button @click="activeWizard = ''" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <!-- Steps indicator -->
+        <div class="px-6 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-4">
+            <template x-for="(label, idx) in ['Select Range', 'Review Suggestions', 'Confirm']" :key="idx">
+                <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center transition-colors"
+                          :class="step > idx ? 'bg-emerald-500 text-white' : step === idx ? 'bg-emerald-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
+                          x-text="step > idx ? '✓' : idx + 1"></span>
+                    <span class="text-xs font-medium" :class="step === idx ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400'" x-text="label"></span>
+                    <svg x-show="idx < 2" class="w-4 h-4 text-gray-300 dark:text-gray-600 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </div>
+            </template>
+        </div>
+
+        <div class="flex-1 overflow-y-auto">
+            <!-- Step 1: Date range -->
+            <div x-show="step === 0" class="px-6 py-5 space-y-5">
+                <div class="bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-4 text-sm text-emerald-800 dark:text-emerald-300 flex items-start gap-3">
+                    <svg class="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>Choose a date range to analyse. A period of <strong>3-6 months</strong> works best for detecting recurring patterns. We'll look at your transaction history and suggest commitments based on what we find.</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">From</label>
+                        <input type="date" x-model="dateFrom"
+                               class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">To</label>
+                        <input type="date" x-model="dateTo"
+                               class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs text-gray-400 dark:text-gray-500">Quick:</span>
+                    <button type="button" @click="setRange(3)" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors">Last 3 months</button>
+                    <button type="button" @click="setRange(6)" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors">Last 6 months</button>
+                    <button type="button" @click="setRange(12)" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors">Last 12 months</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Review suggestions -->
+            <div x-show="step === 1" x-cloak class="px-6 py-5 space-y-4">
+                <div x-show="loading" class="flex flex-col items-center py-12">
+                    <svg class="w-8 h-8 text-emerald-500 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                    <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">Analysing your transaction history...</p>
+                </div>
+
+                <template x-if="!loading && suggestions.length === 0">
+                    <div class="text-center py-12">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                            <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        </div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">No recurring patterns detected in this date range.</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Try widening the range, or add commitments manually.</p>
+                    </div>
+                </template>
+
+                <template x-if="!loading && suggestions.length > 0">
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                Found <strong x-text="suggestions.length" class="text-gray-900 dark:text-gray-100"></strong> potential commitments.
+                                Select the ones you want to create, and adjust details as needed.
+                            </p>
+                            <div class="flex items-center gap-2">
+                                <button type="button" @click="suggestions.forEach(s => s.selected = true)" class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 hover:underline">Select All</button>
+                                <span class="text-gray-300 dark:text-gray-600">|</span>
+                                <button type="button" @click="suggestions.forEach(s => s.selected = false)" class="text-[11px] font-medium text-gray-400 hover:underline">Clear All</button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <template x-for="(sug, i) in suggestions" :key="i">
+                                <div class="rounded-xl ring-1 transition-all"
+                                     :class="sug.selected ? 'ring-emerald-300 dark:ring-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20' : 'ring-gray-200 dark:ring-gray-700 bg-gray-50/50 dark:bg-gray-900/20'">
+                                    <div class="px-4 py-3 flex items-start gap-3">
+                                        <label class="flex items-center mt-1 cursor-pointer">
+                                            <input type="checkbox" x-model="sug.selected" class="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500">
+                                        </label>
+                                        <div class="flex-1 min-w-0 space-y-2">
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <input type="text" x-model="sug.title"
+                                                       class="text-sm font-medium bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 px-0 py-0.5 focus:ring-0 focus:border-emerald-500 flex-1 min-w-[200px]">
+                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase"
+                                                      :class="sug.direction === 'outflow' ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400'"
+                                                      x-text="sug.direction"></span>
+                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                                      x-text="sug.tx_count + ' txns'"></span>
+                                            </div>
+                                            <div class="flex items-center gap-3 flex-wrap">
+                                                <div class="flex items-center gap-1">
+                                                    <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">$</span>
+                                                    <input type="number" x-model="sug.amount" step="0.01" min="0"
+                                                           class="w-24 text-sm font-medium bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 px-0 py-0.5 tabular-nums focus:ring-0 focus:border-emerald-500">
+                                                </div>
+                                                <select x-model="sug.recurrence"
+                                                        class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-emerald-500">
+                                                    <option value="">One-off</option>
+                                                    <option value="weekly">Weekly</option>
+                                                    <option value="fortnightly">Fortnightly</option>
+                                                    <option value="monthly">Monthly</option>
+                                                    <option value="quarterly">Quarterly</option>
+                                                    <option value="annually">Annually</option>
+                                                </select>
+                                                <select x-model="sug.confidence"
+                                                        class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-emerald-500">
+                                                    <option value="confirmed">Confirmed</option>
+                                                    <option value="expected">Expected</option>
+                                                    <option value="estimated">Estimated</option>
+                                                </select>
+                                                <select x-model="sug.direction"
+                                                        class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-emerald-500">
+                                                    <option value="outflow">Outflow</option>
+                                                    <option value="inflow">Inflow</option>
+                                                </select>
+                                                <span class="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                                                    <span x-text="sug.category_name"></span>
+                                                </span>
+                                                <span class="text-[10px] text-gray-400 dark:text-gray-500" x-show="sug.account_name" x-text="'via ' + sug.account_name"></span>
+                                            </div>
+                                        </div>
+                                        <div class="text-right flex-shrink-0">
+                                            <div class="text-sm font-bold tabular-nums"
+                                                 :class="sug.direction === 'outflow' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                                 x-text="(sug.direction === 'outflow' ? '-' : '+') + '$' + parseFloat(sug.amount || 0).toFixed(2)"></div>
+                                            <div class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums" x-text="'~$' + parseFloat(sug.monthly_avg || 0).toFixed(2) + '/mo'"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Step 3: Confirm -->
+            <div x-show="step === 2" x-cloak class="px-6 py-5 space-y-4">
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    The following <strong x-text="selectedCount()" class="text-gray-900 dark:text-gray-100"></strong> commitments will be created.
+                </p>
+
+                <div class="bg-gray-50 dark:bg-gray-900/30 rounded-xl ring-1 ring-gray-200 dark:ring-gray-700 divide-y divide-gray-200 dark:divide-gray-700 overflow-hidden">
+                    <template x-for="(sug, i) in suggestions.filter(s => s.selected)" :key="i">
+                        <div class="px-4 py-3 flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                                  :class="sug.direction === 'outflow' ? 'bg-red-100 dark:bg-red-900/40' : 'bg-emerald-100 dark:bg-emerald-900/40'">
+                                <svg x-show="sug.direction === 'outflow'" class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                                <svg x-show="sug.direction === 'inflow'" class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                            </span>
+                            <div class="flex-1 min-w-0">
+                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="sug.title"></span>
+                                <span class="ml-2 text-xs text-gray-400 dark:text-gray-500" x-text="sug.recurrence ? sug.recurrence : 'one-off'"></span>
+                                <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase"
+                                      :class="sug.confidence === 'confirmed' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400' : sug.confidence === 'expected' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400'"
+                                      x-text="sug.confidence"></span>
+                            </div>
+                            <span class="text-sm font-semibold tabular-nums"
+                                  :class="sug.direction === 'outflow' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                  x-text="(sug.direction === 'outflow' ? '-' : '+') + '$' + parseFloat(sug.amount || 0).toFixed(2)"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="flex items-center justify-between px-1 pt-2">
+                    <span class="text-sm text-gray-500 dark:text-gray-400" x-text="selectedCount() + ' commitment(s)'"></span>
+                    <div class="text-right">
+                        <div class="text-sm font-bold text-red-600 dark:text-red-400 tabular-nums" x-text="'-$' + selectedOutflowTotal().toFixed(2) + ' outflow'"></div>
+                        <div x-show="selectedInflowTotal() > 0" class="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums" x-text="'+$' + selectedInflowTotal().toFixed(2) + ' inflow'"></div>
+                    </div>
+                </div>
+
+                <form id="reviewHistoryForm" action="/commitments/wizard/review-history/create" method="POST">
+                    <template x-for="(sug, i) in suggestions" :key="i">
+                        <div>
+                            <input type="hidden" :name="'sug_'+i+'_selected'" :value="sug.selected ? 'on' : ''">
+                            <input type="hidden" :name="'sug_'+i+'_title'" :value="sug.title">
+                            <input type="hidden" :name="'sug_'+i+'_amount'" :value="sug.amount">
+                            <input type="hidden" :name="'sug_'+i+'_direction'" :value="sug.direction">
+                            <input type="hidden" :name="'sug_'+i+'_category_id'" :value="sug.category_id">
+                            <input type="hidden" :name="'sug_'+i+'_confidence'" :value="sug.confidence">
+                            <input type="hidden" :name="'sug_'+i+'_is_recurring'" :value="sug.recurrence ? 'on' : ''">
+                            <input type="hidden" :name="'sug_'+i+'_recurrence'" :value="sug.recurrence">
+                        </div>
+                    </template>
+                    <input type="hidden" name="suggestion_count" :value="suggestions.length">
+                </form>
+            </div>
+        </div>
+
+        <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-between">
+            <button type="button" x-show="step > 0" @click="step--"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                Back
+            </button>
+            <div x-show="step === 0"></div>
+            <button x-show="step === 0" type="button" @click="analyzeHistory()" :disabled="!dateFrom || !dateTo"
+                    class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm">
+                Analyse Transactions
+            </button>
+            <button x-show="step === 1 && !loading && suggestions.length > 0" x-cloak type="button" @click="step = 2"
+                    :disabled="selectedCount() === 0"
+                    class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm">
+                Review Selected (<span x-text="selectedCount()"></span>)
+            </button>
+            <button x-show="step === 2" x-cloak type="button"
+                    @click="document.getElementById('reviewHistoryForm').submit()"
+                    class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">
+                Create Commitments
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ═══════════ TAB BAR ═══════════ -->
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+    <div class="px-6 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-1 overflow-x-auto">
+        {% set tabs = [
+            ('pending', 'Pending', summary.count_pending),
+            ('upcoming', 'Upcoming (90d)', none),
+            ('overdue', 'Overdue', summary.count_overdue),
+            ('recurring', 'Recurring', summary.count_recurring),
+            ('cleared', 'Cleared', summary.count_cleared),
+            ('all', 'All', none),
+        ] %}
+        {% for tid, label, badge in tabs %}
+        <a href="/commitments?tab={{ tid }}{% if filter_direction %}&direction={{ filter_direction }}{% endif %}{% if filter_confidence %}&confidence={{ filter_confidence }}{% endif %}"
+           class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap flex items-center gap-1.5
+                  {% if tab == tid %}bg-brand-600 text-white{% else %}text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200{% endif %}">
+            {{ label }}
+            {% if badge is not none and badge > 0 %}
+            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none
+                  {% if tab == tid %}bg-white/20 text-white{% elif tid == 'overdue' %}bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400{% else %}bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400{% endif %}">{{ badge }}</span>
+            {% endif %}
+        </a>
+        {% endfor %}
+
+        <!-- Direction/Confidence filters on the right -->
+        <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+            <select onchange="applyFilter()" id="filterDirection"
+                    class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-[11px] text-gray-600 dark:text-gray-300 focus:ring-2 focus:ring-brand-500">
+                <option value="" {% if not filter_direction %}selected{% endif %}>All directions</option>
+                <option value="outflow" {% if filter_direction == 'outflow' %}selected{% endif %}>Outflow only</option>
+                <option value="inflow" {% if filter_direction == 'inflow' %}selected{% endif %}>Inflow only</option>
+            </select>
+            <select onchange="applyFilter()" id="filterConfidence"
+                    class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-[11px] text-gray-600 dark:text-gray-300 focus:ring-2 focus:ring-brand-500">
+                <option value="" {% if not filter_confidence %}selected{% endif %}>All confidence</option>
+                <option value="confirmed" {% if filter_confidence == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                <option value="expected" {% if filter_confidence == 'expected' %}selected{% endif %}>Expected</option>
+                <option value="estimated" {% if filter_confidence == 'estimated' %}selected{% endif %}>Estimated</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- ═══════════ COMMITMENT TABLE ═══════════ -->
+    <div class="divide-y divide-gray-50 dark:divide-gray-700/50">
+        {% for c in commitments %}
+        <div class="px-6 py-3.5 flex items-center gap-3 group hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors
+                    {% if c.cleared_at %}opacity-50{% endif %}
+                    {% if c.due_date < today and not c.cleared_at %}bg-red-50/30 dark:bg-red-950/10{% endif %}">
+
+            <!-- Direction icon -->
+            {% if c.direction.value == 'outflow' %}
+            <span class="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center
+                {% if c.cleared_at %}bg-gray-100 dark:bg-gray-700{% elif c.due_date < today %}bg-red-100 dark:bg-red-900/40{% else %}bg-amber-100 dark:bg-amber-900/40{% endif %}">
+                <svg class="w-4 h-4 {% if c.cleared_at %}text-gray-400{% elif c.due_date < today %}text-red-600 dark:text-red-400{% else %}text-amber-600 dark:text-amber-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+            </span>
+            {% else %}
+            <span class="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/40">
+                <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            </span>
+            {% endif %}
+
+            <!-- Title & meta -->
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ c.title }}</span>
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase
+                        {% if c.confidence.value == 'confirmed' %}bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400
+                        {% elif c.confidence.value == 'expected' %}bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400
+                        {% else %}bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400{% endif %}">{{ c.confidence.value }}</span>
+                    {% if c.is_recurring %}
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-400">{{ c.recurrence.value if c.recurrence else 'recurring' }}</span>
+                    {% endif %}
+                    {% if c.cleared_at %}
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Cleared</span>
+                    {% endif %}
+                    {% if c.due_date < today and not c.cleared_at %}
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400">Overdue</span>
+                    {% endif %}
+                </div>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 tabular-nums">
+                    Due {{ c.due_date }}{% if c.category %} &middot; {{ c.category.name }}{% endif %}{% if c.notes %} &middot; {{ c.notes }}{% endif %}{% if c.cleared_at %} &middot; Cleared {{ c.cleared_at.strftime('%d %b %Y') }}{% endif %} &middot; Added {{ c.created_at.strftime('%d %b') }}{% if c.updated_at and c.updated_at != c.created_at %} &middot; Edited {{ c.updated_at.strftime('%d %b') }}{% endif %}
+                </p>
+            </div>
+
+            <!-- Amount -->
+            <span class="text-sm font-semibold tabular-nums whitespace-nowrap
+                {% if c.direction.value == 'outflow' %}text-red-600 dark:text-red-400{% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
+                {% if c.direction.value == 'outflow' %}-{% else %}+{% endif %}{{ c.amount|nzd }}
+            </span>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                {% if not c.cleared_at %}
+                <button type="button" title="Edit" @click="openEdit('{{ c.id }}', '{{ c.title }}', '{{ c.amount }}', '{{ c.due_date }}', '{{ c.direction.value }}', '{{ c.category_id or '' }}', '{{ c.confidence.value }}', {{ 'true' if c.is_recurring else 'false' }}, '{{ c.recurrence.value if c.recurrence else '' }}', '{{ c.notes or '' }}')"
+                        class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <form action="/commitments/{{ c.id }}/clear" method="POST" class="inline">
+                    <button type="submit" title="Mark as cleared" class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    </button>
+                </form>
+                {% else %}
+                <form action="/commitments/{{ c.id }}/unclear" method="POST" class="inline">
+                    <button type="submit" title="Undo clear — reactivate" class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                    </button>
+                </form>
+                {% endif %}
+                <form action="/commitments/{{ c.id }}/delete" method="POST" class="inline">
+                    <button type="submit" title="Delete"
+                            data-confirm="Delete &ldquo;{{ c.title }}&rdquo;? This cannot be undone."
+                            data-confirm-title="Delete Commitment"
+                            class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="px-6 py-16 text-center">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            </div>
+            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">No commitments found for this view.</p>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Try a different tab, or add new commitments using the button above.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ═══════════ EDIT MODAL ═══════════ -->
+<div x-show="editOpen" x-cloak
+     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+     class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-lg overflow-hidden"
+         @click.outside="editOpen = false">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Edit Commitment</h3>
+            <button @click="editOpen = false" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <form id="editForm" method="POST" class="px-6 py-5 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Title</label>
+                    <input type="text" id="editTitle" name="title" required class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Amount</label>
+                    <input type="number" id="editAmount" name="amount" step="0.01" min="0" required class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Due Date</label>
+                    <input type="date" id="editDueDate" name="due_date" required class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Direction</label>
+                    <select id="editDirection" name="direction" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="outflow">Outflow</option>
+                        <option value="inflow">Inflow</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Category</label>
+                    <select id="editCategory" name="category_id" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="">&mdash; None &mdash;</option>
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% if cat.children %}{% for child in cat.children %}
+                        <option value="{{ child.id }}">&nbsp;&nbsp;&lfloor; {{ child.name }}</option>
+                        {% endfor %}{% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Confidence</label>
+                    <select id="editConfidence" name="confidence" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="confirmed">Confirmed</option>
+                        <option value="expected">Expected</option>
+                        <option value="estimated">Estimated</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 items-end">
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        <input type="checkbox" id="editRecurring" name="is_recurring" class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                        Recurring
+                    </label>
+                    <select id="editRecurrence" name="recurrence" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="">&mdash;</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="fortnightly">Fortnightly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                        <option value="annually">Annually</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Notes</label>
+                    <input type="text" id="editNotes" name="notes" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" @click="editOpen = false" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">Cancel</button>
+                <button type="submit" class="px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors shadow-sm">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+</div><!-- close commitHub x-data -->
+
+<script>
+function commitHub() {
+    return {
+        showAdd: false,
+        activeWizard: '',
+        editOpen: false,
+        openEdit(id, title, amount, dueDate, direction, catId, confidence, recurring, recurrence, notes) {
+            document.getElementById('editForm').action = '/commitments/' + id + '/edit';
+            document.getElementById('editTitle').value = title;
+            document.getElementById('editAmount').value = amount;
+            document.getElementById('editDueDate').value = dueDate;
+            document.getElementById('editDirection').value = direction;
+            document.getElementById('editCategory').value = catId;
+            document.getElementById('editConfidence').value = confidence;
+            document.getElementById('editRecurring').checked = recurring;
+            document.getElementById('editRecurrence').value = recurrence;
+            document.getElementById('editNotes').value = notes;
+            this.editOpen = true;
+        }
+    };
+}
+
+function recurringWizard() {
+    return {
+        step: 0,
+        bills: [
+            { title: '', amount: '', day: '1', recurrence: 'monthly', category: '' },
+            { title: '', amount: '', day: '1', recurrence: 'monthly', category: '' },
+            { title: '', amount: '', day: '1', recurrence: 'monthly', category: '' },
+        ]
+    };
+}
+
+function eventWizard() {
+    return {
+        step: 0,
+        eventName: '',
+        eventDate: '',
+        items: [
+            { title: '', amount: '', confidence: 'expected', due_date: '', category: '' },
+            { title: '', amount: '', confidence: 'expected', due_date: '', category: '' },
+        ]
+    };
+}
+
+function reviewHistoryWizard() {
+    return {
+        step: 0,
+        dateFrom: '',
+        dateTo: '',
+        loading: false,
+        suggestions: [],
+        setRange(months) {
+            const to = new Date();
+            const from = new Date();
+            from.setMonth(from.getMonth() - months);
+            this.dateFrom = from.toISOString().slice(0, 10);
+            this.dateTo = to.toISOString().slice(0, 10);
+        },
+        async analyzeHistory() {
+            this.step = 1;
+            this.loading = true;
+            this.suggestions = [];
+            try {
+                const body = new URLSearchParams({ date_from: this.dateFrom, date_to: this.dateTo });
+                const res = await fetch('/commitments/wizard/review-history/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body.toString(),
+                });
+                const data = await res.json();
+                this.suggestions = data.suggestions || [];
+            } catch (e) {
+                console.error('Analysis failed:', e);
+                this.suggestions = [];
+            } finally {
+                this.loading = false;
+            }
+        },
+        selectedCount() {
+            return this.suggestions.filter(s => s.selected).length;
+        },
+        selectedOutflowTotal() {
+            return this.suggestions.filter(s => s.selected && s.direction === 'outflow')
+                .reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+        },
+        selectedInflowTotal() {
+            return this.suggestions.filter(s => s.selected && s.direction === 'inflow')
+                .reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+        },
+    };
+}
+
+function applyFilter() {
+    var d = document.getElementById('filterDirection').value;
+    var c = document.getElementById('filterConfidence').value;
+    var url = '/commitments?tab={{ tab }}';
+    if (d) url += '&direction=' + d;
+    if (c) url += '&confidence=' + c;
+    window.location.href = url;
+}
+</script>
+
+{% endblock %}

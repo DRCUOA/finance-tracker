@@ -9,6 +9,7 @@ from app.routers import (
     backup,
     bank_feeds,
     categories,
+    commitments,
     dashboard,
     help,
     imports,
@@ -33,6 +34,7 @@ async def root():
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(spending.router)
+app.include_router(commitments.router)
 app.include_router(accounts.router)
 app.include_router(categories.router)
 app.include_router(matching_rules.router)
