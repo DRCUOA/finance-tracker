@@ -7,8 +7,10 @@ from app.routers import (
     accounts,
     auth,
     backup,
+    bank_feeds,
     categories,
     dashboard,
+    help,
     imports,
     matching_rules,
     reconciliation,
@@ -36,7 +38,9 @@ app.include_router(categories.router)
 app.include_router(matching_rules.router)
 app.include_router(transactions.router)
 app.include_router(imports.router)
+app.include_router(bank_feeds.router)
 app.include_router(reconciliation.router)
 app.include_router(reports.router)
 app.include_router(sql_tool.router)
 app.include_router(backup.router)
+app.include_router(help.router)

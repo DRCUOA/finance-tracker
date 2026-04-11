@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Bank Feeds — Finance Tracker{% endblock %}
+{% block page_title %}Bank Feeds{% endblock %}
+
+{% block header_actions %}
+{% if configured and not akahu_error %}
+<form method="post" action="/bank-feeds/sync" class="inline">
+    <button type="submit" class="inline-flex items-center px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors shadow-sm">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Sync All Balances
+    </button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% if not configured %}
+<!-- Setup card -->
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 max-w-2xl">
+    <div class="flex items-start gap-4">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+            <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <div>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Akahu not configured</h3>
+            <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                To connect your bank accounts, add your Akahu credentials to the <code class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">.env</code> file:
+            </p>
+            <div class="mt-3 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-xs font-mono text-gray-600 dark:text-gray-400 space-y-1">
+                <div>AKAHU_APP_TOKEN=app_token_...</div>
+                <div>AKAHU_USER_TOKEN=user_token_...</div>
+                <div>AKAHU_BASE_URL=https://api.akahu.io/v1</div>
+            </div>
+            <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                Get your tokens from <a href="https://my.akahu.nz" target="_blank" class="text-brand-600 hover:text-brand-500 dark:text-brand-400 underline">my.akahu.nz</a> under Developers.
+            </p>
+        </div>
+    </div>
+</div>
+
+{% elif akahu_error %}
+<!-- Error card -->
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-red-200 dark:ring-red-800 p-8 max-w-2xl">
+    <div class="flex items-start gap-4">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+            <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <div>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Connection error</h3>
+            <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{{ akahu_error }}</p>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- Akahu accounts -->
+<div class="space-y-4">
+    {% for akahu_acct in akahu_accounts %}
+    {% set linked_local = link_map.get(akahu_acct._id or akahu_acct['_id']) %}
+    {% set acct_status = akahu_acct.get('status', 'UNKNOWN') %}
+    {% set acct_type = akahu_acct.get('type', '') %}
+    {% set balance = akahu_acct.get('balance', {}) %}
+    {% set connection = akahu_acct.get('connection', {}) %}
+    {% set refreshed = akahu_acct.get('refreshed', {}) %}
+    {% set attributes = akahu_acct.get('attributes', []) %}
+    {% set has_transactions = 'TRANSACTIONS' in attributes %}
+
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
+        <div class="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <!-- Account info -->
+            <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <p class="font-medium text-gray-900 dark:text-gray-100">{{ akahu_acct.get('name', 'Unknown') }}</p>
+                    {% if acct_status == 'ACTIVE' %}
+                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Active</span>
+                    {% elif acct_status == 'INACTIVE' %}
+                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 uppercase tracking-wider">Inactive</span>
+                    {% endif %}
+                    {% if not has_transactions %}
+                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase tracking-wider">No Tx</span>
+                    {% endif %}
+                </div>
+                <p class="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
+                    {{ connection.get('name', '') }}
+                    {% if akahu_acct.get('formatted_account') %} · <span class="font-mono text-xs">{{ akahu_acct.get('formatted_account') }}</span>{% endif %}
+                    · {{ acct_type }}
+                    {% if refreshed.get('balance') %}
+                    <span class="text-gray-300 dark:text-gray-600 mx-0.5">·</span>
+                    <span title="Balance refreshed">Balance: {{ refreshed.get('balance', '')[:16] }}</span>
+                    {% endif %}
+                </p>
+            </div>
+
+            <!-- Balance -->
+            <div class="flex items-center gap-6 flex-shrink-0">
+                <div class="text-right">
+                    <div class="text-base font-bold tabular-nums whitespace-nowrap
+                        {% if balance.get('current', 0) >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+                        ${{ "%.2f"|format(balance.get('current', 0)|abs) }}
+                    </div>
+                    {% if balance.get('available') is not none and balance.get('available') != balance.get('current') %}
+                    <div class="text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+                        Avail: ${{ "%.2f"|format(balance.get('available', 0)|abs) }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Link status & actions -->
+        <div class="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700">
+            {% if linked_local %}
+            <!-- Linked -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    <span class="text-sm text-gray-700 dark:text-gray-300">
+                        Linked to <span class="font-semibold">{{ linked_local.name }}</span>
+                    </span>
+                    {% set local_bal = linked_local.current_balance %}
+                    {% set bank_bal = balance.get('current', 0) %}
+                    {% set diff = (bank_bal - (local_bal|float))|round(2) %}
+                    {% if diff != 0 %}
+                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">
+                        Diff: ${{ "%.2f"|format(diff|abs) }}
+                    </span>
+                    {% else %}
+                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400">
+                        Matched
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="flex items-center gap-2 flex-wrap">
+                    {% if has_transactions and acct_status == 'ACTIVE' %}
+                    <form method="post" action="/bank-feeds/sync-transactions/{{ linked_local.id }}" class="flex items-center gap-2"
+                          x-data="{ start: '', end: '' }">
+                        <input type="date" name="start_date" x-model="start" required
+                               class="rounded-lg border-gray-300 dark:border-gray-600 text-xs py-1.5 px-2 focus:ring-brand-500 focus:border-brand-500 w-[130px]">
+                        <span class="text-xs text-gray-400">to</span>
+                        <input type="date" name="end_date" x-model="end" required
+                               class="rounded-lg border-gray-300 dark:border-gray-600 text-xs py-1.5 px-2 focus:ring-brand-500 focus:border-brand-500 w-[130px]">
+                        <button type="submit"
+                                class="inline-flex items-center px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors shadow-sm">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            Sync Transactions
+                        </button>
+                    </form>
+                    {% elif not has_transactions %}
+                    <span class="text-xs text-gray-400 dark:text-gray-500 italic">Transactions not available for this account</span>
+                    {% elif acct_status == 'INACTIVE' %}
+                    <span class="text-xs text-amber-600 dark:text-amber-400 italic">Account inactive — reconnect in Akahu</span>
+                    {% endif %}
+
+                    <form method="post" action="/bank-feeds/unlink/{{ linked_local.id }}">
+                        <button type="submit"
+                                class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                            Unlink
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            {% else %}
+            <!-- Not linked -->
+            <form method="post" action="/bank-feeds/link" class="flex items-center gap-3">
+                <input type="hidden" name="akahu_id" value="{{ akahu_acct.get('_id', '') }}">
+                <span class="text-sm text-gray-500 dark:text-gray-400 flex-shrink-0">Link to:</span>
+                <select name="account_id" required
+                        class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 px-3 focus:ring-brand-500 focus:border-brand-500 flex-1 max-w-xs">
+                    <option value="">Select account…</option>
+                    {% for local in unlinked_local %}
+                    <option value="{{ local.id }}">{{ local.name }} ({{ local.current_balance|nzd }})</option>
+                    {% endfor %}
+                </select>
+                <button type="submit"
+                        class="inline-flex items-center px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors shadow-sm">
+                    Link
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    {% if not akahu_accounts %}
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 text-center">
+        <p class="text-sm text-gray-400 dark:text-gray-500">No accounts found in Akahu. Connect accounts at <a href="https://my.akahu.nz" target="_blank" class="text-brand-600 hover:text-brand-500 dark:text-brand-400 underline">my.akahu.nz</a>.</p>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+{% endif %}
+{% endblock %}

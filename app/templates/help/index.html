@@ -1,0 +1,777 @@
+{% extends "base.html" %}
+{% block title %}Help & How-To — Finance Tracker{% endblock %}
+{% block page_title %}Help & How-To{% endblock %}
+
+{% block content %}
+<div x-data="{ active: window.location.hash.slice(1) || 'getting-started' }" class="flex gap-8 items-start">
+
+    <!-- Sidebar navigation -->
+    <nav class="hidden lg:block w-56 flex-shrink-0 sticky top-28">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-4 space-y-0.5">
+            <template x-for="item in [
+                {id:'getting-started', label:'Getting Started'},
+                {id:'dashboard', label:'Dashboard'},
+                {id:'spending', label:'Spending'},
+                {id:'accounts', label:'Accounts'},
+                {id:'transactions', label:'Transactions'},
+                {id:'categories', label:'Categories'},
+                {id:'matching-rules', label:'Matching Rules'},
+                {id:'reconciliation', label:'Reconciliation'},
+                {id:'reports', label:'Reports'},
+                {id:'bank-feeds', label:'Bank Feeds'},
+                {id:'backup', label:'Backup & Restore'},
+                {id:'commitments', label:'Commitments'},
+                {id:'tips', label:'Tips & Good Habits'},
+            ]" :key="item.id">
+                <button @click="active = item.id; window.location.hash = item.id"
+                    class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                    :class="active === item.id
+                        ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200'"
+                    x-text="item.label"></button>
+            </template>
+        </div>
+    </nav>
+
+    <!-- Mobile section picker -->
+    <div class="lg:hidden w-full mb-4">
+        <select @change="active = $event.target.value; window.location.hash = $event.target.value"
+                class="w-full rounded-xl border-gray-300 dark:border-gray-600 text-sm py-2.5 px-3 focus:ring-brand-500 focus:border-brand-500">
+            <option value="getting-started">Getting Started</option>
+            <option value="dashboard">Dashboard</option>
+            <option value="spending">Spending</option>
+            <option value="accounts">Accounts</option>
+            <option value="transactions">Transactions</option>
+            <option value="categories">Categories</option>
+            <option value="matching-rules">Matching Rules</option>
+            <option value="reconciliation">Reconciliation</option>
+            <option value="reports">Reports</option>
+            <option value="bank-feeds">Bank Feeds</option>
+            <option value="backup">Backup & Restore</option>
+            <option value="commitments">Commitments</option>
+            <option value="tips">Tips & Good Habits</option>
+        </select>
+    </div>
+
+    <!-- Content area -->
+    <div class="flex-1 min-w-0 space-y-6">
+
+        <!-- ═══════════ GETTING STARTED ═══════════ -->
+        <div x-show="active === 'getting-started'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8">
+                <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Getting Started</h2>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                    Finance Tracker helps you stay on top of your money by giving you a clear picture of your accounts, spending, and budgets. Here's the recommended order for setting things up.
+                </p>
+                <ol class="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+                    <li class="flex gap-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 flex items-center justify-center text-xs font-bold">1</span>
+                        <div>
+                            <span class="font-semibold">Create your accounts.</span>
+                            Go to <span class="font-medium text-brand-600 dark:text-brand-400">Accounts</span> and add each bank account, credit card, savings account, or investment you want to track. Set the starting balance to the real balance on the day you begin.
+                        </div>
+                    </li>
+                    <li class="flex gap-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 flex items-center justify-center text-xs font-bold">2</span>
+                        <div>
+                            <span class="font-semibold">Review your categories.</span>
+                            The app creates default categories when you sign up. Head to <span class="font-medium text-brand-600 dark:text-brand-400">Categories</span> to rename, delete, or add new ones. Set a monthly budget amount on the categories you want to track spending against.
+                        </div>
+                    </li>
+                    <li class="flex gap-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 flex items-center justify-center text-xs font-bold">3</span>
+                        <div>
+                            <span class="font-semibold">Add transactions.</span>
+                            You can add them manually one at a time via <span class="font-medium text-brand-600 dark:text-brand-400">Transactions</span>, or if your bank supports Akahu, link it via <span class="font-medium text-brand-600 dark:text-brand-400">Bank Feeds</span> to sync them automatically.
+                        </div>
+                    </li>
+                    <li class="flex gap-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 flex items-center justify-center text-xs font-bold">4</span>
+                        <div>
+                            <span class="font-semibold">Set up matching rules.</span>
+                            Go to <span class="font-medium text-brand-600 dark:text-brand-400">Matching Rules</span> and create keywords so future transactions are automatically suggested with the right category. For example, add the keyword "countdown" to your Groceries category.
+                        </div>
+                    </li>
+                    <li class="flex gap-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 flex items-center justify-center text-xs font-bold">5</span>
+                        <div>
+                            <span class="font-semibold">Explore your data.</span>
+                            Visit the <span class="font-medium text-brand-600 dark:text-brand-400">Dashboard</span> for a high-level snapshot, <span class="font-medium text-brand-600 dark:text-brand-400">Spending</span> for a live "safe-to-spend" view, and <span class="font-medium text-brand-600 dark:text-brand-400">Reports</span> for detailed analytics.
+                        </div>
+                    </li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- ═══════════ DASHBOARD ═══════════ -->
+        <div x-show="active === 'dashboard'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Dashboard</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        The Dashboard is your home screen. It gives you a snapshot of your financial position at a glance.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Net Worth Cards</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            At the top you'll see your total assets, total liabilities, and net worth (assets minus liabilities). These are calculated from the current balances of all your accounts.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Period Summary</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Below the net worth cards you'll see income and expenses for the current period (week or month). Use the arrow buttons to step forward and backward through periods. Switch between "week" and "month" view using the toggle.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Budget Progress</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The budget card shows how much you've spent against your total budget for the period. Each category with a budget shows a progress bar. Categories in red have gone over budget.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Net Worth Trend Chart</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The line chart shows how your net worth has changed over time. You can adjust the time horizon using the span buttons (6 months, 1 year, 5 years, or all time).
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Term Filter</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Use the term filter (Short, Medium, Long) to focus the dashboard on specific types of accounts. "Short" shows only short-term accounts (like everyday spending accounts). "Medium" includes short and medium-term. "Long" shows everything. This is useful if you want to see just your day-to-day financial position without investment or long-term savings accounts cluttering the view.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Recent Transactions</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            A quick list of your 10 most recent transactions appears at the bottom. Click any transaction to edit it.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Reconciliation Status</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Each account card shows when it was last reconciled and whether there's a draft reconciliation in progress. This helps you spot accounts that haven't been checked against your bank statement recently.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ SPENDING ═══════════ -->
+        <div x-show="active === 'spending'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Spending (Live Position)</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        The Spending page is your real-time "can I afford this?" view. It shows you how much you've spent so far this week or month and how much you have left before hitting your budget.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Spending Pulse</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The hero section at the top shows your spending status with a colour-coded indicator. Green ("on track") means you're well within budget. Amber ("watch") means you're getting close. Red ("tight") means you're at or over your limit. This gives you an instant read on where you stand without needing to look at numbers.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Category Breakdown</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Below the pulse, each spending category is listed with how much you've spent and your budget for the period. Click on any category row to expand it and see the individual transactions that make up that total.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Commitments</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Commitments are planned expenses that haven't happened yet — things like upcoming bills, subscriptions, or one-off purchases you know are coming. They appear in amber within the category breakdowns so you can see the full picture of what's coming, not just what's already been spent. See the <button @click="active = 'commitments'" class="text-brand-600 dark:text-brand-400 font-medium hover:underline">Commitments</button> section for details.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Period Navigation</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Use the left/right arrows to look at previous or future weeks/months. Toggle between weekly and monthly views to match how you think about your money.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ ACCOUNTS ═══════════ -->
+        <div x-show="active === 'accounts'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Accounts</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Accounts represent the real bank accounts, credit cards, and other financial accounts you want to track.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Creating an Account</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Click "Add Account" and fill in the details. The key fields are:
+                        </p>
+                        <ul class="mt-2 space-y-1.5 text-sm text-gray-600 dark:text-gray-400 list-disc list-inside">
+                            <li><span class="font-medium text-gray-700 dark:text-gray-300">Name</span> — a label you'll recognise (e.g. "ANZ Everyday")</li>
+                            <li><span class="font-medium text-gray-700 dark:text-gray-300">Type</span> — Checking, Savings, Credit Card, Loan, Investment, or Cash. This determines whether the account is treated as an asset or a liability in your net worth.</li>
+                            <li><span class="font-medium text-gray-700 dark:text-gray-300">Initial Balance</span> — the balance on the day you start tracking. The app calculates the current balance by adding all your transactions to this starting number.</li>
+                            <li><span class="font-medium text-gray-700 dark:text-gray-300">Term</span> — Short (everyday accounts), Medium (savings you might dip into), or Long (investments, long-term savings). This controls the dashboard term filter.</li>
+                            <li><span class="font-medium text-gray-700 dark:text-gray-300">Cashflow</span> — leave this ticked for accounts that represent day-to-day income and spending. Untick it for investment or asset-tracking accounts you don't want included in your spending reports and budgets.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Asset vs Liability</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The app automatically groups accounts based on their type. Checking, Savings, Investment, Cash, and Other are <span class="font-medium">assets</span> (money you have). Credit Card and Loan are <span class="font-medium">liabilities</span> (money you owe). Your net worth is assets minus liabilities.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Cashflow vs Asset-Only</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            When an account is marked "Asset Only" (cashflow unticked), it still counts toward your net worth but is excluded from spending reports, budget tracking, and the Spending page. This is useful for things like a KiwiSaver or investment account where the balance matters but the transactions aren't regular income or expenses.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Active vs Inactive</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            You can mark an account as inactive when editing it. Inactive accounts are hidden from most views but their data is kept. This is useful for closed accounts.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Balance Calculation</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The current balance is always calculated as: <span class="font-medium">initial balance + sum of all transactions</span>. If you ever notice the balance is wrong, check that your initial balance is correct and that no transactions are missing or duplicated. The balance is recalculated automatically when you edit an account or finish a reconciliation.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ TRANSACTIONS ═══════════ -->
+        <div x-show="active === 'transactions'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Transactions</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Transactions are the heart of the app — every dollar in and every dollar out is recorded here.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Adding a Transaction</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Click "Add Transaction" and enter the date, amount, description, and account. Use a positive amount for money coming in (income, refunds) and a negative amount for money going out (purchases, bills). Choose a category to classify it, or leave it uncategorised and sort it later.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Duplicate Detection</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            When you add a transaction, the app checks if one already exists with the same account, date, amount, and description. If it finds a match, you'll see a warning. You can choose to save it anyway if it's genuinely a different transaction.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Category Suggestions</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            If you don't pick a category, the app will try to suggest one based on your matching rules (keywords in the transaction description). If it finds a match, it pre-selects that category for you. The more keywords you set up, the smarter this gets.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Searching and Filtering</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Use the filter bar at the top to narrow down transactions by account, category, date range, or search text. You can also choose "Uncategorised" from the category dropdown to find transactions that still need a category. Results update instantly as you change filters.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Quick Editing</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Click any transaction row to open a quick-edit modal where you can change the date, amount, description, account, category, reference, and notes without leaving the page. The modal also shows whether the transaction is locked (reconciled) or editable.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Batch Operations</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Select multiple transactions using the checkboxes, then use batch actions to categorise them all at once or delete them in bulk. There's also a "Select All" option that selects every transaction matching your current filters, not just the ones visible on the current page.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Review Uncategorised</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The "Review Uncategorised" button shows you all transactions without a category, along with suggested categories based on your matching rules. You can accept or change the suggestions and apply them in one go. This is the fastest way to clean up a batch of new transactions.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Locked Transactions</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Transactions that have been reconciled (or are part of a draft reconciliation) are locked. A red padlock icon appears next to them. You can't edit or delete locked transactions — this protects the integrity of your reconciled balances. If you need to change a reconciled transaction, you'll need to deal with the reconciliation first.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ CATEGORIES ═══════════ -->
+        <div x-show="active === 'categories'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Categories</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Categories organise your transactions into meaningful groups so you can see where your money goes. Think of them as labels like "Groceries", "Rent", "Salary", or "Entertainment".
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Category Types</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Each category has a type: <span class="font-medium">Income</span> (money coming in — salary, interest), <span class="font-medium">Expense</span> (money going out — food, bills), or <span class="font-medium">Transfer</span> (moving money between your own accounts). Transfers are excluded from income and expense totals in reports so they don't inflate your numbers.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Parent and Child Categories</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Categories can be organised in a parent/child hierarchy. For example, you might have a parent "Food & Drink" with children "Groceries", "Restaurants", and "Coffee". This helps you see both the detail and the big picture in reports.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Monthly Budgets</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Set a monthly budget on any category to track how much you plan to spend. This default budget appears in the Dashboard and Reports. If you need a different budget for a specific month (e.g. December when spending increases), you can set a month-specific override — the app will use the override for that month and the default for all others.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Fixed vs Flexible</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Mark a category as "Fixed cost" if the amount is roughly the same every period (like rent or insurance). Leave it unchecked for flexible spending (like groceries or entertainment). The Reports page has a "Fixed vs Flexible" breakdown that uses this flag to help you understand which parts of your spending are locked in and which parts you have control over.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Keywords</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            You can attach keywords to a category directly from the Categories page. Keywords are words or phrases that appear in transaction descriptions. When a keyword matches, the app suggests that category for the transaction. For example, add "pak n save" to your Groceries category and any transaction with that phrase will be suggested as Groceries.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Merging Categories</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            If you end up with two categories that should be one, you can merge them. All transactions from the source category are moved to the target category, and the source is deleted. This is a one-way operation — make sure you're merging in the right direction.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ MATCHING RULES ═══════════ -->
+        <div x-show="active === 'matching-rules'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Matching Rules</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Matching Rules is a dedicated page for managing the keywords that power automatic category suggestions. It's the same keyword system as on the Categories page, but presented in a way that makes it easier to manage rules across all categories at once.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">How Matching Works</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            When a transaction comes in (either manually created or via bank feed), the app checks its description against all your keywords. The match is case-insensitive — "COUNTDOWN" matches a keyword of "countdown". If a keyword phrase appears anywhere in the description, that category is suggested.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Creating Rules</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            To add a rule, type a keyword phrase and select the category it should match to. The page shows you how many uncategorised transactions currently match that phrase, so you can see the impact before saving.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Uncategorised Preview</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The bottom section shows all your uncategorised transactions. Click any transaction description to copy it — this makes it easy to create a keyword from an actual transaction. The preview count updates as you type a new keyword phrase.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Rule Health</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The health check highlights potential problems with your rules: duplicate keywords (the same phrase on multiple categories), stale rules (keywords that have never matched anything), and overly broad rules (very short keywords that might match too many things). Cleaning these up improves the accuracy of auto-categorisation.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Hit Counts</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Each rule shows a hit count — how many times it has been used to categorise a transaction. Rules with high hit counts are your most valuable. Rules with zero hits might need their keyword phrase adjusted or might simply be for a merchant you haven't visited yet.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ RECONCILIATION ═══════════ -->
+        <div x-show="active === 'reconciliation'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Reconciliation</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Reconciliation is the process of checking that the transactions in the app match your actual bank statement. It's how you make sure nothing is missing or wrong.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">How to Reconcile</h3>
+                        <ol class="mt-2 space-y-2 text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside">
+                            <li>Go to the <span class="font-medium text-brand-600 dark:text-brand-400">Reconcile</span> page and pick the account you want to reconcile.</li>
+                            <li>Enter the <span class="font-medium">statement date</span> and <span class="font-medium">ending balance</span> from your bank statement.</li>
+                            <li>The app shows all uncleared transactions on or before that date. Tick the ones that appear on your bank statement.</li>
+                            <li>As you tick transactions, the running "cleared balance" updates. When it matches your statement balance, everything lines up.</li>
+                            <li>Click <span class="font-medium">Finish</span> to lock those transactions as reconciled.</li>
+                        </ol>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Draft Reconciliations</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            If you can't finish in one sitting, click "Save Draft". Your checked selections are saved and you can come back later to pick up where you left off. While a draft is active, the transactions in it are locked from editing to prevent changes that would throw off your reconciliation.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Discarding a Draft</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            If you started a reconciliation and want to start over, you can discard the draft. This unlocks the transactions and removes your saved selections.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">What Happens When You Finish</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            When you finish a reconciliation, the selected transactions are marked as "cleared" and permanently locked. The account balance is recalculated. A record is kept of the reconciliation date and balance for your history.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Reconciliation History</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Each account has a reconciliation history page showing all past reconciliations with their statement dates and balances. This is useful for auditing and checking when an account was last verified.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">If the Balance Doesn't Match</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            If your cleared balance doesn't match the statement balance after ticking everything, it usually means a transaction is missing, duplicated, or has the wrong amount. Check for transactions that appear on the statement but not in the app, and vice versa.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ REPORTS ═══════════ -->
+        <div x-show="active === 'reports'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Reports</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Reports give you detailed analytics about your money over time. There are multiple tabs, each showing a different angle on your finances.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Income vs Spending</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Shows your total income alongside your total spending for the selected period, plus a trend chart showing how these have changed over recent periods. This is useful for seeing whether you're consistently spending more than you earn, or whether you're building up savings.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Budget vs Actual</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Lists every expense category with a budget, showing how much you planned to spend versus how much you actually spent. Categories over budget are highlighted. When viewing a weekly period, the monthly budget is prorated (divided by approximately 4.3) to give you a weekly target.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Spending by Category</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            A breakdown of all your spending grouped by category with a comparison to the average over recent periods. This helps you spot categories where you're spending more or less than usual. Click any category to drill down into the individual transactions.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Fixed vs Flexible</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Splits your spending into fixed costs (rent, insurance, subscriptions — categories you've marked as "fixed") and flexible costs (everything else). This shows you how much of your spending is locked in versus how much you have discretion over. If you're trying to cut costs, focus on reducing the flexible portion.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Cash Flow Trend</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            A 12-period chart showing income and spending side by side over time. This is the best view for spotting long-term patterns — are expenses creeping up? Is income seasonal?
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Category Deep Dive</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The deep dive page lets you select a specific category and see its spending history in detail, including a chart and a full transaction list. Use this when you want to understand exactly where money is going within a single category over time.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Transfers in Reports</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Transactions categorised as "Transfer" are excluded from income and expense totals. This prevents money moved between your own accounts from inflating your spending or income figures.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ BANK FEEDS ═══════════ -->
+        <div x-show="active === 'bank-feeds'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Bank Feeds (Akahu)</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Bank Feeds let you sync transactions directly from your bank using Akahu, a New Zealand open banking platform. Instead of manually adding every transaction, you can pull them in automatically.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Setting Up</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            To use bank feeds, you need an Akahu account. Sign up at <span class="font-medium">my.akahu.nz</span> and connect your bank. Then add your Akahu App Token and User Token to the app's environment configuration. Once configured, the Bank Feeds page will show your connected bank accounts.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Linking Accounts</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Link each Akahu bank account to a local account in Finance Tracker. The link is one-to-one — each Akahu account can only be linked to one local account. Once linked, you can sync transactions and balances.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Syncing Balances</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Click "Sync Balances" to update all linked account balances from Akahu in one go. This updates the current balance on each account to match what the bank reports.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Syncing Transactions</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            For each linked account, you can sync transactions for a date range. Choose a start and end date and the app will pull in transactions from Akahu. Transactions are checked for duplicates (by Akahu transaction ID) so syncing the same range twice won't create duplicates. The app also tries to auto-categorise synced transactions using your matching rules.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Unlinking</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            You can unlink an account at any time. Unlinking just removes the connection — it doesn't delete any transactions that were already synced.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ BACKUP & RESTORE ═══════════ -->
+        <div x-show="active === 'backup'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Backup & Restore</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        The Backup page lets you export your data for safekeeping and restore it if needed.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Full Backup</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Downloads everything — accounts, categories, keywords, transactions, budgets, and commitments — as a single JSON file. This is the best option for a complete safety copy. Do this regularly.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Restoring a Backup</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Upload a previously exported JSON backup file to replace all your data. <span class="font-medium text-amber-600 dark:text-amber-400">This is destructive</span> — it overwrites everything. Always make sure you have a current backup before restoring an older one.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Table Exports</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Export individual tables (transactions or accounts) as CSV or JSON. CSV is useful for opening in a spreadsheet. JSON is useful for programmatic use or transfer.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Account Bundles</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Export selected accounts as a portable bundle. You can export just the schema (account settings) or include all transactions. This is useful for sharing account structures or moving accounts between instances of the app.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Matching Rules & Categories</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            You can export and import matching rules and category structures separately. Importing matching rules merges them with existing rules (duplicates are skipped). Importing categories <span class="font-medium text-amber-600 dark:text-amber-400">replaces all existing categories</span> — transactions are remapped by category name where possible, but unmatched ones become uncategorised.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ COMMITMENTS ═══════════ -->
+        <div x-show="active === 'commitments'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Commitments</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Commitments are planned future expenses or income that you know about but haven't happened yet. They help you plan ahead by accounting for money that's going to leave (or arrive in) your accounts.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Adding a Commitment</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            From the <span class="font-medium text-brand-600 dark:text-brand-400">Spending</span> page, you can add a commitment with a title, amount, due date, and direction (outflow for expenses, inflow for income). Optionally assign it to a category and set a confidence level.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Confidence Levels</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            A commitment can be "confirmed" (definitely happening), "expected" (very likely), or "tentative" (might happen). This helps you gauge how certain your planned spending is.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Recurring Commitments</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Tick "recurring" and set a recurrence pattern (like "monthly" or "fortnightly") to have the commitment automatically projected into future periods. The app creates future instances so you can see expected bills in upcoming months without re-entering them.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Clearing a Commitment</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            When the expected expense or income actually happens (and you've added the real transaction), clear the commitment to mark it as done. This removes it from the pending view.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ TIPS & GOOD HABITS ═══════════ -->
+        <div x-show="active === 'tips'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Tips & Good Habits</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        A few things that will help you get the most out of Finance Tracker.
+                    </p>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Categorise Everything</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The reports and budgets only work well if your transactions are categorised. Make it a habit to review uncategorised transactions regularly. The "Review Uncategorised" feature on the Transactions page makes this quick.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Build Up Your Keywords</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Every time you categorise a transaction, think about whether the merchant or description should be a keyword. The more keywords you add, the fewer transactions you'll need to categorise manually in the future. Check the Matching Rules health report to keep your rules clean.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Reconcile Regularly</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Reconciling monthly (or even weekly for busy accounts) catches missing transactions and data-entry errors early, before they compound. The Dashboard shows reconciliation status per account so you can see which ones need attention.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Set Realistic Budgets</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Use the "Spending by Category" report with averages to see what you actually spend before setting budgets. A budget that's too tight will just be ignored; one based on real spending gives you a useful target.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Use Commitments for Bills</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Add your regular bills (rent, insurance, subscriptions) as recurring commitments. This way the Spending page shows you not just what you've spent, but what's still coming, giving you a real "safe-to-spend" number.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Take Backups</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Download a full backup regularly. It takes seconds and gives you peace of mind. Keep a few copies — if something goes wrong, you can restore from the latest backup.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Use the Right Account Types</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Getting account types right matters because it affects net worth calculations. A credit card should be "Credit Card" (liability), not "Checking" (asset). A home loan should be "Loan". If your net worth looks wrong, check your account types first.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Dark Mode</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Click the sun/moon icon at the bottom of the sidebar to toggle between light and dark mode. Your preference is remembered across sessions.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

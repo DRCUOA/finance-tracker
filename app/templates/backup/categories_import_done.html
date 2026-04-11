@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Categories Replaced — Finance Tracker{% endblock %}
+{% block page_title %}Categories Replaced{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto text-center">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-10">
+        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-900/40 mb-5">
+            <svg class="h-8 w-8 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+        </div>
+        <h2 class="text-base font-bold text-gray-900 dark:text-gray-100 mb-5">Categories Replaced Successfully</h2>
+        <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 mb-8">
+            <p>{{ stats.categories_replaced }} old categor{{ 'ies' if stats.categories_replaced != 1 else 'y' }} removed</p>
+            <p>{{ stats.categories_imported }} categor{{ 'ies' if stats.categories_imported != 1 else 'y' }} imported</p>
+            <p>{{ stats.keywords_imported }} keyword{{ 's' if stats.keywords_imported != 1 else '' }} imported</p>
+            {% if stats.transactions_remapped %}
+            <p>{{ stats.transactions_remapped }} transaction{{ 's' if stats.transactions_remapped != 1 else '' }} remapped to new categories</p>
+            {% endif %}
+            {% if stats.transactions_orphaned %}
+            <p class="text-amber-600 dark:text-amber-400">{{ stats.transactions_orphaned }} transaction{{ 's' if stats.transactions_orphaned != 1 else '' }} uncategorised (no matching category name)</p>
+            {% endif %}
+        </div>
+        <div class="flex justify-center gap-3">
+            <a href="/categories" class="px-5 py-2.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors shadow-sm">View Categories</a>
+            <a href="/backup" class="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Back to Backup</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

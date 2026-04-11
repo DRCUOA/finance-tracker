@@ -23,6 +23,15 @@ class Transaction(Base):
     reference: Mapped[str | None] = mapped_column(String(100))
     notes: Mapped[str | None] = mapped_column(Text)
     is_cleared: Mapped[bool] = mapped_column(default=False)
+
+    source: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    akahu_transaction_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    akahu_account_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    akahu_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_pending: Mapped[bool] = mapped_column(default=False, server_default="false")
+    is_source_stale: Mapped[bool] = mapped_column(default=False, server_default="false")
+    source_stale_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

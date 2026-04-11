@@ -1,5 +1,6 @@
 from pathlib import Path
 from fastapi.templating import Jinja2Templates
+from app.config import APP_VERSION
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -18,3 +19,4 @@ def _nzd(value, show_sign=False) -> str:
 
 
 templates.env.filters["nzd"] = _nzd
+templates.env.globals["app_version"] = APP_VERSION

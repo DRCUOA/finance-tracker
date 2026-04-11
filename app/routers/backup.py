@@ -1,5 +1,6 @@
 import json
 import uuid
+from typing import List
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -105,3 +106,96 @@ async def export_accounts(
     content = backup_svc.export_table_csv(rows)
     return Response(content=content, media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=accounts.csv"})
+
+
+@router.post("/export/account-bundle")
+async def export_account_bundle(
+    request: Request,
+    account_ids: List[str] = Form(...),
+    mode: str = Form("schema"),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    ids = [uuid.UUID(aid) for aid in account_ids]
+    include_data = mode == "full"
+    data = await backup_svc.export_account_bundle(db, user.id, ids, include_data=include_data)
+    content = json.dumps(data, indent=2, default=str)
+    suffix = "full" if include_data else "schema"
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename=accounts-{suffix}.json"},
+    )
+
+
+@router.post("/import/account-bundle")
+async def import_account_bundle(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    content = await file.read()
+    data = json.loads(content)
+    stats = await backup_svc.import_account_bundle(db, user.id, data)
+    return templates.TemplateResponse(request, "backup/import_done.html", {
+        "user": user, "stats": stats,
+    })
+
+
+@router.get("/export/matching-rules")
+async def export_matching_rules(
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await backup_svc.export_matching_rules(db, user.id)
+    content = json.dumps(data, indent=2, default=str)
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=matching-rules.json"},
+    )
+
+
+@router.post("/import/matching-rules")
+async def import_matching_rules(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    content = await file.read()
+    data = json.loads(content)
+    stats = await backup_svc.import_matching_rules(db, user.id, data)
+    return templates.TemplateResponse(request, "backup/rules_import_done.html", {
+        "user": user, "stats": stats,
+    })
+
+
+@router.get("/export/categories")
+async def export_category_bundle(
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await backup_svc.export_category_bundle(db, user.id)
+    content = json.dumps(data, indent=2, default=str)
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=categories.json"},
+    )
+
+
+@router.post("/import/categories")
+async def import_category_bundle(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    content = await file.read()
+    data = json.loads(content)
+    stats = await backup_svc.import_category_bundle(db, user.id, data)
+    return templates.TemplateResponse(request, "backup/categories_import_done.html", {
+        "user": user, "stats": stats,
+    })
