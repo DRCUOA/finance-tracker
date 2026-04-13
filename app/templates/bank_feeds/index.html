@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Bank Feeds — Finance Tracker{% endblock %}
+{% block title %}Bank Feeds — Finla{% endblock %}
 {% block page_title %}Bank Feeds{% endblock %}
 
 {% block header_actions %}
@@ -43,10 +43,10 @@
 
 {% elif akahu_error %}
 <!-- Error card -->
-<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-red-200 dark:ring-red-800 p-8 max-w-2xl">
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-negative-200 dark:ring-negative-800 p-8 max-w-2xl">
     <div class="flex items-start gap-4">
-        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
-            <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-negative-100 dark:bg-negative-900/40 flex items-center justify-center">
+            <svg class="w-5 h-5 text-negative-500 dark:text-negative-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
         </div>
@@ -77,9 +77,9 @@
                 <div class="flex items-center gap-2 flex-wrap">
                     <p class="font-medium text-gray-900 dark:text-gray-100">{{ akahu_acct.get('name', 'Unknown') }}</p>
                     {% if acct_status == 'ACTIVE' %}
-                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Active</span>
+                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400 uppercase tracking-wider">Active</span>
                     {% elif acct_status == 'INACTIVE' %}
-                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 uppercase tracking-wider">Inactive</span>
+                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-negative-100 dark:bg-negative-900/40 text-negative-700 dark:text-negative-400 uppercase tracking-wider">Inactive</span>
                     {% endif %}
                     {% if not has_transactions %}
                     <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase tracking-wider">No Tx</span>
@@ -100,7 +100,7 @@
             <div class="flex items-center gap-6 flex-shrink-0">
                 <div class="text-right">
                     <div class="text-base font-bold tabular-nums whitespace-nowrap
-                        {% if balance.get('current', 0) >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+                        {% if balance.get('current', 0) >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
                         ${{ "%.2f"|format(balance.get('current', 0)|abs) }}
                     </div>
                     {% if balance.get('available') is not none and balance.get('available') != balance.get('current') %}
@@ -118,7 +118,7 @@
             <!-- Linked -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
-                    <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    <svg class="w-4 h-4 text-positive-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
                     <span class="text-sm text-gray-700 dark:text-gray-300">
                         Linked to <span class="font-semibold">{{ linked_local.name }}</span>
                     </span>
@@ -130,7 +130,7 @@
                         Diff: ${{ "%.2f"|format(diff|abs) }}
                     </span>
                     {% else %}
-                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400">
+                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400">
                         Matched
                     </span>
                     {% endif %}

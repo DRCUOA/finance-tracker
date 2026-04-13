@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Reconciliation — Finance Tracker{% endblock %}
+{% block title %}Reconciliation — Finla{% endblock %}
 {% block page_title %}Reconciliation{% endblock %}
 
 {% block content %}
@@ -22,7 +22,7 @@
                         </div>
                         <div class="flex items-center gap-3 mt-1">
                             <span class="text-sm text-gray-400 dark:text-gray-500">
-                                Balance: <span class="font-semibold tabular-nums {% if info.account.current_balance >= 0 %}text-gray-700 dark:text-gray-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ info.account.current_balance|nzd }}</span>
+                                Balance: <span class="font-semibold tabular-nums {% if info.account.current_balance >= 0 %}text-gray-700 dark:text-gray-300{% else %}text-negative-500 dark:text-negative-400{% endif %}">{{ info.account.current_balance|nzd }}</span>
                             </span>
                             <span class="text-gray-200 dark:text-gray-600">·</span>
                             <span class="text-sm text-gray-400 dark:text-gray-500">

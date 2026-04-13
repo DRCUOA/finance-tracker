@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — Finance Tracker{% endblock %}
+{% block title %}Dashboard — Finla{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
 {% block header_actions %}
@@ -38,19 +38,19 @@
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 border-t border-t-white/80 dark:border-t-gray-600 border-b-[3px] border-b-gray-300/80 dark:border-b-gray-950/60 p-6">
         <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Total Assets</p>
-        <p class="text-xl font-bold text-emerald-600 tabular-nums">{{ total_assets|nzd }}</p>
+        <p class="text-xl font-bold text-positive-600 tabular-nums">{{ total_assets|nzd }}</p>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 border-t border-t-white/80 dark:border-t-gray-600 border-b-[3px] border-b-gray-300/80 dark:border-b-gray-950/60 p-6">
         <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Total Liabilities</p>
-        <p class="text-xl font-bold text-red-600 tabular-nums">{{ total_liabilities|nzd }}</p>
+        <p class="text-xl font-bold text-negative-500 tabular-nums">{{ total_liabilities|nzd }}</p>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 border-t border-t-white/80 dark:border-t-gray-600 border-b-[3px] border-b-gray-300/80 dark:border-b-gray-950/60 p-6">
         <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Net Worth</p>
-        <p class="text-xl font-bold tabular-nums {% if net_worth >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">{{ net_worth|nzd }}</p>
+        <p class="text-xl font-bold tabular-nums {% if net_worth >= 0 %}text-positive-600{% else %}text-negative-500{% endif %}">{{ net_worth|nzd }}</p>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 border-t border-t-white/80 dark:border-t-gray-600 border-b-[3px] border-b-gray-300/80 dark:border-b-gray-950/60 p-6">
         <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">{{ period_label }}</p>
-        <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">{{ summary.net|nzd }}</p>
+        <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-positive-600{% else %}text-negative-500{% endif %}">{{ summary.net|nzd }}</p>
         <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">{{ summary.income|nzd }} in · {{ summary.expenses|nzd }} out</p>
     </div>
 </div>
@@ -107,14 +107,14 @@
         <!-- Income vs Expenses stacked bar -->
         <div class="mb-5">
             <div class="flex items-center justify-between text-xs mb-1.5">
-                <span class="font-medium text-emerald-600 dark:text-emerald-400">In {{ summary.income|nzd }}</span>
-                <span class="font-medium text-red-500 dark:text-red-400">Out {{ summary.expenses|nzd }}</span>
+                <span class="font-medium text-positive-600 dark:text-positive-400">In {{ summary.income|nzd }}</span>
+                <span class="font-medium text-negative-500 dark:text-negative-400">Out {{ summary.expenses|nzd }}</span>
             </div>
             {% set flow_total = summary.income + summary.expenses %}
             {% set in_pct = (summary.income / flow_total * 100) if flow_total > 0 else 50 %}
             <div class="flex h-2.5 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
-                <div class="bg-emerald-500 transition-all" style="width: {{ in_pct }}%"></div>
-                <div class="bg-red-500 flex-1"></div>
+                <div class="bg-positive-500 transition-all" style="width: {{ in_pct }}%"></div>
+                <div class="bg-negative-500 flex-1"></div>
             </div>
             <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-1 tabular-nums">
                 Net {% if summary.net >= 0 %}+{% endif %}{{ summary.net|nzd }}
@@ -129,7 +129,7 @@
                 <span class="text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100" id="doughnutValue">{{ budget_spent|nzd }}</span>
                 {% if budget_total > 0 %}
                 {% set pct = (budget_spent / budget_total * 100) if budget_total > 0 else 0 %}
-                <span class="text-[11px] tabular-nums mt-0.5 {% if pct > 100 %}text-red-500{% elif pct > 80 %}text-amber-500{% else %}text-emerald-500{% endif %}" id="doughnutSub">{{ "%.0f"|format(pct) }}% of budget</span>
+                <span class="text-[11px] tabular-nums mt-0.5 {% if pct > 100 %}text-negative-500{% elif pct > 80 %}text-amber-500{% else %}text-positive-500{% endif %}" id="doughnutSub">{{ "%.0f"|format(pct) }}% of budget</span>
                 {% else %}
                 <span class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5" id="doughnutSub"></span>
                 {% endif %}
@@ -152,7 +152,7 @@
                     {% if tx.is_cleared %}
                     <svg class="w-3.5 h-3.5 flex-shrink-0 text-red-400" title="Reconciled — locked" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6-6V7a6 6 0 1112 0v4M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
                     {% else %}
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 text-emerald-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 text-positive-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
                     {% endif %}
                     <div class="min-w-0">
                         <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ tx.description }}</p>
@@ -160,7 +160,7 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2 ml-4">
-                    <span class="text-sm font-semibold tabular-nums whitespace-nowrap {% if tx.amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                    <span class="text-sm font-semibold tabular-nums whitespace-nowrap {% if tx.amount >= 0 %}text-positive-600{% else %}text-negative-500{% endif %}">
                         {{ tx.amount|nzd }}
                     </span>
                     <button onclick="openTxEdit('{{ tx.id }}')" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-brand-600 dark:hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-all" title="Edit">
@@ -205,13 +205,13 @@
                         {% if recon.last %}
                         <span class="text-gray-300 dark:text-gray-600 mx-0.5">·</span>
                         <span title="Last reconciled {{ recon.last.statement_date }}">
-                            <svg class="w-3 h-3 inline -mt-0.5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                            <svg class="w-3 h-3 inline -mt-0.5 text-positive-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
                             {{ recon.last.statement_date }}
                         </span>
                         {% endif %}
                     </p>
                 </div>
-                <span class="text-sm font-semibold tabular-nums ml-4 whitespace-nowrap {% if acct.current_balance >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                <span class="text-sm font-semibold tabular-nums ml-4 whitespace-nowrap {% if acct.current_balance >= 0 %}text-positive-600{% else %}text-negative-500{% endif %}">
                     {{ acct.current_balance|nzd }}
                 </span>
             </div>
@@ -401,7 +401,7 @@ requestAnimationFrame(function() {
                             if (row.budgeted > 0) {
                                 subEl.textContent = row.pct + '% of ' + fmt(row.budgeted);
                                 subEl.className = 'text-[11px] tabular-nums mt-0.5 '
-                                    + (row.actual > row.budgeted ? 'text-red-500' : 'text-emerald-500');
+                                    + (row.actual > row.budgeted ? 'text-negative-500' : 'text-positive-500');
                             } else {
                                 subEl.textContent = '';
                             }
@@ -538,7 +538,7 @@ requestAnimationFrame(function() {
                 for (const tx of data.transactions) {
                     const tr = document.createElement('tr');
                     tr.className = 'border-t border-gray-100 dark:border-gray-700 group/row';
-                    const amtClass = tx.amount >= 0 ? 'text-emerald-600' : 'text-red-500';
+                    const amtClass = tx.amount >= 0 ? 'text-positive-600' : 'text-negative-500';
                     tr.innerHTML =
                         '<td class="px-2 py-2.5 text-center">' + lockSvg(tx.is_cleared) + '</td>' +
                         '<td class="px-4 py-2.5 text-xs text-gray-400 whitespace-nowrap tabular-nums">' + tx.date + '</td>' +
@@ -552,7 +552,7 @@ requestAnimationFrame(function() {
             document.getElementById('modalLoading').classList.add('hidden');
             document.getElementById('modalBody').classList.remove('hidden');
             document.getElementById('modalTxBody').innerHTML =
-                '<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-red-500">Failed to load data</td></tr>';
+                '<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-negative-500">Failed to load data</td></tr>';
         }
     }
 });

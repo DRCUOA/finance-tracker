@@ -195,15 +195,26 @@ async def update_commitment(
 
 async def clear_commitment(
     db: AsyncSession, commitment_id: uuid.UUID, user_id: uuid.UUID,
+    amount: Decimal | None = None,
 ) -> Commitment | None:
-    """Mark a commitment as cleared (actual transaction matched)."""
+    """Clear a commitment fully or partially.
+
+    If *amount* is None or >= the commitment amount, the commitment is
+    fully cleared (cleared_at set, next recurrence spawned).  Otherwise
+    only cleared_amount is increased and the commitment stays active so
+    the remainder continues to count as "committed".
+    """
     c = await db.get(Commitment, commitment_id)
     if not c or c.user_id != user_id:
         return None
-    c.cleared_at = datetime.now(timezone.utc)
 
-    if c.is_recurring and c.recurrence:
-        _spawn_next_recurrence(db, c)
+    if amount is None or amount >= c.amount - c.cleared_amount:
+        c.cleared_amount = c.amount
+        c.cleared_at = datetime.now(timezone.utc)
+        if c.is_recurring and c.recurrence:
+            _spawn_next_recurrence(db, c)
+    else:
+        c.cleared_amount = min(c.cleared_amount + amount, c.amount)
 
     await db.flush()
     return c
@@ -212,11 +223,12 @@ async def clear_commitment(
 async def unclear_commitment(
     db: AsyncSession, commitment_id: uuid.UUID, user_id: uuid.UUID,
 ) -> Commitment | None:
-    """Undo a clear — set cleared_at back to None."""
+    """Undo a clear — reset cleared_amount and cleared_at."""
     c = await db.get(Commitment, commitment_id)
     if not c or c.user_id != user_id:
         return None
     c.cleared_at = None
+    c.cleared_amount = Decimal("0")
     await db.flush()
     return c
 
@@ -256,11 +268,12 @@ async def commitment_totals_for_period(
     db: AsyncSession, user_id: uuid.UUID,
     start: date, end: date,
 ) -> dict:
-    """Aggregate uncleared commitment amounts by direction for a period."""
+    """Aggregate outstanding (amount - cleared_amount) by direction for a period."""
+    remaining = Commitment.amount - Commitment.cleared_amount
     stmt = (
         select(
             Commitment.direction,
-            sa_func.sum(Commitment.amount).label("total"),
+            sa_func.sum(remaining).label("total"),
         )
         .where(
             Commitment.user_id == user_id,
@@ -333,7 +346,8 @@ async def get_commitment_summary(
         return (await db.execute(stmt)).scalar() or 0
 
     async def _sum(*extra):
-        stmt = select(sa_func.sum(Commitment.amount)).select_from(Commitment).where(*base, *extra)
+        remaining = Commitment.amount - Commitment.cleared_amount
+        stmt = select(sa_func.sum(remaining)).select_from(Commitment).where(*base, *extra)
         return float((await db.execute(stmt)).scalar() or 0)
 
     pending_filter = [Commitment.cleared_at.is_(None)]
@@ -374,11 +388,12 @@ async def commitments_by_category(
     db: AsyncSession, user_id: uuid.UUID,
     start: date, end: date,
 ) -> dict[str, float]:
-    """Sum of uncleared outflow commitments grouped by category_id."""
+    """Outstanding outflow commitments (amount - cleared_amount) grouped by category."""
+    remaining = Commitment.amount - Commitment.cleared_amount
     stmt = (
         select(
             Commitment.category_id,
-            sa_func.sum(Commitment.amount).label("total"),
+            sa_func.sum(remaining).label("total"),
         )
         .where(
             Commitment.user_id == user_id,

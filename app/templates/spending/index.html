@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Spending — Finance Tracker{% endblock %}
-{% block page_title %}Live Position{% endblock %}
+{% block title %}Budget Position — Finla{% endblock %}
+{% block page_title %}Budget Position{% endblock %}
 
 {% block header_actions %}
 <div class="flex items-center gap-4">
@@ -17,41 +17,72 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
     <!-- Live Available Card -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 border-t border-t-white/80 dark:border-t-gray-600 border-b-[3px]
-        {% if p.status == 'on_track' %}border-b-emerald-400/60{% elif p.status == 'watch' %}border-b-amber-400/60{% elif p.status == 'tight' %}border-b-orange-400/60{% else %}border-b-red-400/60{% endif %}
+        {% if p.status == 'on_track' %}border-b-positive-400/60{% elif p.status == 'watch' %}border-b-amber-400/60{% elif p.status == 'tight' %}border-b-orange-400/60{% else %}border-b-negative-400/60{% endif %}
         p-6 flex flex-col justify-between">
         <div>
             <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
-                {% if p.days_remaining > 0 %}Live Available / day{% else %}Period complete{% endif %}
+                {% if p.period_phase == 'past' %}Period closed
+                {% elif p.period_phase == 'future' %}Upcoming period
+                {% elif p.days_remaining > 0 %}Available / day
+                {% else %}Period complete{% endif %}
             </p>
+            {% if p.period_phase == 'current' %}
             <p class="text-4xl font-bold tabular-nums
-                {% if p.status == 'on_track' %}text-emerald-600 dark:text-emerald-400{% elif p.status == 'watch' %}text-amber-600 dark:text-amber-400{% elif p.status == 'tight' %}text-orange-600 dark:text-orange-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+                {% if p.status == 'on_track' %}text-positive-600 dark:text-positive-400{% elif p.status == 'watch' %}text-amber-600 dark:text-amber-400{% elif p.status == 'tight' %}text-orange-600 dark:text-orange-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
                 {{ p.safe_to_spend|nzd }}
             </p>
             <p class="text-sm mt-1 tabular-nums
-                {% if p.live_available >= 0 %}text-gray-500 dark:text-gray-400{% else %}text-red-500{% endif %}">
+                {% if p.live_available >= 0 %}text-gray-500 dark:text-gray-400{% else %}text-negative-500{% endif %}">
                 {{ p.live_available|nzd }} available after all obligations
             </p>
+            {% elif p.period_phase == 'past' %}
+            <p class="text-4xl font-bold tabular-nums
+                {% if p.live_available >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
+                {{ p.live_available|nzd }}
+            </p>
+            <p class="text-sm mt-1 tabular-nums text-gray-500 dark:text-gray-400">
+                {% if p.live_available >= 0 %}finished under budget{% else %}finished over budget{% endif %}
+            </p>
+            {% else %}
+            <p class="text-4xl font-bold tabular-nums
+                {% if p.live_available >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
+                {{ p.live_available|nzd }}
+            </p>
+            <p class="text-sm mt-1 tabular-nums text-gray-500 dark:text-gray-400">
+                {{ p.period_budget|nzd }} budgeted &middot; {{ p.total_committed|nzd }} already committed
+            </p>
+            {% endif %}
         </div>
         <div class="mt-4 flex items-start gap-2">
             {% if p.status == 'on_track' %}
-            <svg class="w-5 h-5 flex-shrink-0 text-emerald-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <svg class="w-5 h-5 flex-shrink-0 text-positive-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             {% elif p.status == 'watch' %}
             <svg class="w-5 h-5 flex-shrink-0 text-amber-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
             {% elif p.status == 'tight' %}
             <svg class="w-5 h-5 flex-shrink-0 text-orange-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
             {% else %}
-            <svg class="w-5 h-5 flex-shrink-0 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <svg class="w-5 h-5 flex-shrink-0 text-negative-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             {% endif %}
             <p class="text-sm
-                {% if p.status == 'on_track' %}text-emerald-700 dark:text-emerald-400{% elif p.status == 'watch' %}text-amber-700 dark:text-amber-400{% elif p.status == 'tight' %}text-orange-700 dark:text-orange-400{% else %}text-red-700 dark:text-red-400{% endif %}">
+                {% if p.status == 'on_track' %}text-positive-700 dark:text-positive-400{% elif p.status == 'watch' %}text-amber-700 dark:text-amber-400{% elif p.status == 'tight' %}text-orange-700 dark:text-orange-400{% else %}text-negative-700 dark:text-negative-400{% endif %}">
                 {{ p.message }}
             </p>
         </div>
+        {% if p.period_phase == 'current' %}
         <div class="mt-4 flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
             <span>Day {{ p.days_elapsed }} of {{ p.days_total }}</span>
             <span class="text-gray-300 dark:text-gray-600">&middot;</span>
             <span>{{ p.days_remaining }} day{{ 's' if p.days_remaining != 1 else '' }} left</span>
         </div>
+        {% elif p.period_phase == 'past' %}
+        <div class="mt-4 flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+            <span>{{ p.days_total }} day period &middot; closed</span>
+        </div>
+        {% else %}
+        <div class="mt-4 flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+            <span>{{ p.days_total }} day period &middot; starts {{ start.strftime('%b %d') }}</span>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Waterfall Breakdown Card -->
@@ -68,7 +99,7 @@
         {% set reserve_w = [[reserve_pct, 100 - actual_pct - commit_pct] | min, 0] | max %}
         <div class="h-6 rounded-full overflow-hidden flex bg-gray-100 dark:bg-gray-700 mb-3">
             {% if actual_pct > 0 %}
-            <div class="bg-red-500 h-full" style="width: {{ [actual_pct, 100] | min }}%" title="Spent: {{ p.total_actual|nzd }}"></div>
+            <div class="bg-negative-500 h-full" style="width: {{ [actual_pct, 100] | min }}%" title="Spent: {{ p.total_actual|nzd }}"></div>
             {% endif %}
             {% if commit_pct > 0 %}
             <div class="bg-amber-500 h-full" style="width: {{ commit_w }}%" title="Committed: {{ p.total_committed|nzd }}"></div>
@@ -77,14 +108,14 @@
             <div class="bg-violet-400 h-full" style="width: {{ reserve_w }}%" title="Reserved: {{ p.total_reserved|nzd }}"></div>
             {% endif %}
             {% if avail_pct > 0 %}
-            <div class="bg-emerald-500 h-full" style="width: {{ avail_pct }}%" title="Available: {{ p.live_available|nzd }}"></div>
+            <div class="bg-positive-500 h-full" style="width: {{ avail_pct }}%" title="Available: {{ p.live_available|nzd }}"></div>
             {% endif %}
         </div>
         <div class="flex flex-wrap gap-x-5 gap-y-1.5 text-xs mb-5">
-            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span><span class="text-gray-500 dark:text-gray-400">Spent</span><span class="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{{ p.total_actual|nzd }}</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-negative-500"></span><span class="text-gray-500 dark:text-gray-400">Spent</span><span class="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{{ p.total_actual|nzd }}</span></div>
             <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span class="text-gray-500 dark:text-gray-400">Committed</span><span class="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{{ p.total_committed|nzd }}</span></div>
             <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-violet-400"></span><span class="text-gray-500 dark:text-gray-400">Reserved</span><span class="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{{ p.total_reserved|nzd }}</span></div>
-            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span class="text-gray-500 dark:text-gray-400">Available</span><span class="font-semibold tabular-nums {% if p.live_available >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ p.live_available|nzd }}</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-positive-500"></span><span class="text-gray-500 dark:text-gray-400">Available</span><span class="font-semibold tabular-nums {% if p.live_available >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">{{ p.live_available|nzd }}</span></div>
         </div>
 
         <!-- Summary stats -->
@@ -99,7 +130,7 @@
             </button>
             <div class="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3 text-center">
                 <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Pace</p>
-                <p class="text-sm font-bold tabular-nums {% if p.pace_pct <= 100 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ "%.0f"|format(p.pace_pct) }}%</p>
+                <p class="text-sm font-bold tabular-nums {% if p.pace_pct <= 100 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">{{ "%.0f"|format(p.pace_pct) }}%</p>
             </div>
 
             <!-- Budget breakdown modal -->
@@ -169,7 +200,7 @@
                                 <thead class="sticky top-0 bg-gray-50 dark:bg-gray-700/60">
                                     <tr>
                                         <th class="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Category</th>
-                                        <th class="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-red-400">Spent</th>
+                                        <th class="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-negative-400">Spent</th>
                                         <th class="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-amber-400">Committed</th>
                                         <th class="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-violet-400">Reserved</th>
                                         <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Total</th>
@@ -180,7 +211,7 @@
                                     {% if cat.spoken_for > 0 %}
                                     <tr>
                                         <td class="px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 truncate max-w-[140px]">{{ cat.category_name }}</td>
-                                        <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.actual > 0 %}text-red-600 dark:text-red-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ cat.actual|nzd if cat.actual > 0 else '—' }}</td>
+                                        <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.actual > 0 %}text-negative-500 dark:text-negative-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ cat.actual|nzd if cat.actual > 0 else '—' }}</td>
                                         <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.committed > 0 %}text-amber-600 dark:text-amber-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ cat.committed|nzd if cat.committed > 0 else '—' }}</td>
                                         <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.reserve_gap > 0 %}text-violet-600 dark:text-violet-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ cat.reserve_gap|nzd if cat.reserve_gap > 0 else '—' }}</td>
                                         <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums text-right font-semibold">{{ cat.spoken_for|nzd }}</td>
@@ -191,7 +222,7 @@
                                 <tfoot class="border-t-2 border-gray-200 dark:border-gray-600">
                                     <tr>
                                         <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Total</td>
-                                        <td class="px-2 py-3 text-xs font-bold tabular-nums text-right text-red-600 dark:text-red-400">{{ p.total_actual|nzd }}</td>
+                                        <td class="px-2 py-3 text-xs font-bold tabular-nums text-right text-negative-500 dark:text-negative-400">{{ p.total_actual|nzd }}</td>
                                         <td class="px-2 py-3 text-xs font-bold tabular-nums text-right text-amber-600 dark:text-amber-400">{{ p.total_committed|nzd }}</td>
                                         <td class="px-2 py-3 text-xs font-bold tabular-nums text-right text-violet-600 dark:text-violet-400">{{ p.total_reserved|nzd }}</td>
                                         <td class="px-4 py-3 text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums text-right">{{ p.total_spoken_for|nzd }}</td>
@@ -205,7 +236,7 @@
         </div>
         {% if p.committed_in > 0 %}
         <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-3 tabular-nums">
-            Expected income this period: <span class="text-emerald-500 font-semibold">{{ p.committed_in|nzd }}</span>
+            Expected income this period: <span class="text-positive-500 font-semibold">{{ p.committed_in|nzd }}</span>
         </p>
         {% endif %}
     </div>
@@ -216,10 +247,98 @@
 <!-- ═══════════════════════════════════════════════════════════ -->
 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
     <div class="flex items-center justify-between mb-4">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Daily Spending</h3>
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Daily Allowance Used</h3>
         <span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums">Daily budget rate: {{ p.budget_daily_rate|nzd }}</span>
     </div>
     <canvas id="dailyChart" height="160"></canvas>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- ROLLING OVER / UNDER                                        -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+{% set r = rolling %}
+<div x-data="{ expanded: false }" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden mb-8">
+    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+        <div class="flex items-center justify-between mb-3">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Rolling Over / Under</h3>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Cumulative budget vs actual spend since start date</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <form method="get" action="/spending" class="flex items-center gap-2">
+                    <input type="hidden" name="period" value="{{ period }}">
+                    <input type="hidden" name="ref" value="{{ start }}">
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">From</label>
+                    <input type="date" name="rolling_start" value="{{ rolling_start }}"
+                           class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-2.5 py-1 text-xs text-gray-900 dark:text-gray-100 tabular-nums focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                    <button type="submit" class="px-2.5 py-1 text-xs font-semibold text-brand-600 hover:text-brand-500 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors">Update</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Cumulative headline -->
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                {% if r.cumulative_over_under >= 0 %}
+                <div class="w-8 h-8 rounded-full bg-positive-100 dark:bg-positive-900/30 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                </div>
+                {% else %}
+                <div class="w-8 h-8 rounded-full bg-negative-100 dark:bg-negative-900/30 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-negative-600 dark:text-negative-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                {% endif %}
+                <div>
+                    <p class="text-2xl font-bold tabular-nums {% if r.cumulative_over_under >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
+                        {{ r.cumulative_over_under|nzd }}
+                    </p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500">
+                        {% if r.cumulative_over_under >= 0 %}under budget cumulatively{% else %}over budget cumulatively{% endif %}
+                        &middot; {{ r.months|length }} month{{ 's' if r.months|length != 1 else '' }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month-by-month breakdown (expandable) -->
+    <button @click="expanded = !expanded" class="w-full px-6 py-3 flex items-center justify-between text-xs font-semibold text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
+        <span>Monthly breakdown</span>
+        <svg class="w-4 h-4 transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+    </button>
+    <div x-show="expanded" x-cloak x-transition>
+        <table class="w-full">
+            <thead class="bg-gray-50 dark:bg-gray-700/60">
+                <tr>
+                    <th class="px-6 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Month</th>
+                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Budget</th>
+                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Spent</th>
+                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Variance</th>
+                    <th class="px-6 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Running</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {% for m in r.months %}
+                <tr class="{% if m.phase == 'current' %}bg-brand-50/30 dark:bg-brand-900/10{% elif m.phase == 'future' %}opacity-50{% endif %}">
+                    <td class="px-6 py-2.5 text-sm text-gray-700 dark:text-gray-300">
+                        {{ m.label }}
+                        {% if m.phase == 'current' %}
+                        <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400">Now</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{{ m.budget|nzd }}</td>
+                    <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{{ m.spent|nzd }}</td>
+                    <td class="px-4 py-2.5 text-sm tabular-nums text-right font-medium {% if m.variance >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
+                        {% if m.variance >= 0 %}+{% endif %}{{ m.variance|nzd }}
+                    </td>
+                    <td class="px-6 py-2.5 text-sm tabular-nums text-right font-semibold {% if m.running_total >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
+                        {% if m.running_total >= 0 %}+{% endif %}{{ m.running_total|nzd }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════ -->
@@ -327,23 +446,29 @@
     <!-- Commitment list -->
     <div class="divide-y divide-gray-50 dark:divide-gray-700/50">
         {% for c in commitments %}
-        <div class="px-6 py-3 flex items-center gap-3 group
-            {% if c.cleared_at %}opacity-50{% endif %}">
+        {% set remaining = c.amount - c.cleared_amount %}
+        <div x-data="{ showClear: false }" class="px-6 py-3 flex items-center gap-3 group
+            {% if c.cleared_at %}opacity-50{% endif %}
+            {% if c.cleared_amount > 0 and not c.cleared_at %}opacity-75{% endif %}">
             {% if c.direction.value == 'outflow' %}
             <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
-                {% if c.cleared_at %}bg-gray-100 dark:bg-gray-700{% else %}bg-amber-100 dark:bg-amber-900/40{% endif %}">
+                {% if c.cleared_at %}bg-gray-100 dark:bg-gray-700{% elif c.cleared_amount > 0 %}bg-positive-100 dark:bg-positive-900/40{% else %}bg-amber-100 dark:bg-amber-900/40{% endif %}">
+                {% if c.cleared_amount > 0 and not c.cleared_at %}
+                <svg class="w-3.5 h-3.5 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                {% else %}
                 <svg class="w-3.5 h-3.5 {% if c.cleared_at %}text-gray-400{% else %}text-amber-600 dark:text-amber-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                {% endif %}
             </span>
             {% else %}
-            <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/40">
-                <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-positive-100 dark:bg-positive-900/40">
+                <svg class="w-3.5 h-3.5 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
             </span>
             {% endif %}
             <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
                     <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ c.title }}</span>
                     <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase
-                        {% if c.confidence.value == 'confirmed' %}bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400
+                        {% if c.confidence.value == 'confirmed' %}bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400
                         {% elif c.confidence.value == 'expected' %}bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400
                         {% else %}bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400{% endif %}">{{ c.confidence.value }}</span>
                     {% if c.is_recurring %}
@@ -351,32 +476,50 @@
                     {% endif %}
                     {% if c.cleared_at %}
                     <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Cleared</span>
+                    {% elif c.cleared_amount > 0 %}
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400">Partial {{ c.cleared_amount|nzd }}</span>
                     {% endif %}
                 </div>
                 <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 tabular-nums">
                     Due {{ c.due_date }}{% if c.category %} · {{ c.category.name }}{% endif %}{% if c.notes %} · {{ c.notes }}{% endif %}
+                    {% if c.cleared_amount > 0 and not c.cleared_at %} · {{ remaining|nzd }} remaining{% endif %}
                 </p>
             </div>
             <span class="text-sm font-semibold tabular-nums whitespace-nowrap
-                {% if c.direction.value == 'outflow' %}text-red-600 dark:text-red-400{% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
+                {% if c.direction.value == 'outflow' %}text-negative-500 dark:text-negative-400{% else %}text-positive-600 dark:text-positive-400{% endif %}">
                 {% if c.direction.value == 'outflow' %}-{% else %}+{% endif %}{{ c.amount|nzd }}
             </span>
             {% if not c.cleared_at %}
-            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <form action="/spending/commitments/{{ c.id }}/clear" method="POST" class="inline">
+            <div class="flex items-center gap-1">
+                <!-- Inline clear form (shown on click) -->
+                <form x-show="showClear" x-cloak x-transition action="/spending/commitments/{{ c.id }}/clear" method="POST" class="flex items-center gap-1">
                     <input type="hidden" name="period" value="{{ period }}">
                     <input type="hidden" name="ref" value="{{ start }}">
-                    <button type="submit" title="Mark as cleared" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                    <span class="text-xs text-gray-400 dark:text-gray-500">$</span>
+                    <input type="number" name="amount" step="0.01" min="0.01" max="{{ remaining }}"
+                           value="{{ remaining }}"
+                           class="w-20 px-1.5 py-0.5 text-xs tabular-nums text-right border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-brand-500 focus:border-brand-500"
+                           @keydown.escape="showClear = false">
+                    <button type="submit" title="Confirm" class="p-0.5 rounded text-positive-600 dark:text-positive-400 hover:bg-positive-50 dark:hover:bg-positive-900/20 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                     </button>
-                </form>
-                <form action="/spending/commitments/{{ c.id }}/delete" method="POST" class="inline">
-                    <input type="hidden" name="period" value="{{ period }}">
-                    <input type="hidden" name="ref" value="{{ start }}">
-                    <button type="submit" title="Remove" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    <button type="button" @click="showClear = false" title="Cancel" class="p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </form>
+                <div x-show="!showClear" class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button type="button" @click="showClear = true; $nextTick(() => $el.closest('.group').querySelector('input[name=amount]')?.select())"
+                            title="Clear (enter amount)" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-positive-600 dark:hover:text-positive-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    </button>
+                    <form action="/spending/commitments/{{ c.id }}/delete" method="POST" class="inline">
+                        <input type="hidden" name="period" value="{{ period }}">
+                        <input type="hidden" name="ref" value="{{ start }}">
+                        <button type="submit" title="Remove" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </form>
+                </div>
             </div>
             {% endif %}
         </div>
@@ -407,7 +550,7 @@
                         <svg class="w-3.5 h-3.5 transition-transform flex-shrink-0" :class="open ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                         <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ cat.category_name }}</span>
                         {% if cat.status == 'over' %}
-                        <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">Over</span>
+                        <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-negative-100 dark:bg-negative-900/40 text-negative-700 dark:text-negative-400">Over</span>
                         {% elif cat.status == 'tight' %}
                         <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400">Tight</span>
                         {% elif cat.status == 'watch' %}
@@ -430,7 +573,7 @@
                     {% set cw = [[c_pct, 100 - a_pct] | min, 0] | max %}
                     {% set rw = [[r_pct, 100 - a_pct - c_pct] | min, 0] | max %}
                     {% if a_pct > 0 %}
-                    <div class="h-full bg-red-500 transition-all" style="width: {{ [a_pct, 100] | min }}%"></div>
+                    <div class="h-full bg-negative-500 transition-all" style="width: {{ [a_pct, 100] | min }}%"></div>
                     {% endif %}
                     {% if c_pct > 0 %}
                     <div class="h-full bg-amber-500 transition-all" style="width: {{ cw }}%"></div>
@@ -449,7 +592,7 @@
                         <span class="text-violet-500">{{ cat.reserve_gap|nzd }} reserved</span>
                         {% endif %}
                     </div>
-                    <span class="{% if cat.variance >= 0 %}text-emerald-500{% else %}text-red-500{% endif %}">
+                    <span class="{% if cat.variance >= 0 %}text-positive-500{% else %}text-negative-500{% endif %}">
                         {% if cat.variance >= 0 %}{{ cat.variance|nzd }} left{% else %}{{ (cat.variance * -1)|nzd }} over{% endif %}
                     </span>
                 </div>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Category Deepdive — Finance Tracker{% endblock %}
+{% block title %}Category Deepdive — Finla{% endblock %}
 {% block page_title %}Category Deepdive{% endblock %}
 
 {% block header_actions %}
@@ -323,7 +323,7 @@ requestAnimationFrame(function() {
             loading.classList.add('hidden');
             body.classList.remove('hidden');
             document.getElementById('ddTxBody').innerHTML =
-                '<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-red-500">Failed to load</td></tr>';
+                '<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-negative-500">Failed to load</td></tr>';
         }
     }
 
@@ -444,7 +444,7 @@ requestAnimationFrame(function() {
             tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No transactions match filters</td></tr>';
         } else {
             const html = rows.map(tx => {
-                const amtClass = tx.amount >= 0 ? 'text-emerald-600' : 'text-red-500';
+                const amtClass = tx.amount >= 0 ? 'text-positive-600' : 'text-negative-500';
                 return '<tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors group/ddr">' +
                     '<td class="px-2 py-2.5 text-center">' + lockSvg(tx.is_cleared) + '</td>' +
                     '<td class="px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">' + tx.date + '</td>' +

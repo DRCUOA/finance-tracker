@@ -8,6 +8,7 @@ from sqlalchemy.orm import aliased
 
 from app.models.category import Category, CategoryKeyword
 from app.models.transaction import Transaction
+from app.services.categoriser import _SHORT_KW_THRESHOLD
 
 KNOWN_LOCATION_WORDS = frozenset({
     "albany", "wellington", "auckland", "christchurch", "hamilton",
@@ -114,10 +115,10 @@ async def keyword_health_report(
                 zero_hit.append(row_info)
 
             # Short or broad/location-based
-            if len(kw.keyword) <= 4 or kw.keyword in KNOWN_LOCATION_WORDS:
+            if len(kw.keyword) <= _SHORT_KW_THRESHOLD or kw.keyword in KNOWN_LOCATION_WORDS:
                 reason = []
-                if len(kw.keyword) <= 4:
-                    reason.append("very short")
+                if len(kw.keyword) <= _SHORT_KW_THRESHOLD:
+                    reason.append("very short — word-boundary matching only")
                 if kw.keyword in KNOWN_LOCATION_WORDS:
                     reason.append("location word")
                 short_broad.append({**row_info, "reason": ", ".join(reason)})

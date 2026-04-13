@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Map CSV Fields — Finance Tracker{% endblock %}
+{% block title %}Map CSV Fields — Finla{% endblock %}
 {% block page_title %}Map CSV Fields{% endblock %}
 
 {% block content %}
@@ -81,7 +81,7 @@
                              :class="activeSource === '{{ field.key }}'
                                   ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30 dark:border-brand-400 ring-2 ring-brand-200 dark:ring-brand-800 scale-[1.02]'
                                   : isSourceMapped('{{ field.key }}')
-                                      ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20 hover:border-emerald-400 dark:hover:border-emerald-600'
+                                      ? 'border-positive-300 dark:border-positive-700 bg-positive-50/50 dark:bg-positive-950/20 hover:border-positive-400 dark:hover:border-positive-600'
                                       : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 hover:border-gray-300 dark:hover:border-gray-500'"
                              @click="selectSource('{{ field.key }}')">
                             <div class="min-w-0 flex-1">
@@ -94,7 +94,7 @@
                                  :class="activeSource === '{{ field.key }}'
                                          ? 'bg-brand-500 border-brand-500 scale-125'
                                          : isSourceMapped('{{ field.key }}')
-                                             ? 'bg-emerald-500 border-emerald-500'
+                                             ? 'bg-positive-500 border-positive-500'
                                              : 'bg-white dark:bg-gray-600 border-gray-300 dark:border-gray-500'"></div>
                         </div>
                         {% endfor %}
@@ -111,12 +111,12 @@
                              :class="activeSource
                                  ? 'border-brand-300 dark:border-brand-600 bg-brand-50/50 dark:bg-brand-950/20 ring-2 ring-brand-100 dark:ring-brand-900'
                                  : isTargetMapped('{{ field.key }}')
-                                     ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20'
+                                     ? 'border-positive-300 dark:border-positive-700 bg-positive-50/50 dark:bg-positive-950/20'
                                      : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50'"
                              @click="selectTarget('{{ field.key }}')">
                             <div class="dot w-3.5 h-3.5 rounded-full mr-3 flex-shrink-0 border-2 transition-all duration-150"
                                  :class="isTargetMapped('{{ field.key }}')
-                                     ? 'bg-emerald-500 border-emerald-500'
+                                     ? 'bg-positive-500 border-positive-500'
                                      : activeSource
                                          ? 'bg-brand-200 dark:bg-brand-700 border-brand-400 dark:border-brand-500 animate-pulse'
                                          : 'bg-white dark:bg-gray-600 border-gray-300 dark:border-gray-500'"></div>
@@ -124,7 +124,7 @@
                                 <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ field.label }}</div>
                                 <div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ field.hint }}</div>
                                 <div class="text-xs font-medium mt-1 transition-colors"
-                                     :class="isTargetMapped('{{ field.key }}') ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-300 dark:text-gray-600'"
+                                     :class="isTargetMapped('{{ field.key }}') ? 'text-positive-600 dark:text-positive-400' : 'text-gray-300 dark:text-gray-600'"
                                      x-text="getMappedLabel('{{ field.key }}')"></div>
                             </div>
                         </div>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Migration Preview — Finance Tracker{% endblock %}
+{% block title %}Migration Preview — Finla{% endblock %}
 {% block page_title %}Migration Preview{% endblock %}
 
 {% block content %}
@@ -54,7 +54,7 @@
                                 {{ acct.account_type | replace("_", " ") | title }}
                                 <span class="text-xs text-gray-400 dark:text-gray-500">({{ acct.account_class }})</span>
                             </td>
-                            <td class="py-3 pr-4 text-sm tabular-nums text-right {% if acct.opening_balance >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                            <td class="py-3 pr-4 text-sm tabular-nums text-right {% if acct.opening_balance >= 0 %}text-positive-600{% else %}text-negative-500{% endif %}">
                                 {{ "${:,.2f}".format(acct.opening_balance) }}
                             </td>
                             <td class="py-3 pr-4 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{{ acct.eligible_transactions }}</td>

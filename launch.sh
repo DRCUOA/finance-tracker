@@ -18,7 +18,7 @@ VENV_DIR=".venv"
 PORT="${PORT:-8000}"
 ERRORS=0
 
-header "Finance Tracker — pre-flight checks"
+header "Finla — pre-flight checks"
 
 # ── 1. Python ────────────────────────────────────────────────────────
 if command -v python3 &>/dev/null; then
@@ -174,7 +174,7 @@ if [[ $ERRORS -gt 0 ]]; then
     exit 1
 fi
 
-header "All checks passed — launching Finance Tracker on http://localhost:$PORT"
+header "All checks passed — launching Finla on http://localhost:$PORT"
 echo ""
 
 exec uvicorn app.main:app --reload --port "$PORT"

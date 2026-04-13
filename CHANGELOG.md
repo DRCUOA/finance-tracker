@@ -1,8 +1,44 @@
 # Changelog
 
-All notable changes to Finance Tracker are documented in this file.
+All notable changes to Finla are documented in this file.
 
 Format: [Semantic Versioning](https://semver.org/) &mdash; `MAJOR.MINOR.PATCH`
+
+---
+
+## [5.6.0] &ndash; 2026-04-13
+
+### Added
+- Partial clearing for commitments &mdash; record incremental payments without fully clearing
+- Alembic migration 011: `cleared_amount` column on commitments table
+- Rolling over/under report on spending page &mdash; cumulative budget vs actual spend with configurable start date
+- Period-phase awareness in spending pulse &mdash; distinct messaging for current, past, and future periods
+
+### Changed
+- Spending page renamed from &ldquo;Live Position&rdquo; to **Budget Position**; daily chart renamed to &ldquo;Daily Allowance Used&rdquo;
+- Spending actuals now filter by expense-category type instead of negative amounts, with refund offsets
+- Commitments on spending page queried against the view period directly (no more month-level prorate)
+- Commitment aggregations use outstanding balance (amount &minus; cleared_amount) instead of full amount
+- Auto-categoriser excludes transfer-type categories from keyword suggestions
+- Short keywords (&le;4 chars) use word-boundary matching to prevent false positives (e.g. &ldquo;on&rdquo; no longer matches inside &ldquo;loan&rdquo;)
+- Keyword health report reflects word-boundary matching behaviour
+
+---
+
+## [5.5.0] &ndash; 2026-04-12
+
+### Changed
+- Rebranded from "Finance Tracker" to **Finla** across all pages, titles, and auth screens
+- SVG logo mark — diagonal crossing-strands arrow motif (bottom-left hook → upper-right arrowhead) matching design brief orientation
+- SVG favicon with carbon-black (#0a0a0a) rounded-rect and white mark
+- Brand palette replaced: urban gray / charcoal carbon-black scale (#2d2d2d–#0a0a0a)
+- Gradient backgrounds on body (gray-50→gray-100 / gray-900→brand-950), sidebar (brand-800→brand-950), and auth pages
+- New semantic color tokens: `positive` (fluorescent green #00ff41 scale) and `negative` (orange-red #FF4500 scale)
+- All success/positive UI (toasts, badges, lock states, imports, reports) migrated from emerald → positive
+- All error/negative UI (toasts, alerts, value displays, lock states) migrated from red → negative
+- Destructive buttons use outlined #FF4500 style instead of solid red
+- Reusable button CSS classes: `.btn-primary`, `.btn-secondary`, `.btn-destructive`, `.btn-ghost`
+- FastAPI app title updated to Finla
 
 ---
 

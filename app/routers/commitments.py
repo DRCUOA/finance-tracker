@@ -126,10 +126,17 @@ async def edit_commitment(
 @router.post("/{commitment_id}/clear")
 async def clear_commitment(
     commitment_id: uuid.UUID,
+    amount: str = Form(""),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await commit_svc.clear_commitment(db, commitment_id, user.id)
+    clear_amt = None
+    if amount.strip():
+        try:
+            clear_amt = Decimal(amount)
+        except (InvalidOperation, ValueError):
+            pass
+    await commit_svc.clear_commitment(db, commitment_id, user.id, amount=clear_amt)
     await db.commit()
     return RedirectResponse(url="/commitments", status_code=302)
 

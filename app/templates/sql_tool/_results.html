@@ -1,12 +1,12 @@
 {% if error %}
-<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl p-4">
+<div class="bg-negative-50 dark:bg-negative-900/20 border border-negative-200 dark:border-negative-700 rounded-xl p-4">
     <div class="flex items-start gap-3">
-        <svg class="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5 text-negative-500 dark:text-negative-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         <div>
-            <p class="text-sm font-semibold text-red-700 dark:text-red-300">Query Error</p>
-            <p class="text-sm text-red-600 dark:text-red-400 mt-1 font-mono">{{ error }}</p>
+            <p class="text-sm font-semibold text-negative-700 dark:text-negative-400">Query Error</p>
+            <p class="text-sm text-negative-500 dark:text-negative-400 mt-1 font-mono">{{ error }}</p>
         </div>
     </div>
 </div>
@@ -46,14 +46,14 @@
         {% endif %}
     </div>
     {% else %}
-    <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-xl p-4">
+    <div class="bg-positive-50 dark:bg-positive-900/20 border border-positive-200 dark:border-positive-700 rounded-xl p-4">
         <div class="flex items-center gap-3">
-            <svg class="w-5 h-5 text-emerald-500 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-positive-500 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <div>
-                <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{{ result.statement_type }} Successful</p>
-                <p class="text-sm text-emerald-600 dark:text-emerald-400 mt-0.5">
+                <p class="text-sm font-semibold text-positive-700 dark:text-positive-300">{{ result.statement_type }} Successful</p>
+                <p class="text-sm text-positive-600 dark:text-positive-400 mt-0.5">
                     {{ result.row_count }} row{{ 's' if result.row_count != 1 else '' }} affected.
                 </p>
             </div>

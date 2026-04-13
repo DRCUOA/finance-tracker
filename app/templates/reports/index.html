@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Reports — Finance Tracker{% endblock %}
+{% block title %}Reports — Finla{% endblock %}
 {% block page_title %}Reports{% endblock %}
 
 {% block header_actions %}
@@ -47,19 +47,19 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Income</p>
-                <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ summary.income|nzd }}</p>
+                <p class="text-xl font-bold text-positive-600 dark:text-positive-400 tabular-nums">{{ summary.income|nzd }}</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Expenses</p>
-                <p class="text-xl font-bold text-red-600 dark:text-red-400 tabular-nums">{{ summary.expenses|nzd }}</p>
+                <p class="text-xl font-bold text-negative-500 dark:text-negative-400 tabular-nums">{{ summary.expenses|nzd }}</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Net Result</p>
-                <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ summary.net|nzd }}</p>
+                <p class="text-xl font-bold tabular-nums {% if summary.net >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">{{ summary.net|nzd }}</p>
                 {% if summary.net >= 0 %}
-                <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500 mt-1">Surplus</p>
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-positive-500 mt-1">Surplus</p>
                 {% else %}
-                <p class="text-[10px] font-semibold uppercase tracking-wider text-red-500 mt-1">Deficit</p>
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-negative-500 mt-1">Deficit</p>
                 {% endif %}
             </div>
         </div>
@@ -91,9 +91,9 @@
                         {% for pt in income_trend.points %}
                         <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors">
                             <td class="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">{{ pt.label }}</td>
-                            <td class="px-6 py-3.5 text-sm text-right text-emerald-600 dark:text-emerald-400 tabular-nums">{{ pt.income|nzd }}</td>
-                            <td class="px-6 py-3.5 text-sm text-right text-red-600 dark:text-red-400 tabular-nums">{{ pt.expenses|nzd }}</td>
-                            <td class="px-6 py-3.5 text-sm text-right font-medium tabular-nums {% if pt.net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ pt.net|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right text-positive-600 dark:text-positive-400 tabular-nums">{{ pt.income|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right text-negative-500 dark:text-negative-400 tabular-nums">{{ pt.expenses|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right font-medium tabular-nums {% if pt.net >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">{{ pt.net|nzd }}</td>
                             <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ pt.rolling_avg_net|nzd }}</td>
                         </tr>
                         {% endfor %}
@@ -101,9 +101,9 @@
                     <tfoot class="bg-gray-50/60 dark:bg-gray-700/60">
                         <tr>
                             <td class="px-6 py-3.5 text-sm font-semibold text-gray-900 dark:text-gray-100">Total</td>
-                            <td class="px-6 py-3.5 text-sm text-right font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ income_trend.total_income|nzd }}</td>
-                            <td class="px-6 py-3.5 text-sm text-right font-semibold text-red-600 dark:text-red-400 tabular-nums">{{ income_trend.total_expenses|nzd }}</td>
-                            <td class="px-6 py-3.5 text-sm text-right font-semibold tabular-nums {% if income_trend.total_net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ income_trend.total_net|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right font-semibold text-positive-600 dark:text-positive-400 tabular-nums">{{ income_trend.total_income|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right font-semibold text-negative-500 dark:text-negative-400 tabular-nums">{{ income_trend.total_expenses|nzd }}</td>
+                            <td class="px-6 py-3.5 text-sm text-right font-semibold tabular-nums {% if income_trend.total_net >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">{{ income_trend.total_net|nzd }}</td>
                             <td class="px-6 py-3.5"></td>
                         </tr>
                     </tfoot>
@@ -154,18 +154,18 @@
                             </td>
                             <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.budgeted|nzd }}</td>
                             <td class="px-6 py-3.5 text-sm text-right font-medium text-gray-900 dark:text-gray-100 tabular-nums">{{ row.actual|nzd }}</td>
-                            <td class="px-6 py-3.5 text-sm text-right tabular-nums {% if row.variance >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+                            <td class="px-6 py-3.5 text-sm text-right tabular-nums {% if row.variance >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
                                 {{ row.variance|nzd }}
                             </td>
                             <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.pct }}%</td>
                             <td class="px-6 py-3.5 text-center">
                                 {% if row.budgeted > 0 %}
                                     {% if row.pct > 100 %}
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">Over</span>
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-negative-100 dark:bg-negative-900/40 text-negative-700 dark:text-negative-400">Over</span>
                                     {% elif row.pct > 85 %}
                                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">Caution</span>
                                     {% else %}
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400">OK</span>
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400">OK</span>
                                     {% endif %}
                                 {% else %}
                                     <span class="text-[10px] text-gray-300 dark:text-gray-600">—</span>
@@ -234,7 +234,7 @@
                             <td class="px-6 py-3.5 text-sm text-right text-gray-900 dark:text-gray-100 tabular-nums font-medium">{{ row.current|nzd }}</td>
                             <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.previous|nzd }}</td>
                             <td class="px-6 py-3.5 text-sm text-right tabular-nums
-                                {% if row.change > 0 %}text-red-600 dark:text-red-400{% elif row.change < 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-gray-400{% endif %}">
+                                {% if row.change > 0 %}text-negative-500 dark:text-negative-400{% elif row.change < 0 %}text-positive-600 dark:text-positive-400{% else %}text-gray-400{% endif %}">
                                 {{ row.change|nzd(show_sign=True) }}
                                 {% if row.change_pct != 0 %}
                                 <span class="text-[10px] text-gray-400 dark:text-gray-500 ml-0.5">({{ row.change_pct }}%)</span>
@@ -271,7 +271,7 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Income</p>
-                <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ fixed_flexible.income|nzd }}</p>
+                <p class="text-xl font-bold text-positive-600 dark:text-positive-400 tabular-nums">{{ fixed_flexible.income|nzd }}</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Fixed Costs</p>
@@ -285,8 +285,8 @@
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Discretionary Buffer</p>
-                <p class="text-xl font-bold tabular-nums {% if fixed_flexible.remaining_buffer >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ fixed_flexible.remaining_buffer|nzd }}</p>
-                <p class="text-[10px] font-semibold {% if fixed_flexible.remaining_pct >= 0 %}text-emerald-500{% else %}text-red-500{% endif %} mt-1">{{ fixed_flexible.remaining_pct }}% of income</p>
+                <p class="text-xl font-bold tabular-nums {% if fixed_flexible.remaining_buffer >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">{{ fixed_flexible.remaining_buffer|nzd }}</p>
+                <p class="text-[10px] font-semibold {% if fixed_flexible.remaining_pct >= 0 %}text-positive-500{% else %}text-negative-500{% endif %} mt-1">{{ fixed_flexible.remaining_pct }}% of income</p>
             </div>
         </div>
 
@@ -306,7 +306,7 @@
                     {% endif %}
                 </div>
                 {% if fixed_flexible.remaining_pct > 0 %}
-                <div class="bg-emerald-500 h-full flex items-center justify-center" style="width: {{ fixed_flexible.remaining_pct }}%">
+                <div class="bg-positive-500 h-full flex items-center justify-center" style="width: {{ fixed_flexible.remaining_pct }}%">
                     {% if fixed_flexible.remaining_pct > 8 %}
                     <span class="text-[10px] font-semibold text-white">Buffer {{ fixed_flexible.remaining_pct }}%</span>
                     {% endif %}
@@ -317,7 +317,7 @@
             <div class="flex items-center gap-6 mt-3">
                 <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-500"></span><span class="text-xs text-gray-500 dark:text-gray-400">Fixed</span></div>
                 <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span><span class="text-xs text-gray-500 dark:text-gray-400">Flexible</span></div>
-                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span><span class="text-xs text-gray-500 dark:text-gray-400">Buffer</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-positive-500"></span><span class="text-xs text-gray-500 dark:text-gray-400">Buffer</span></div>
             </div>
         </div>
 
@@ -333,7 +333,7 @@
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">What This Means</h3>
                 <div class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
                     {% if fixed_flexible.fixed_pct_income > 70 %}
-                    <div class="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
+                    <div class="p-3 rounded-xl bg-negative-50 dark:bg-negative-900/20 text-negative-700 dark:text-negative-400">
                         <p class="font-semibold mb-1">High fixed cost burden</p>
                         <p class="text-xs">{{ fixed_flexible.fixed_pct_income }}% of income is locked into fixed costs. This leaves very little room for daily choices or savings. Consider reviewing subscriptions, insurance, and debt repayments.</p>
                     </div>
@@ -343,7 +343,7 @@
                         <p class="text-xs">{{ fixed_flexible.fixed_pct_income }}% of income goes to fixed costs. There's some room to manoeuvre, but watch for category creep in subscriptions and commitments.</p>
                     </div>
                     {% else %}
-                    <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+                    <div class="p-3 rounded-xl bg-positive-50 dark:bg-positive-900/20 text-positive-700 dark:text-positive-400">
                         <p class="font-semibold mb-1">Healthy fixed cost ratio</p>
                         <p class="text-xs">Only {{ fixed_flexible.fixed_pct_income }}% of income is committed to fixed costs. This gives you good flexibility for savings and discretionary spending.</p>
                     </div>
@@ -403,21 +403,21 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Current Balance</p>
-                <p class="text-xl font-bold tabular-nums {% if cashflow.latest_balance >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ cashflow.latest_balance|nzd }}</p>
+                <p class="text-xl font-bold tabular-nums {% if cashflow.latest_balance >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">{{ cashflow.latest_balance|nzd }}</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Avg Monthly Expenses</p>
-                <p class="text-xl font-bold text-red-600 dark:text-red-400 tabular-nums">{{ cashflow.avg_monthly_expenses|nzd }}</p>
+                <p class="text-xl font-bold text-negative-500 dark:text-negative-400 tabular-nums">{{ cashflow.avg_monthly_expenses|nzd }}</p>
                 <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Based on last 3 months</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Days of Buffer</p>
-                <p class="text-xl font-bold tabular-nums {% if cashflow.days_of_buffer > 90 %}text-emerald-600 dark:text-emerald-400{% elif cashflow.days_of_buffer > 30 %}text-amber-600 dark:text-amber-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ cashflow.days_of_buffer }}</p>
+                <p class="text-xl font-bold tabular-nums {% if cashflow.days_of_buffer > 90 %}text-positive-600 dark:text-positive-400{% elif cashflow.days_of_buffer > 30 %}text-amber-600 dark:text-amber-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">{{ cashflow.days_of_buffer }}</p>
                 <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">At current spending rate</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Months of Runway</p>
-                <p class="text-xl font-bold tabular-nums {% if cashflow.days_of_buffer > 90 %}text-emerald-600 dark:text-emerald-400{% elif cashflow.days_of_buffer > 30 %}text-amber-600 dark:text-amber-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ (cashflow.days_of_buffer / 30)|round(1) }}</p>
+                <p class="text-xl font-bold tabular-nums {% if cashflow.days_of_buffer > 90 %}text-positive-600 dark:text-positive-400{% elif cashflow.days_of_buffer > 30 %}text-amber-600 dark:text-amber-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">{{ (cashflow.days_of_buffer / 30)|round(1) }}</p>
             </div>
         </div>
 
@@ -459,7 +459,7 @@
                             <td class="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">{{ pt.label }}</td>
                             <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ pt.opening|nzd }}</td>
                             <td class="px-6 py-3.5 text-sm text-right text-gray-900 dark:text-gray-100 tabular-nums font-medium">{{ pt.closing|nzd }}</td>
-                            <td class="px-6 py-3.5 text-sm text-right tabular-nums {% if pt.net_flow >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+                            <td class="px-6 py-3.5 text-sm text-right tabular-nums {% if pt.net_flow >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
                                 {{ pt.net_flow|nzd(show_sign=True) }}
                             </td>
                             <td class="px-6 py-3.5 text-sm text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ pt.rolling_net|nzd }}</td>

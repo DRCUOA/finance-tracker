@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Review Import — Finance Tracker{% endblock %}
+{% block title %}Review Import — Finla{% endblock %}
 {% block page_title %}Review Import{% endblock %}
 
 {% block content %}
@@ -45,14 +45,14 @@
                             </td>
                             <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ line.date }}</td>
                             <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100">{{ line.description }}</td>
-                            <td class="px-4 py-3.5 text-sm text-right font-semibold tabular-nums {% if line.amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                            <td class="px-4 py-3.5 text-sm text-right font-semibold tabular-nums {% if line.amount >= 0 %}text-positive-600{% else %}text-negative-500{% endif %}">
                                 {{ line.amount|nzd }}
                             </td>
                             <td class="px-4 py-3.5 text-center text-xs">
                                 {% if is_dup %}
                                 <span class="px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 font-medium">Possible duplicate</span>
                                 {% else %}
-                                <span class="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium">New</span>
+                                <span class="px-2.5 py-1 rounded-full bg-positive-50 dark:bg-positive-900/30 text-positive-700 dark:text-positive-400 font-medium">New</span>
                                 {% endif %}
                             </td>
                         </tr>

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "components/category_options.html" import category_options %}
-{% block title %}Review Uncategorised — Finance Tracker{% endblock %}
+{% block title %}Review Uncategorised — Finla{% endblock %}
 {% block page_title %}Review Uncategorised Transactions{% endblock %}
 
 {% block header_actions %}
@@ -23,8 +23,8 @@
         </div>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 px-5 py-3 flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
-            <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div class="w-9 h-9 rounded-lg bg-positive-50 dark:bg-positive-900/30 flex items-center justify-center">
+            <svg class="w-5 h-5 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
         <div>
             <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{{ total_matched }}</p>
@@ -103,13 +103,13 @@
                             {% if m.transaction.is_cleared %}
                             <svg class="w-3.5 h-3.5 inline text-red-400" title="Reconciled" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6-6V7a6 6 0 1112 0v4M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
                             {% else %}
-                            <svg class="w-3.5 h-3.5 inline text-emerald-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
+                            <svg class="w-3.5 h-3.5 inline text-positive-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
                             {% endif %}
                         </td>
                         <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ m.transaction.date.isoformat() }}</td>
                         <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100">{{ m.transaction.description }}</td>
                         <td class="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{{ m.transaction.account.name if m.transaction.account else '—' }}</td>
-                        <td class="px-4 py-3.5 text-sm text-right font-semibold tabular-nums whitespace-nowrap {% if m.transaction.amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                        <td class="px-4 py-3.5 text-sm text-right font-semibold tabular-nums whitespace-nowrap {% if m.transaction.amount >= 0 %}text-positive-600{% else %}text-negative-500{% endif %}">
                             {{ m.transaction.amount|nzd }}
                         </td>
                         <td class="px-4 py-3.5">
@@ -141,8 +141,8 @@
 {% else %}
 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-12 text-center">
     {% if total_uncategorised == 0 %}
-    <div class="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-4">
-        <svg class="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <div class="w-12 h-12 rounded-full bg-positive-50 dark:bg-positive-900/30 flex items-center justify-center mx-auto mb-4">
+        <svg class="w-6 h-6 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
     </div>
     <p class="text-gray-900 dark:text-gray-100 font-medium">All transactions are categorised</p>
     <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Nothing to review.</p>

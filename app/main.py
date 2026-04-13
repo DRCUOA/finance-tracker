@@ -21,7 +21,7 @@ from app.routers import (
     transactions,
 )
 
-app = FastAPI(title="Finance Tracker")
+app = FastAPI(title="Finla")
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 

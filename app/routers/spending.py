@@ -27,6 +27,7 @@ async def spending_pulse(
     request: Request,
     period: str = Query("week"),
     ref: str = Query(""),
+    rolling_start: str = Query(""),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -53,11 +54,22 @@ async def spending_pulse(
         db, user.id, m_start, m_end, include_cleared=True,
     )
 
+    # Rolling over/under — default to start of current year
+    rs_date = date.fromisoformat(rolling_start) if rolling_start else date(today.year, 1, 1)
+    rolling = await report_svc.rolling_over_under(
+        db, user.id, rs_date, end, account_ids=cashflow_ids,
+    )
+
     prev_ref = report_svc.step_period(ref_date, -1, period)
     next_ref = report_svc.step_period(ref_date, 1, period)
     prev_url = f"/spending?period={period}&ref={prev_ref.isoformat()}"
     next_url = f"/spending?period={period}&ref={next_ref.isoformat()}"
+    if rolling_start:
+        prev_url += f"&rolling_start={rolling_start}"
+        next_url += f"&rolling_start={rolling_start}"
     base_url = f"/spending?ref={ref_date.isoformat()}"
+    if rolling_start:
+        base_url += f"&rolling_start={rolling_start}"
 
     from app.services import categories as cat_svc
     all_cats = await cat_svc.get_category_tree(db, user.id)
@@ -74,6 +86,8 @@ async def spending_pulse(
         "prev_url": prev_url,
         "next_url": next_url,
         "base_url": base_url,
+        "rolling": rolling,
+        "rolling_start": rs_date.isoformat(),
     })
 
 
@@ -129,10 +143,17 @@ async def clear_commitment(
     commitment_id: uuid.UUID,
     period: str = Form("week"),
     ref: str = Form(""),
+    amount: str = Form(""),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await commit_svc.clear_commitment(db, commitment_id, user.id)
+    clear_amt = None
+    if amount.strip():
+        try:
+            clear_amt = Decimal(amount)
+        except (InvalidOperation, ValueError):
+            pass
+    await commit_svc.clear_commitment(db, commitment_id, user.id, amount=clear_amt)
     await db.commit()
     return RedirectResponse(
         url=f"/spending?period={period}&ref={ref}",

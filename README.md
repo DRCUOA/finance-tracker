@@ -1,4 +1,4 @@
-# Finance Tracker
+# Finla
 
 A personal finance management app that lets households track accounts, import bank statements (CSV/OFX), categorise transactions, and reconcile them against their records. Provides budgeting, reporting, and net worth visibility.
 

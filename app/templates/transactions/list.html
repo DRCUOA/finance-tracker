@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "components/category_options.html" import category_options %}
-{% block title %}Transactions — Finance Tracker{% endblock %}
+{% block title %}Transactions — Finla{% endblock %}
 {% block page_title %}Transactions{% endblock %}
 
 {% block header_actions %}
@@ -123,7 +123,7 @@
                 </form>
                 <form hx-post="/transactions/batch/delete" hx-swap="none" hx-confirm="Delete selected transactions?">
                     <template x-for="id in selected"><input type="hidden" name="tx_ids" :value="id"></template>
-                    <button type="submit" class="px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 transition-colors">Delete</button>
+                    <button type="submit" class="btn btn-destructive text-xs py-1.5 px-3">Delete</button>
                 </form>
             </div>
         </div>

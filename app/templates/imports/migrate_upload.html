@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Migrate from Simples — Finance Tracker{% endblock %}
+{% block title %}Migrate from Simples — Finla{% endblock %}
 {% block page_title %}Migrate from Simples (Legacy){% endblock %}
 
 {% block content %}
@@ -10,8 +10,8 @@
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1.5">Upload a JSON data export from Simples. You'll be able to choose which accounts to import on the next step.</p>
         </div>
         {% if error %}
-        <div class="mb-6 rounded-xl bg-red-50 dark:bg-red-900/30 ring-1 ring-red-200 dark:ring-red-700 p-4">
-            <p class="text-sm font-medium text-red-800 dark:text-red-300">{{ error }}</p>
+        <div class="mb-6 rounded-xl bg-negative-50 dark:bg-negative-900/30 ring-1 ring-negative-200 dark:ring-negative-700 p-4">
+            <p class="text-sm font-medium text-negative-800 dark:text-negative-400">{{ error }}</p>
         </div>
         {% endif %}
         <form method="post" action="/imports/migrate/preview" enctype="multipart/form-data" class="space-y-6">

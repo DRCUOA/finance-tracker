@@ -40,7 +40,7 @@ async def export_full_json(
     return Response(
         content=content,
         media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=finance-tracker-backup.json"},
+        headers={"Content-Disposition": "attachment; filename=finla-backup.json"},
     )
 
 

@@ -1,12 +1,33 @@
+import re
 import uuid
 from dataclasses import dataclass
+from functools import lru_cache
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.category import Category, CategoryKeyword
+from app.models.category import Category, CategoryKeyword, CategoryType
 from app.models.transaction import Transaction
+
+_SHORT_KW_THRESHOLD = 4
+
+
+@lru_cache(maxsize=1024)
+def _word_boundary_pattern(keyword: str) -> re.Pattern:
+    return re.compile(r"(?<![a-z])" + re.escape(keyword) + r"(?![a-z])")
+
+
+def _keyword_matches(keyword: str, description: str) -> bool:
+    """Check whether *keyword* matches *description* (both already lowercase).
+
+    Short keywords (<=4 chars) require word-boundary matching so that e.g.
+    "on" doesn't match inside "processed on:" by accident of being embedded
+    in "loan".  Longer keywords use plain substring matching.
+    """
+    if len(keyword) <= _SHORT_KW_THRESHOLD:
+        return bool(_word_boundary_pattern(keyword).search(description))
+    return keyword in description
 
 
 @dataclass
@@ -28,7 +49,10 @@ async def batch_suggest_categories(
     kw_stmt = (
         select(CategoryKeyword)
         .join(Category)
-        .where(Category.user_id == user_id)
+        .where(
+            Category.user_id == user_id,
+            Category.category_type != CategoryType.TRANSFER,
+        )
         .options(selectinload(CategoryKeyword.category))
         .order_by(CategoryKeyword.hit_count.desc())
     )
@@ -52,7 +76,7 @@ async def batch_suggest_categories(
         best_cat = None
 
         for kw in keywords:
-            if kw.keyword in desc_lower:
+            if _keyword_matches(kw.keyword, desc_lower):
                 score = len(kw.keyword) * 10 + kw.hit_count
                 if score > best_score:
                     best_score = score
@@ -71,13 +95,21 @@ async def batch_suggest_categories(
 
 
 async def suggest_category(db: AsyncSession, user_id: uuid.UUID, description: str) -> uuid.UUID | None:
-    """Find the best matching category for a transaction description using keyword matching."""
+    """Find the best matching category for a transaction description using keyword matching.
+
+    Transfer-type categories are excluded — those should only be assigned
+    manually.  Short keywords (<=4 chars) require word-boundary matches to
+    avoid false positives like "on" matching inside "loan".
+    """
     desc_lower = description.lower()
 
     stmt = (
         select(CategoryKeyword)
         .join(Category)
-        .where(Category.user_id == user_id)
+        .where(
+            Category.user_id == user_id,
+            Category.category_type != CategoryType.TRANSFER,
+        )
         .order_by(CategoryKeyword.hit_count.desc())
     )
     result = await db.execute(stmt)
@@ -87,7 +119,7 @@ async def suggest_category(db: AsyncSession, user_id: uuid.UUID, description: st
     best_score = -1
 
     for kw in keywords:
-        if kw.keyword in desc_lower:
+        if _keyword_matches(kw.keyword, desc_lower):
             score = len(kw.keyword) * 10 + kw.hit_count
             if score > best_score:
                 best_score = score

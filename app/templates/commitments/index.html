@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Commitments — Finance Tracker{% endblock %}
+{% block title %}Commitments — Finla{% endblock %}
 {% block page_title %}Commitments{% endblock %}
 
 {% block header_actions %}
@@ -53,7 +53,7 @@
             </button>
             <div class="mx-3 my-1 border-t border-gray-100 dark:border-gray-700"></div>
             <button @click="open = false; setTimeout(() => window.dispatchEvent(new CustomEvent('commit-hub', {detail:'review-history'})), 50)" class="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3">
-                <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center flex-shrink-0">
+                <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-positive-400 to-green-600 flex items-center justify-center flex-shrink-0">
                     <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 </span>
                 <div>
@@ -124,7 +124,7 @@
             </div>
         </div>
         {% if summary.total_pending_in > 0 %}
-        <div class="mt-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ summary.total_pending_in|nzd }} expected inflow</div>
+        <div class="mt-3 text-sm font-semibold text-positive-600 dark:text-positive-400 tabular-nums">{{ summary.total_pending_in|nzd }} expected inflow</div>
         {% else %}
         <div class="mt-3 text-sm text-gray-400 dark:text-gray-500">Outflow due this month</div>
         {% endif %}
@@ -241,7 +241,7 @@
             <template x-for="(label, idx) in ['Add Bills', 'Review & Save']" :key="idx">
                 <div class="flex items-center gap-2">
                     <span class="w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center transition-colors"
-                          :class="step > idx ? 'bg-emerald-500 text-white' : step === idx ? 'bg-brand-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
+                          :class="step > idx ? 'bg-positive-500 text-white' : step === idx ? 'bg-brand-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
                           x-text="step > idx ? '✓' : idx + 1"></span>
                     <span class="text-xs font-medium" :class="step === idx ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400'" x-text="label"></span>
                     <svg x-show="idx < 1" class="w-4 h-4 text-gray-300 dark:text-gray-600 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -327,7 +327,7 @@
                                 <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="bill.title"></span>
                                 <span class="text-xs text-gray-400 ml-2" x-text="bill.recurrence + ', day ' + bill.day"></span>
                             </div>
-                            <span class="text-sm font-semibold text-red-600 dark:text-red-400 tabular-nums" x-text="'-$' + parseFloat(bill.amount || 0).toFixed(2)"></span>
+                            <span class="text-sm font-semibold text-negative-500 dark:text-negative-400 tabular-nums" x-text="'-$' + parseFloat(bill.amount || 0).toFixed(2)"></span>
                         </div>
                     </template>
                 </div>
@@ -353,7 +353,7 @@
             </button>
             <button x-show="step === 1" x-cloak type="button"
                     @click="$el.closest('[x-data]').querySelector('form').submit()"
-                    class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">
+                    class="px-5 py-2 text-sm font-semibold text-white bg-positive-600 hover:bg-positive-700 rounded-xl transition-colors shadow-sm">
                 Create All Bills
             </button>
         </div>
@@ -426,7 +426,7 @@
                 <div class="text-xs font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider">Preview</div>
                 <div class="flex items-center justify-between">
                     <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="aTitle"></span>
-                    <span class="text-sm font-bold text-red-600 dark:text-red-400 tabular-nums" x-text="'-$' + parseFloat(aAmount || 0).toFixed(2) + '/year'"></span>
+                    <span class="text-sm font-bold text-negative-500 dark:text-negative-400 tabular-nums" x-text="'-$' + parseFloat(aAmount || 0).toFixed(2) + '/year'"></span>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400">
                     That's roughly <strong class="text-gray-700 dark:text-gray-300" x-text="'$' + (parseFloat(aAmount || 0) / 12).toFixed(2)"></strong>/month to mentally set aside.
@@ -471,7 +471,7 @@
             <template x-for="(label, idx) in ['Event Details', 'Line Items', 'Review']" :key="idx">
                 <div class="flex items-center gap-2">
                     <span class="w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center transition-colors"
-                          :class="step > idx ? 'bg-emerald-500 text-white' : step === idx ? 'bg-orange-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
+                          :class="step > idx ? 'bg-positive-500 text-white' : step === idx ? 'bg-orange-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
                           x-text="step > idx ? '✓' : idx + 1"></span>
                     <span class="text-xs font-medium" :class="step === idx ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400'" x-text="label"></span>
                     <svg x-show="idx < 2" class="w-4 h-4 text-gray-300 dark:text-gray-600 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -580,9 +580,9 @@
                                 <span class="ml-2 text-xs tabular-nums" :class="item.due_date ? 'text-orange-500 dark:text-orange-400 font-medium' : 'text-gray-400 dark:text-gray-500'" x-text="item.due_date || eventDate"></span>
                             </div>
                             <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase"
-                                  :class="item.confidence === 'confirmed' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400' : item.confidence === 'expected' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400'"
+                                  :class="item.confidence === 'confirmed' ? 'bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400' : item.confidence === 'expected' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400'"
                                   x-text="item.confidence"></span>
-                            <span class="text-sm font-semibold text-red-600 dark:text-red-400 tabular-nums" x-text="'-$' + parseFloat(item.amount || 0).toFixed(2)"></span>
+                            <span class="text-sm font-semibold text-negative-500 dark:text-negative-400 tabular-nums" x-text="'-$' + parseFloat(item.amount || 0).toFixed(2)"></span>
                         </div>
                     </template>
                 </div>
@@ -596,12 +596,12 @@
                     <div class="w-full h-4 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden flex">
                         <template x-for="item in items.filter(i => i.title && i.amount)">
                             <div class="h-full transition-all"
-                                 :class="item.confidence === 'confirmed' ? 'bg-emerald-400' : item.confidence === 'expected' ? 'bg-blue-400' : 'bg-yellow-400'"
+                                 :class="item.confidence === 'confirmed' ? 'bg-positive-400' : item.confidence === 'expected' ? 'bg-blue-400' : 'bg-yellow-400'"
                                  :style="'width:' + (parseFloat(item.amount) / items.reduce((s,i) => s + parseFloat(i.amount || 0), 0) * 100) + '%'"></div>
                         </template>
                     </div>
                     <div class="flex items-center gap-4 text-[10px] text-gray-500 dark:text-gray-400">
-                        <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-400"></span>Confirmed</div>
+                        <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-positive-400"></span>Confirmed</div>
                         <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-blue-400"></span>Expected</div>
                         <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-yellow-400"></span>Estimated</div>
                     </div>
@@ -623,7 +623,7 @@
             </button>
             <button x-show="step === 2" x-cloak type="button"
                     @click="$el.closest('[x-data]').querySelector('form').submit()"
-                    class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">
+                    class="px-5 py-2 text-sm font-semibold text-white bg-positive-600 hover:bg-positive-700 rounded-xl transition-colors shadow-sm">
                 Create All Commitments
             </button>
         </div>
@@ -639,9 +639,9 @@
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
          @click.outside="activeWizard = ''" x-data="reviewHistoryWizard()"
          x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
-        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-positive-50 to-green-50 dark:from-positive-950/30 dark:to-green-950/30">
             <div class="flex items-center gap-3">
-                <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center">
+                <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-positive-400 to-green-600 flex items-center justify-center">
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 </span>
                 <div>
@@ -659,7 +659,7 @@
             <template x-for="(label, idx) in ['Select Range', 'Review Suggestions', 'Confirm']" :key="idx">
                 <div class="flex items-center gap-2">
                     <span class="w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center transition-colors"
-                          :class="step > idx ? 'bg-emerald-500 text-white' : step === idx ? 'bg-emerald-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
+                          :class="step > idx ? 'bg-positive-500 text-white' : step === idx ? 'bg-positive-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
                           x-text="step > idx ? '✓' : idx + 1"></span>
                     <span class="text-xs font-medium" :class="step === idx ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400'" x-text="label"></span>
                     <svg x-show="idx < 2" class="w-4 h-4 text-gray-300 dark:text-gray-600 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -670,8 +670,8 @@
         <div class="flex-1 overflow-y-auto">
             <!-- Step 1: Date range -->
             <div x-show="step === 0" class="px-6 py-5 space-y-5">
-                <div class="bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-4 text-sm text-emerald-800 dark:text-emerald-300 flex items-start gap-3">
-                    <svg class="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <div class="bg-positive-50 dark:bg-positive-950/30 rounded-xl p-4 text-sm text-positive-800 dark:text-positive-300 flex items-start gap-3">
+                    <svg class="w-5 h-5 text-positive-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <span>Choose a date range to analyse. A period of <strong>3-6 months</strong> works best for detecting recurring patterns. We'll look at your transaction history and suggest commitments based on what we find.</span>
                 </div>
 
@@ -690,16 +690,16 @@
 
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="text-xs text-gray-400 dark:text-gray-500">Quick:</span>
-                    <button type="button" @click="setRange(3)" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors">Last 3 months</button>
-                    <button type="button" @click="setRange(6)" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors">Last 6 months</button>
-                    <button type="button" @click="setRange(12)" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors">Last 12 months</button>
+                    <button type="button" @click="setRange(3)" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-positive-100 dark:hover:bg-positive-900/30 hover:text-positive-700 dark:hover:text-positive-400 transition-colors">Last 3 months</button>
+                    <button type="button" @click="setRange(6)" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-positive-100 dark:hover:bg-positive-900/30 hover:text-positive-700 dark:hover:text-positive-400 transition-colors">Last 6 months</button>
+                    <button type="button" @click="setRange(12)" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-positive-100 dark:hover:bg-positive-900/30 hover:text-positive-700 dark:hover:text-positive-400 transition-colors">Last 12 months</button>
                 </div>
             </div>
 
             <!-- Step 2: Review suggestions -->
             <div x-show="step === 1" x-cloak class="px-6 py-5 space-y-4">
                 <div x-show="loading" class="flex flex-col items-center py-12">
-                    <svg class="w-8 h-8 text-emerald-500 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                    <svg class="w-8 h-8 text-positive-500 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
                     <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">Analysing your transaction history...</p>
                 </div>
 
@@ -721,7 +721,7 @@
                                 Select the ones you want to create, and adjust details as needed.
                             </p>
                             <div class="flex items-center gap-2">
-                                <button type="button" @click="suggestions.forEach(s => s.selected = true)" class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 hover:underline">Select All</button>
+                                <button type="button" @click="suggestions.forEach(s => s.selected = true)" class="text-[11px] font-medium text-positive-600 dark:text-positive-400 hover:underline">Select All</button>
                                 <span class="text-gray-300 dark:text-gray-600">|</span>
                                 <button type="button" @click="suggestions.forEach(s => s.selected = false)" class="text-[11px] font-medium text-gray-400 hover:underline">Clear All</button>
                             </div>
@@ -730,17 +730,17 @@
                         <div class="space-y-2">
                             <template x-for="(sug, i) in suggestions" :key="i">
                                 <div class="rounded-xl ring-1 transition-all"
-                                     :class="sug.selected ? 'ring-emerald-300 dark:ring-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20' : 'ring-gray-200 dark:ring-gray-700 bg-gray-50/50 dark:bg-gray-900/20'">
+                                     :class="sug.selected ? 'ring-positive-300 dark:ring-positive-700 bg-positive-50/50 dark:bg-positive-950/20' : 'ring-gray-200 dark:ring-gray-700 bg-gray-50/50 dark:bg-gray-900/20'">
                                     <div class="px-4 py-3 flex items-start gap-3">
                                         <label class="flex items-center mt-1 cursor-pointer">
-                                            <input type="checkbox" x-model="sug.selected" class="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500">
+                                            <input type="checkbox" x-model="sug.selected" class="rounded border-gray-300 dark:border-gray-600 text-positive-600 focus:ring-positive-500">
                                         </label>
                                         <div class="flex-1 min-w-0 space-y-2">
                                             <div class="flex items-center gap-2 flex-wrap">
                                                 <input type="text" x-model="sug.title"
-                                                       class="text-sm font-medium bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 px-0 py-0.5 focus:ring-0 focus:border-emerald-500 flex-1 min-w-[200px]">
+                                                       class="text-sm font-medium bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 px-0 py-0.5 focus:ring-0 focus:border-positive-500 flex-1 min-w-[200px]">
                                                 <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase"
-                                                      :class="sug.direction === 'outflow' ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400'"
+                                                      :class="sug.direction === 'outflow' ? 'bg-negative-100 dark:bg-negative-900/40 text-negative-500 dark:text-negative-400' : 'bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400'"
                                                       x-text="sug.direction"></span>
                                                 <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
                                                       x-text="sug.tx_count + ' txns'"></span>
@@ -749,10 +749,10 @@
                                                 <div class="flex items-center gap-1">
                                                     <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">$</span>
                                                     <input type="number" x-model="sug.amount" step="0.01" min="0"
-                                                           class="w-24 text-sm font-medium bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 px-0 py-0.5 tabular-nums focus:ring-0 focus:border-emerald-500">
+                                                           class="w-24 text-sm font-medium bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 px-0 py-0.5 tabular-nums focus:ring-0 focus:border-positive-500">
                                                 </div>
                                                 <select x-model="sug.recurrence"
-                                                        class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-emerald-500">
+                                                        class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-positive-500">
                                                     <option value="">One-off</option>
                                                     <option value="weekly">Weekly</option>
                                                     <option value="fortnightly">Fortnightly</option>
@@ -761,13 +761,13 @@
                                                     <option value="annually">Annually</option>
                                                 </select>
                                                 <select x-model="sug.confidence"
-                                                        class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-emerald-500">
+                                                        class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-positive-500">
                                                     <option value="confirmed">Confirmed</option>
                                                     <option value="expected">Expected</option>
                                                     <option value="estimated">Estimated</option>
                                                 </select>
                                                 <select x-model="sug.direction"
-                                                        class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-emerald-500">
+                                                        class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-positive-500">
                                                     <option value="outflow">Outflow</option>
                                                     <option value="inflow">Inflow</option>
                                                 </select>
@@ -780,7 +780,7 @@
                                         </div>
                                         <div class="text-right flex-shrink-0">
                                             <div class="text-sm font-bold tabular-nums"
-                                                 :class="sug.direction === 'outflow' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                                 :class="sug.direction === 'outflow' ? 'text-negative-500 dark:text-negative-400' : 'text-positive-600 dark:text-positive-400'"
                                                  x-text="(sug.direction === 'outflow' ? '-' : '+') + '$' + parseFloat(sug.amount || 0).toFixed(2)"></div>
                                             <div class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums" x-text="'~$' + parseFloat(sug.monthly_avg || 0).toFixed(2) + '/mo'"></div>
                                         </div>
@@ -802,19 +802,19 @@
                     <template x-for="(sug, i) in suggestions.filter(s => s.selected)" :key="i">
                         <div class="px-4 py-3 flex items-center gap-3">
                             <span class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                                  :class="sug.direction === 'outflow' ? 'bg-red-100 dark:bg-red-900/40' : 'bg-emerald-100 dark:bg-emerald-900/40'">
-                                <svg x-show="sug.direction === 'outflow'" class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
-                                <svg x-show="sug.direction === 'inflow'" class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                                  :class="sug.direction === 'outflow' ? 'bg-negative-100 dark:bg-negative-900/40' : 'bg-positive-100 dark:bg-positive-900/40'">
+                                <svg x-show="sug.direction === 'outflow'" class="w-4 h-4 text-negative-500 dark:text-negative-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                                <svg x-show="sug.direction === 'inflow'" class="w-4 h-4 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
                             </span>
                             <div class="flex-1 min-w-0">
                                 <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="sug.title"></span>
                                 <span class="ml-2 text-xs text-gray-400 dark:text-gray-500" x-text="sug.recurrence ? sug.recurrence : 'one-off'"></span>
                                 <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase"
-                                      :class="sug.confidence === 'confirmed' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400' : sug.confidence === 'expected' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400'"
+                                      :class="sug.confidence === 'confirmed' ? 'bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400' : sug.confidence === 'expected' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400'"
                                       x-text="sug.confidence"></span>
                             </div>
                             <span class="text-sm font-semibold tabular-nums"
-                                  :class="sug.direction === 'outflow' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                  :class="sug.direction === 'outflow' ? 'text-negative-500 dark:text-negative-400' : 'text-positive-600 dark:text-positive-400'"
                                   x-text="(sug.direction === 'outflow' ? '-' : '+') + '$' + parseFloat(sug.amount || 0).toFixed(2)"></span>
                         </div>
                     </template>
@@ -823,8 +823,8 @@
                 <div class="flex items-center justify-between px-1 pt-2">
                     <span class="text-sm text-gray-500 dark:text-gray-400" x-text="selectedCount() + ' commitment(s)'"></span>
                     <div class="text-right">
-                        <div class="text-sm font-bold text-red-600 dark:text-red-400 tabular-nums" x-text="'-$' + selectedOutflowTotal().toFixed(2) + ' outflow'"></div>
-                        <div x-show="selectedInflowTotal() > 0" class="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums" x-text="'+$' + selectedInflowTotal().toFixed(2) + ' inflow'"></div>
+                        <div class="text-sm font-bold text-negative-500 dark:text-negative-400 tabular-nums" x-text="'-$' + selectedOutflowTotal().toFixed(2) + ' outflow'"></div>
+                        <div x-show="selectedInflowTotal() > 0" class="text-sm font-bold text-positive-600 dark:text-positive-400 tabular-nums" x-text="'+$' + selectedInflowTotal().toFixed(2) + ' inflow'"></div>
                     </div>
                 </div>
 
@@ -853,17 +853,17 @@
             </button>
             <div x-show="step === 0"></div>
             <button x-show="step === 0" type="button" @click="analyzeHistory()" :disabled="!dateFrom || !dateTo"
-                    class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm">
+                    class="px-5 py-2 text-sm font-semibold text-white bg-positive-600 hover:bg-positive-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm">
                 Analyse Transactions
             </button>
             <button x-show="step === 1 && !loading && suggestions.length > 0" x-cloak type="button" @click="step = 2"
                     :disabled="selectedCount() === 0"
-                    class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm">
+                    class="px-5 py-2 text-sm font-semibold text-white bg-positive-600 hover:bg-positive-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm">
                 Review Selected (<span x-text="selectedCount()"></span>)
             </button>
             <button x-show="step === 2" x-cloak type="button"
                     @click="document.getElementById('reviewHistoryForm').submit()"
-                    class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">
+                    class="px-5 py-2 text-sm font-semibold text-white bg-positive-600 hover:bg-positive-700 rounded-xl transition-colors shadow-sm">
                 Create Commitments
             </button>
         </div>
@@ -889,7 +889,7 @@
             {{ label }}
             {% if badge is not none and badge > 0 %}
             <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none
-                  {% if tab == tid %}bg-white/20 text-white{% elif tid == 'overdue' %}bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400{% else %}bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400{% endif %}">{{ badge }}</span>
+                  {% if tab == tid %}bg-white/20 text-white{% elif tid == 'overdue' %}bg-negative-100 dark:bg-negative-900/40 text-negative-500 dark:text-negative-400{% else %}bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400{% endif %}">{{ badge }}</span>
             {% endif %}
         </a>
         {% endfor %}
@@ -915,19 +915,25 @@
     <!-- ═══════════ COMMITMENT TABLE ═══════════ -->
     <div class="divide-y divide-gray-50 dark:divide-gray-700/50">
         {% for c in commitments %}
-        <div class="px-6 py-3.5 flex items-center gap-3 group hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors
+        {% set remaining = c.amount - c.cleared_amount %}
+        <div x-data="{ showClear: false }" class="px-6 py-3.5 flex items-center gap-3 group hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors
                     {% if c.cleared_at %}opacity-50{% endif %}
-                    {% if c.due_date < today and not c.cleared_at %}bg-red-50/30 dark:bg-red-950/10{% endif %}">
+                    {% if c.cleared_amount > 0 and not c.cleared_at %}opacity-75{% endif %}
+                    {% if c.due_date < today and not c.cleared_at %}bg-negative-50/30 dark:bg-negative-900/10{% endif %}">
 
             <!-- Direction icon -->
             {% if c.direction.value == 'outflow' %}
             <span class="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center
-                {% if c.cleared_at %}bg-gray-100 dark:bg-gray-700{% elif c.due_date < today %}bg-red-100 dark:bg-red-900/40{% else %}bg-amber-100 dark:bg-amber-900/40{% endif %}">
-                <svg class="w-4 h-4 {% if c.cleared_at %}text-gray-400{% elif c.due_date < today %}text-red-600 dark:text-red-400{% else %}text-amber-600 dark:text-amber-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                {% if c.cleared_at %}bg-gray-100 dark:bg-gray-700{% elif c.cleared_amount > 0 %}bg-positive-100 dark:bg-positive-900/40{% elif c.due_date < today %}bg-negative-100 dark:bg-negative-900/40{% else %}bg-amber-100 dark:bg-amber-900/40{% endif %}">
+                {% if c.cleared_amount > 0 and not c.cleared_at %}
+                <svg class="w-4 h-4 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                {% else %}
+                <svg class="w-4 h-4 {% if c.cleared_at %}text-gray-400{% elif c.due_date < today %}text-negative-500 dark:text-negative-400{% else %}text-amber-600 dark:text-amber-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                {% endif %}
             </span>
             {% else %}
-            <span class="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/40">
-                <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            <span class="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center bg-positive-100 dark:bg-positive-900/40">
+                <svg class="w-4 h-4 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
             </span>
             {% endif %}
 
@@ -936,7 +942,7 @@
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ c.title }}</span>
                     <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase
-                        {% if c.confidence.value == 'confirmed' %}bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400
+                        {% if c.confidence.value == 'confirmed' %}bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400
                         {% elif c.confidence.value == 'expected' %}bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400
                         {% else %}bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400{% endif %}">{{ c.confidence.value }}</span>
                     {% if c.is_recurring %}
@@ -944,41 +950,61 @@
                     {% endif %}
                     {% if c.cleared_at %}
                     <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Cleared</span>
+                    {% elif c.cleared_amount > 0 %}
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400">Partial {{ c.cleared_amount|nzd }}</span>
                     {% endif %}
                     {% if c.due_date < today and not c.cleared_at %}
-                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400">Overdue</span>
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-negative-100 dark:bg-negative-900/40 text-negative-500 dark:text-negative-400">Overdue</span>
                     {% endif %}
                 </div>
                 <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 tabular-nums">
-                    Due {{ c.due_date }}{% if c.category %} &middot; {{ c.category.name }}{% endif %}{% if c.notes %} &middot; {{ c.notes }}{% endif %}{% if c.cleared_at %} &middot; Cleared {{ c.cleared_at.strftime('%d %b %Y') }}{% endif %} &middot; Added {{ c.created_at.strftime('%d %b') }}{% if c.updated_at and c.updated_at != c.created_at %} &middot; Edited {{ c.updated_at.strftime('%d %b') }}{% endif %}
+                    Due {{ c.due_date }}{% if c.category %} &middot; {{ c.category.name }}{% endif %}{% if c.notes %} &middot; {{ c.notes }}{% endif %}{% if c.cleared_at %} &middot; Cleared {{ c.cleared_at.strftime('%d %b %Y') }}{% endif %}{% if c.cleared_amount > 0 and not c.cleared_at %} &middot; {{ remaining|nzd }} remaining{% endif %} &middot; Added {{ c.created_at.strftime('%d %b') }}{% if c.updated_at and c.updated_at != c.created_at %} &middot; Edited {{ c.updated_at.strftime('%d %b') }}{% endif %}
                 </p>
             </div>
 
             <!-- Amount -->
             <span class="text-sm font-semibold tabular-nums whitespace-nowrap
-                {% if c.direction.value == 'outflow' %}text-red-600 dark:text-red-400{% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
+                {% if c.direction.value == 'outflow' %}text-negative-500 dark:text-negative-400{% else %}text-positive-600 dark:text-positive-400{% endif %}">
                 {% if c.direction.value == 'outflow' %}-{% else %}+{% endif %}{{ c.amount|nzd }}
             </span>
 
             <!-- Actions -->
-            <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="flex items-center gap-0.5">
                 {% if not c.cleared_at %}
-                <button type="button" title="Edit" @click="openEdit('{{ c.id }}', '{{ c.title }}', '{{ c.amount }}', '{{ c.due_date }}', '{{ c.direction.value }}', '{{ c.category_id or '' }}', '{{ c.confidence.value }}', {{ 'true' if c.is_recurring else 'false' }}, '{{ c.recurrence.value if c.recurrence else '' }}', '{{ c.notes or '' }}')"
-                        class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                </button>
-                <form action="/commitments/{{ c.id }}/clear" method="POST" class="inline">
-                    <button type="submit" title="Mark as cleared" class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                <!-- Inline clear form -->
+                <form x-show="showClear" x-cloak x-transition action="/commitments/{{ c.id }}/clear" method="POST" class="flex items-center gap-1">
+                    <span class="text-xs text-gray-400 dark:text-gray-500">$</span>
+                    <input type="number" name="amount" step="0.01" min="0.01" max="{{ remaining }}"
+                           value="{{ remaining }}"
+                           class="w-20 px-1.5 py-0.5 text-xs tabular-nums text-right border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-brand-500 focus:border-brand-500"
+                           @keydown.escape="showClear = false">
+                    <button type="submit" title="Confirm" class="p-0.5 rounded text-positive-600 dark:text-positive-400 hover:bg-positive-50 dark:hover:bg-positive-900/20 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                     </button>
+                    <button type="button" @click="showClear = false" title="Cancel" class="p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
                 </form>
+                <div x-show="!showClear" class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button type="button" title="Edit" @click="openEdit('{{ c.id }}', '{{ c.title }}', '{{ c.amount }}', '{{ c.due_date }}', '{{ c.direction.value }}', '{{ c.category_id or '' }}', '{{ c.confidence.value }}', {{ 'true' if c.is_recurring else 'false' }}, '{{ c.recurrence.value if c.recurrence else '' }}', '{{ c.notes or '' }}')"
+                            class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </button>
+                    <button type="button" @click="showClear = true; $nextTick(() => $el.closest('.group').querySelector('input[name=amount]')?.select())"
+                            title="Clear (enter amount)" class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-positive-600 dark:hover:text-positive-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    </button>
+                </div>
                 {% else %}
+                <div class="opacity-0 group-hover:opacity-100 transition-opacity">
                 <form action="/commitments/{{ c.id }}/unclear" method="POST" class="inline">
                     <button type="submit" title="Undo clear — reactivate" class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
                     </button>
                 </form>
+                </div>
                 {% endif %}
+                <div class="{% if not showClear %}opacity-0 group-hover:opacity-100{% endif %} transition-opacity" :class="showClear ? '' : 'opacity-0 group-hover:opacity-100'">
                 <form action="/commitments/{{ c.id }}/delete" method="POST" class="inline">
                     <button type="submit" title="Delete"
                             data-confirm="Delete &ldquo;{{ c.title }}&rdquo;? This cannot be undone."
@@ -987,6 +1013,7 @@
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </button>
                 </form>
+                </div>
             </div>
         </div>
         {% else %}

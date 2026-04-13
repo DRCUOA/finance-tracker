@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Reconcile {{ account.name }} — Finance Tracker{% endblock %}
+{% block title %}Reconcile {{ account.name }} — Finla{% endblock %}
 {% block page_title %}Reconcile: {{ account.name }}{% endblock %}
 
 {% block header_actions %}
@@ -83,17 +83,17 @@
                 </div>
                 <div class="rounded-xl ring-1 p-4 transition-colors"
                      :class="isBalanced
-                        ? 'bg-emerald-50 dark:bg-emerald-900/30 ring-emerald-200 dark:ring-emerald-800'
+                        ? 'bg-positive-50 dark:bg-positive-900/30 ring-positive-200 dark:ring-positive-800'
                         : 'bg-white dark:bg-gray-800 ring-gray-100 dark:ring-gray-700'">
                     <p class="text-xs font-medium uppercase tracking-wider"
-                       :class="isBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'">Difference</p>
+                       :class="isBalanced ? 'text-positive-600 dark:text-positive-400' : 'text-gray-400 dark:text-gray-500'">Difference</p>
                     <p class="text-lg font-bold tabular-nums mt-1"
                        :class="isBalanced
-                           ? 'text-emerald-700 dark:text-emerald-400'
+                           ? 'text-positive-700 dark:text-positive-400'
                            : (difference > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400')"
                        x-text="new Intl.NumberFormat('en-NZ', {style: 'currency', currency: 'NZD'}).format(difference)"></p>
                     <p class="text-xs mt-0.5"
-                       :class="isBalanced ? 'text-emerald-500 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'"
+                       :class="isBalanced ? 'text-positive-500 dark:text-positive-400' : 'text-gray-400 dark:text-gray-500'"
                        x-text="isBalanced ? 'Ready to finish!' : 'Clear items to reach zero'"></p>
                 </div>
             </div>
@@ -133,11 +133,11 @@
                                            :checked="checked['{{ tx.id }}'] !== undefined">
                                 </td>
                                 <td class="px-2 py-3 text-center">
-                                    <svg class="w-3.5 h-3.5 inline text-emerald-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
+                                    <svg class="w-3.5 h-3.5 inline text-positive-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap tabular-nums">{{ tx.date.isoformat() }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{{ tx.description }}</td>
-                                <td class="px-4 py-3 text-sm text-right font-semibold tabular-nums whitespace-nowrap {% if tx.amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                                <td class="px-4 py-3 text-sm text-right font-semibold tabular-nums whitespace-nowrap {% if tx.amount >= 0 %}text-positive-600{% else %}text-red-600{% endif %}">
                                     {{ tx.amount|nzd }}
                                 </td>
                                 <td class="px-2 py-3 text-center" @click.stop>
@@ -173,7 +173,7 @@
                             :disabled="!isBalanced"
                             class="px-6 py-2.5 text-sm font-semibold text-white rounded-xl shadow-sm transition-colors"
                             :class="isBalanced
-                                ? 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer'
+                                ? 'bg-positive-600 hover:bg-positive-700 cursor-pointer'
                                 : 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'">
                         Finish Reconciliation
                     </button>

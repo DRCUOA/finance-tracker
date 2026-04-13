@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "components/category_options.html" import category_options %}
-{% block title %}Matching Rules — Finance Tracker{% endblock %}
+{% block title %}Matching Rules — Finla{% endblock %}
 {% block page_title %}Matching Rules{% endblock %}
 
 {% block header_actions %}
@@ -202,7 +202,7 @@ document.addEventListener('alpine:init', () => {
                 panel.innerHTML = await r.text();
                 this.healthLoaded = true;
             } catch {
-                panel.innerHTML = '<p class="text-sm text-red-500 py-6 text-center">Failed to load health report.</p>';
+                panel.innerHTML = '<p class="text-sm text-negative-500 py-6 text-center">Failed to load health report.</p>';
             }
         },
 
