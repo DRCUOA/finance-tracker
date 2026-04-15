@@ -69,6 +69,9 @@
     {% set refreshed = akahu_acct.get('refreshed', {}) %}
     {% set attributes = akahu_acct.get('attributes', []) %}
     {% set has_transactions = 'TRANSACTIONS' in attributes %}
+    {% set stats = feed_stats.get(linked_local.id) if linked_local else none %}
+    {% set latest_tx_date = stats.latest_date if stats else none %}
+    {% set tx_age_days = latest_tx_date|days_ago if latest_tx_date else none %}
 
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
         <div class="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -89,10 +92,6 @@
                     {{ connection.get('name', '') }}
                     {% if akahu_acct.get('formatted_account') %} · <span class="font-mono text-xs">{{ akahu_acct.get('formatted_account') }}</span>{% endif %}
                     · {{ acct_type }}
-                    {% if refreshed.get('balance') %}
-                    <span class="text-gray-300 dark:text-gray-600 mx-0.5">·</span>
-                    <span title="Balance refreshed">Balance: {{ refreshed.get('balance', '')[:16] }}</span>
-                    {% endif %}
                 </p>
             </div>
 
@@ -111,6 +110,56 @@
                 </div>
             </div>
         </div>
+
+        <!-- Freshness indicators (only for linked accounts) -->
+        {% if linked_local %}
+        <div class="px-6 py-3 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs">
+            <!-- Bank data freshness (from Akahu) -->
+            {% if refreshed.get('balance') %}
+            <div class="flex items-center gap-1.5 text-gray-400 dark:text-gray-500" title="When Akahu last refreshed from the bank">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Bank data: {{ refreshed.get('balance', '')[:16].replace('T', ' ') }}
+            </div>
+            {% endif %}
+
+            <!-- Last synced -->
+            {% if linked_local.last_synced_at %}
+            <div class="flex items-center gap-1.5 text-gray-400 dark:text-gray-500" title="When you last synced in this app">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Synced: {{ linked_local.last_synced_at|timeago }}
+            </div>
+            {% else %}
+            <div class="flex items-center gap-1.5 text-amber-500 dark:text-amber-400" title="No sync recorded">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Never synced
+            </div>
+            {% endif %}
+
+            <!-- Latest transaction age -->
+            {% if tx_age_days is not none %}
+            <div class="flex items-center gap-1.5
+                {% if tx_age_days <= 1 %}text-positive-600 dark:text-positive-400{% elif tx_age_days <= 3 %}text-gray-400 dark:text-gray-500{% elif tx_age_days <= 7 %}text-amber-500 dark:text-amber-400{% else %}text-negative-500 dark:text-negative-400{% endif %}"
+                 title="Most recent transaction: {{ latest_tx_date }}">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                {% if tx_age_days == 0 %}Latest tx: today
+                {% elif tx_age_days == 1 %}Latest tx: yesterday
+                {% else %}Latest tx: {{ tx_age_days }}d ago ({{ latest_tx_date.strftime('%d %b') }}){% endif %}
+            </div>
+            {% elif has_transactions and stats is none %}
+            <div class="flex items-center gap-1.5 text-gray-400 dark:text-gray-500">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                No transactions synced yet
+            </div>
+            {% endif %}
+
+            <!-- Tx count -->
+            {% if stats and stats.tx_count %}
+            <div class="flex items-center gap-1.5 text-gray-400 dark:text-gray-500">
+                <span class="tabular-nums">{{ stats.tx_count }} txns loaded</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <!-- Link status & actions -->
         <div class="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700">
@@ -138,8 +187,9 @@
 
                 <div class="flex items-center gap-2 flex-wrap">
                     {% if has_transactions and acct_status == 'ACTIVE' %}
+                    {% set default_end = today_date().isoformat() %}
                     <form method="post" action="/bank-feeds/sync-transactions/{{ linked_local.id }}" class="flex items-center gap-2"
-                          x-data="{ start: '', end: '' }">
+                          x-data="syncDates('{{ default_end }}')">
                         <input type="date" name="start_date" x-model="start" required
                                class="rounded-lg border-gray-300 dark:border-gray-600 text-xs py-1.5 px-2 focus:ring-brand-500 focus:border-brand-500 w-[130px]">
                         <span class="text-xs text-gray-400">to</span>
@@ -194,6 +244,16 @@
     {% endif %}
     {% endfor %}
 </div>
+
+<script>
+function syncDates(today) {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() - 1);
+    const pad = n => String(n).padStart(2, '0');
+    const iso = dt => dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate());
+    return { start: iso(d), end: today };
+}
+</script>
 
 {% endif %}
 {% endblock %}

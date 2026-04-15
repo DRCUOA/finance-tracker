@@ -198,11 +198,10 @@ async def batch_categorise(
     tx_ids = [uuid.UUID(tid) for tid in form.getlist("tx_ids")]
     if tx_ids and category_id:
         await tx_svc.batch_categorise(db, tx_ids, user.id, uuid.UUID(category_id))
+    resp = RedirectResponse(url="/transactions", status_code=302)
     if request.headers.get("HX-Request") == "true":
-        resp = HTMLResponse("")
         resp.headers["HX-Trigger"] = "txchanged"
-        return resp
-    return RedirectResponse(url="/transactions", status_code=302)
+    return resp
 
 
 @router.post("/batch/delete")
@@ -222,11 +221,10 @@ async def batch_delete(
         await tx_svc.batch_delete(db, tx_ids, user.id)
         for acct_id in affected_accounts:
             await acct_svc.recalculate_balance(db, acct_id)
+    resp = RedirectResponse(url="/transactions", status_code=302)
     if request.headers.get("HX-Request") == "true":
-        resp = HTMLResponse("")
         resp.headers["HX-Trigger"] = "txchanged"
-        return resp
-    return RedirectResponse(url="/transactions", status_code=302)
+    return resp
 
 
 @router.get("/review-uncategorised", response_class=HTMLResponse)
@@ -389,7 +387,13 @@ async def delete_transaction(
 ):
     if await tx_svc.is_tx_locked(db, tx_id):
         if request.headers.get("HX-Request") == "true":
-            return HTMLResponse("Locked by reconciliation", status_code=403)
+            import json
+            resp = HTMLResponse("", status_code=200)
+            resp.headers["HX-Reswap"] = "none"
+            resp.headers["HX-Trigger"] = json.dumps(
+                {"showToast": {"message": "Cannot delete — locked by reconciliation", "type": "error"}}
+            )
+            return resp
         return RedirectResponse(url="/transactions", status_code=302)
     tx = await tx_svc.get_transaction(db, tx_id, user.id)
     if tx:

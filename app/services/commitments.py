@@ -212,7 +212,7 @@ async def clear_commitment(
         c.cleared_amount = c.amount
         c.cleared_at = datetime.now(timezone.utc)
         if c.is_recurring and c.recurrence:
-            _spawn_next_recurrence(db, c)
+            await _spawn_next_recurrence(db, c)
     else:
         c.cleared_amount = min(c.cleared_amount + amount, c.amount)
 
@@ -233,10 +233,28 @@ async def unclear_commitment(
     return c
 
 
-def _spawn_next_recurrence(db: AsyncSession, c: Commitment) -> None:
-    """Create the next occurrence of a recurring commitment."""
+async def _spawn_next_recurrence(db: AsyncSession, c: Commitment) -> None:
+    """Create the next occurrence of a recurring commitment unless one already exists.
+
+    ``project_recurring_commitments`` may have already projected this
+    instance, so we check first to avoid duplicates that would keep the
+    cleared amount in COMMITTED and double-count against SPENT.
+    """
     next_date = _next_due_date(c.due_date, c.recurrence)
     if next_date == c.due_date:
+        return
+    existing = await db.execute(
+        select(Commitment.id).where(
+            Commitment.user_id == c.user_id,
+            Commitment.title == c.title,
+            Commitment.amount == c.amount,
+            Commitment.direction == c.direction,
+            Commitment.due_date == next_date,
+            Commitment.is_recurring.is_(True),
+            Commitment.is_active.is_(True),
+        ).limit(1)
+    )
+    if existing.scalar_one_or_none() is not None:
         return
     new = Commitment(
         user_id=c.user_id,
@@ -259,7 +277,29 @@ async def delete_commitment(
     c = await db.get(Commitment, commitment_id)
     if not c or c.user_id != user_id:
         return False
-    await db.delete(c)
+
+    if c.is_recurring and c.recurrence:
+        series_filter = [
+            Commitment.user_id == user_id,
+            Commitment.title == c.title,
+            Commitment.amount == c.amount,
+            Commitment.direction == c.direction,
+            Commitment.recurrence == c.recurrence,
+            Commitment.is_recurring.is_(True),
+        ]
+        if c.category_id is not None:
+            series_filter.append(Commitment.category_id == c.category_id)
+        else:
+            series_filter.append(Commitment.category_id.is_(None))
+
+        siblings = (await db.execute(
+            select(Commitment).where(*series_filter)
+        )).scalars().all()
+        for s in siblings:
+            await db.delete(s)
+    else:
+        await db.delete(c)
+
     await db.flush()
     return True
 

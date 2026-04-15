@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.category import Category, CategoryKeyword, CategoryType
+from app.models.category import Category, CategoryKeyword
 from app.models.transaction import Transaction
 
 _SHORT_KW_THRESHOLD = 4
@@ -49,10 +49,7 @@ async def batch_suggest_categories(
     kw_stmt = (
         select(CategoryKeyword)
         .join(Category)
-        .where(
-            Category.user_id == user_id,
-            Category.category_type != CategoryType.TRANSFER,
-        )
+        .where(Category.user_id == user_id)
         .options(selectinload(CategoryKeyword.category))
         .order_by(CategoryKeyword.hit_count.desc())
     )
@@ -106,10 +103,7 @@ async def suggest_category(db: AsyncSession, user_id: uuid.UUID, description: st
     stmt = (
         select(CategoryKeyword)
         .join(Category)
-        .where(
-            Category.user_id == user_id,
-            Category.category_type != CategoryType.TRANSFER,
-        )
+        .where(Category.user_id == user_id)
         .order_by(CategoryKeyword.hit_count.desc())
     )
     result = await db.execute(stmt)

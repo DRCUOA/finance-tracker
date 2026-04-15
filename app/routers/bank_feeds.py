@@ -1,18 +1,20 @@
 import logging
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func as sa_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.account import Account
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
 from app.services.akahu import (
+    AKAHU_SOURCE,
     AkahuAPIError,
     AkahuConfigError,
     fetch_accounts as akahu_fetch_accounts,
@@ -72,6 +74,29 @@ async def bank_feeds_page(
         if acct.akahu_id:
             link_map[acct.akahu_id] = acct
 
+    # Query latest transaction date and count for each linked account
+    linked_ids = [a.id for a in local_accounts if a.akahu_id]
+    feed_stats: dict[uuid.UUID, dict] = {}
+    if linked_ids:
+        stmt = (
+            select(
+                Transaction.account_id,
+                sa_func.max(Transaction.date).label("latest_date"),
+                sa_func.count(Transaction.id).label("tx_count"),
+            )
+            .where(
+                Transaction.account_id.in_(linked_ids),
+                Transaction.source == AKAHU_SOURCE,
+            )
+            .group_by(Transaction.account_id)
+        )
+        rows = await db.execute(stmt)
+        for row in rows:
+            feed_stats[row.account_id] = {
+                "latest_date": row.latest_date,
+                "tx_count": row.tx_count,
+            }
+
     return templates.TemplateResponse(request, "bank_feeds/index.html", {
         "user": user,
         "configured": configured,
@@ -79,6 +104,7 @@ async def bank_feeds_page(
         "akahu_accounts": akahu_accounts,
         "link_map": link_map,
         "unlinked_local": unlinked_local,
+        "feed_stats": feed_stats,
     })
 
 
@@ -151,6 +177,17 @@ async def sync_balances(
         log.exception("Unexpected error during balance sync")
         return _toast_redirect("/bank-feeds", "Unexpected sync error", "error")
 
+    if summary.get("updated"):
+        now = datetime.now(timezone.utc)
+        stmt = select(Account).where(
+            Account.user_id == user.id,
+            Account.akahu_id.isnot(None),
+        )
+        rows = await db.execute(stmt)
+        for acct in rows.scalars():
+            acct.last_synced_at = now
+        await db.flush()
+
     parts = []
     if summary["updated"]:
         parts.append(f"{summary['updated']} updated")
@@ -198,6 +235,11 @@ async def sync_transactions(
     if summary["errors"]:
         msg = "Sync error: " + "; ".join(summary["errors"])
         return _toast_redirect("/bank-feeds", msg, "error")
+
+    acct = await db.get(Account, account_id)
+    if acct:
+        acct.last_synced_at = datetime.now(timezone.utc)
+        await db.flush()
 
     parts = []
     if summary["inserted"]:

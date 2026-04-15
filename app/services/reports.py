@@ -2,7 +2,7 @@ import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select, func as sa_func, extract, and_, case
+from sqlalchemy import or_, select, func as sa_func, extract, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account, ACCOUNT_TYPE_GROUPS, AccountGroup
@@ -1005,9 +1005,9 @@ async def weekly_spending_pulse(
 
     prorate = total_days / 30.0 if period == "week" else 1.0
 
-    # Actuals by category — expense categories only, signed net so refunds
-    # offset spend.  The sum is negative for net outflows; abs() gives the
-    # positive "consumed" figure.  Clamp to zero so a net-refund category
+    # Actuals by category — expense categories + uncategorised, signed net so
+    # refunds offset spend.  The sum is negative for net outflows; abs() gives
+    # the positive "consumed" figure.  Clamp to zero so a net-refund category
     # never produces a negative "actual spent".
     expense_cat_ids = [c.id for c in cats]
     actual_stmt = (
@@ -1030,6 +1030,25 @@ async def weekly_spending_pulse(
         for r in (await db.execute(actual_stmt)).all()
         if r.actual and r.actual < 0
     }
+
+    # Uncategorised spend (category_id IS NULL, negative amounts only)
+    uncat_stmt = (
+        select(sa_func.sum(Transaction.amount).label("actual"))
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.date >= start,
+            Transaction.date < end,
+            Transaction.category_id.is_(None),
+        )
+    )
+    if account_ids is not None:
+        uncat_stmt = uncat_stmt.where(Transaction.account_id.in_(account_ids))
+    uncat_row = (await db.execute(uncat_stmt)).first()
+    uncategorised_actual = (
+        max(float(abs(uncat_row.actual)), 0.0)
+        if uncat_row and uncat_row.actual and uncat_row.actual < 0
+        else 0.0
+    )
 
     # Commitments — use the actual view period so clearing a commitment
     # is immediately reflected.  Recurring projection still covers the
@@ -1090,6 +1109,21 @@ async def weekly_spending_pulse(
             "status": _spending_status(pct),
             "variance": round(budgeted - spoken_for, 2),
         })
+    if uncategorised_actual > 0:
+        cat_rows.append({
+            "category_id": "__uncategorised__",
+            "category_name": "Uncategorised",
+            "budgeted": 0.0,
+            "actual": round(uncategorised_actual, 2),
+            "committed": 0.0,
+            "reserve": 0.0,
+            "reserve_gap": 0.0,
+            "spoken_for": round(uncategorised_actual, 2),
+            "pct": 100.0,
+            "status": "over",
+            "variance": round(-uncategorised_actual, 2),
+        })
+
     cat_rows.sort(key=lambda r: r["pct"], reverse=True)
 
     total_actual = sum(r["actual"] for r in cat_rows)
@@ -1106,39 +1140,49 @@ async def weekly_spending_pulse(
     elapsed_budget = budget_daily_rate * days_elapsed
     pace_pct = round(total_actual / elapsed_budget * 100, 1) if elapsed_budget else 0.0
 
-    # Day-by-day expense-category spend (signed net so refunds reduce the bar).
-    # Only expense-type categories; transfers/income excluded.
+    # Day-by-day expense spend broken down by category.
+    # Expense-type categories + uncategorised; transfers/income excluded.
     daily_stmt = (
         select(
             Transaction.date,
+            sa_func.coalesce(Category.name, "Uncategorised").label("cat_name"),
             sa_func.sum(Transaction.amount).label("total"),
         )
-        .join(Category, Transaction.category_id == Category.id)
+        .outerjoin(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.user_id == user_id,
             Transaction.date >= start,
             Transaction.date < end,
-            Category.category_type == CategoryType.EXPENSE,
+            or_(
+                Category.category_type == CategoryType.EXPENSE,
+                Transaction.category_id.is_(None),
+            ),
         )
-        .group_by(Transaction.date)
-        .order_by(Transaction.date)
+        .group_by(Transaction.date, "cat_name")
+        .order_by(Transaction.date, "cat_name")
     )
     if account_ids is not None:
         daily_stmt = daily_stmt.where(Transaction.account_id.in_(account_ids))
     daily_result = await db.execute(daily_stmt)
-    daily_map = {
-        r.date: max(float(abs(r.total)), 0.0)
-        for r in daily_result.all()
-        if r.total and r.total < 0
-    }
+
+    daily_map: dict[date, dict[str, float]] = {}
+    for r in daily_result.all():
+        if r.total and r.total < 0:
+            amt = round(float(abs(r.total)), 2)
+            daily_map.setdefault(r.date, {})[r.cat_name] = amt
 
     daily_spending = []
     for i in range(total_days):
         d = start + timedelta(days=i)
+        cats = daily_map.get(d, {})
         daily_spending.append({
             "date": d.isoformat(),
             "label": d.strftime("%a"),
-            "amount": round(daily_map.get(d, 0.0), 2),
+            "amount": round(sum(cats.values()), 2),
+            "categories": [
+                {"name": k, "amount": v}
+                for k, v in sorted(cats.items(), key=lambda x: -x[1])
+            ],
         })
 
     period_word = "week" if period == "week" else "month"
@@ -1182,6 +1226,37 @@ async def spending_category_transactions(
     conditions = [
         Transaction.user_id == user_id,
         Transaction.category_id == category_id,
+        Transaction.date >= start,
+        Transaction.date < end,
+    ]
+    if account_ids is not None:
+        conditions.append(Transaction.account_id.in_(account_ids))
+
+    txs = (await db.execute(
+        select(Transaction).where(*conditions).order_by(Transaction.date.desc())
+    )).scalars().all()
+
+    return [
+        {
+            "id": str(tx.id),
+            "date": tx.date.isoformat(),
+            "description": tx.description,
+            "amount": float(tx.amount),
+            "is_cleared": tx.is_cleared,
+        }
+        for tx in txs
+    ]
+
+
+async def spending_uncategorised_transactions(
+    db: AsyncSession, user_id: uuid.UUID,
+    start: date, end: date,
+    account_ids: list[uuid.UUID] | None = None,
+) -> list[dict]:
+    """Transactions with no category within a period (for HTMX drill-down)."""
+    conditions = [
+        Transaction.user_id == user_id,
+        Transaction.category_id.is_(None),
         Transaction.date >= start,
         Transaction.date < end,
     ]
@@ -1251,17 +1326,22 @@ async def rolling_over_under(
         budget_lookup.setdefault(key, {})[str(br.category_id)] = float(br.amount)
 
     # Actual expense spend across the full range (signed net)
+    # Includes both categorised expense transactions and uncategorised ones
     actual_stmt = (
         select(
             extract("year", Transaction.date).label("yr"),
             extract("month", Transaction.date).label("mo"),
             sa_func.sum(Transaction.amount).label("total"),
         )
+        .outerjoin(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.user_id == user_id,
             Transaction.date >= rolling_start,
             Transaction.date < months[-1][1],
-            Transaction.category_id.in_(expense_cat_ids),
+            or_(
+                Category.category_type == CategoryType.EXPENSE,
+                Transaction.category_id.is_(None),
+            ),
         )
         .group_by("yr", "mo")
     )
