@@ -25,14 +25,14 @@ def _cashflow_ids(accounts):
 @router.get("", response_class=HTMLResponse)
 async def spending_pulse(
     request: Request,
-    period: str = Query("week"),
+    period: str = Query("month"),
     ref: str = Query(""),
     rolling_start: str = Query(""),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
     if period not in ("week", "month"):
-        period = "week"
+        period = "month"
 
     today = date.today()
     ref_date = date.fromisoformat(ref) if ref else today
@@ -178,6 +178,54 @@ async def delete_commitment(
 
 
 # ── HTMX partials ──────────────────────────────────────────────────
+
+@router.get("/category/__uncategorised__/transactions")
+async def spending_uncategorised_txs(
+    request: Request,
+    period: str = Query("week"),
+    ref: str = Query(""),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if period not in ("week", "month"):
+        period = "week"
+
+    today = date.today()
+    ref_date = date.fromisoformat(ref) if ref else today
+    start, end = report_svc.period_bounds(ref_date, period)
+
+    accounts = await acct_svc.get_accounts(db, user.id)
+    cf_ids = _cashflow_ids(accounts)
+
+    txs = await report_svc.spending_uncategorised_transactions(
+        db, user.id, start, end, account_ids=cf_ids,
+    )
+
+    if not txs:
+        return HTMLResponse("<p class='text-sm text-gray-400 px-4 py-3'>No uncategorised transactions this period</p>")
+
+    fmt = lambda v: f"${abs(v):,.2f}" if v >= 0 else f"-${abs(v):,.2f}"
+    rows = []
+    for tx in txs:
+        amt = tx["amount"]
+        amt_class = "text-emerald-600" if amt >= 0 else "text-red-500"
+        cleared_icon = (
+            '<svg class="w-3 h-3 text-red-400" title="Reconciled" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6-6V7a6 6 0 1112 0v4M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>'
+        ) if tx["is_cleared"] else (
+            '<svg class="w-3 h-3 text-emerald-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>'
+        )
+        rows.append(
+            f'<div class="flex items-center gap-2 px-4 py-2 border-t border-gray-100 dark:border-gray-700/50">'
+            f'  <span class="flex-shrink-0">{cleared_icon}</span>'
+            f'  <span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums w-20">{tx["date"]}</span>'
+            f'  <span class="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">{tx["description"]}</span>'
+            f'  <span class="text-sm font-medium tabular-nums {amt_class} whitespace-nowrap">{fmt(amt)}</span>'
+            f'</div>'
+        )
+    return HTMLResponse("\n".join(rows))
+
 
 @router.get("/category/{category_id}/transactions")
 async def spending_category_txs(

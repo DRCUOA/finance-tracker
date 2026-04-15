@@ -1,0 +1,584 @@
+{% extends "base.html" %}
+{% block title %}Budget Setup — Finla{% endblock %}
+{% block page_title %}Budget Setup{% endblock %}
+
+{% block main_class %}pb-8{% endblock %}
+
+{% block content %}
+<div x-data="budgetSetup()" x-init="init()">
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- STICKY STATS BAR (always visible, pinned below header)      -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="sticky top-0 z-20 -mx-8 px-8 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 py-2.5 flex items-center justify-between gap-4 shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Budgeted</span>
+                <span class="text-sm font-bold tabular-nums"
+                      :class="totalBudget <= avgIncome ? 'text-positive-600 dark:text-positive-400' : 'text-negative-500 dark:text-negative-400'"
+                      x-text="fmt(totalBudget)"></span>
+            </div>
+            <span class="text-gray-300 dark:text-gray-600">|</span>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Income</span>
+                <span class="text-sm font-bold tabular-nums text-gray-700 dark:text-gray-300" x-text="fmt(avgIncome)"></span>
+            </div>
+            <span class="text-gray-300 dark:text-gray-600">|</span>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Remaining</span>
+                <span class="text-sm font-bold tabular-nums"
+                      :class="avgIncome - totalBudget >= 0 ? 'text-positive-600 dark:text-positive-400' : 'text-negative-500 dark:text-negative-400'"
+                      x-text="fmt(avgIncome - totalBudget)"></span>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="w-24 h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-300"
+                     :class="totalBudget <= avgIncome ? 'bg-positive-500' : 'bg-negative-500'"
+                     :style="'width: ' + Math.min(totalBudget / Math.max(avgIncome, 1) * 100, 100) + '%'"></div>
+            </div>
+            <span class="text-sm font-bold tabular-nums min-w-[3rem] text-right"
+                  :class="incomePercent <= 100 ? 'text-positive-600 dark:text-positive-400' : 'text-negative-500 dark:text-negative-400'"
+                  x-text="incomePercent + '%'"></span>
+            <button @click="saveAll()"
+                    :disabled="!dirty || saving"
+                    class="px-3 py-1 text-xs font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    :class="dirty ? 'text-white bg-positive-600 hover:bg-positive-700' : 'text-gray-400 bg-gray-200 dark:bg-gray-700'">
+                <span x-text="saving ? '...' : 'Save'"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- INCOME vs BUDGET SUMMARY BAR                                -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 border-t border-t-white/80 dark:border-t-gray-600 p-6 mt-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Monthly Budget Summary</h2>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Plan your spending against your expected income</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button @click="applyAllAverages()"
+                        class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 shadow-sm transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Auto-fill from spending
+                </button>
+                <button @click="saveAll()"
+                        :disabled="!dirty || saving"
+                        class="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        :class="dirty ? 'text-white bg-positive-600 hover:bg-positive-700' : 'text-gray-400 bg-gray-200 dark:bg-gray-700'">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    <span x-text="saving ? 'Saving...' : 'Save All'"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Income lines -->
+        <div class="mb-4 rounded-xl bg-gray-50 dark:bg-gray-700/40 overflow-hidden">
+            <div class="px-4 py-2.5 flex items-center justify-between border-b border-gray-100 dark:border-gray-600/50">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-full bg-positive-100 dark:bg-positive-900/30 flex items-center justify-center">
+                        <svg class="w-3.5 h-3.5 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">Expected Monthly Income</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-lg font-bold tabular-nums text-positive-600 dark:text-positive-400" x-text="fmt(totalIncome)"></span>
+                </div>
+            </div>
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-gray-100 dark:border-gray-600/30">
+                        <th class="px-4 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Source</th>
+                        <th class="px-3 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">3-Mo Avg</th>
+                        <th class="px-4 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 w-36">Amount</th>
+                        <th class="px-3 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 w-16">Per</th>
+                        <th class="px-3 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 w-20">/month</th>
+                        <th class="px-2 py-1.5 w-8"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100/60 dark:divide-gray-600/30">
+                    <template x-for="(inc, idx) in incomeLines" :key="inc._key">
+                        <tr>
+                            <td class="px-4 py-1.5">
+                                <input type="text"
+                                       x-model="inc.name"
+                                       class="bg-transparent border-0 p-0 text-sm text-gray-900 dark:text-gray-100 focus:ring-0 w-full placeholder-gray-300 dark:placeholder-gray-600"
+                                       placeholder="Income source...">
+                            </td>
+                            <td class="px-3 py-1.5 text-right">
+                                <span class="text-xs tabular-nums"
+                                      :class="inc.avg > 0 ? 'text-gray-500 dark:text-gray-400' : 'text-gray-300 dark:text-gray-600'"
+                                      x-text="inc.avg > 0 ? fmt(inc.avg) : '—'"></span>
+                            </td>
+                            <td class="px-4 py-1.5">
+                                <input type="text" inputmode="decimal"
+                                       :value="inc.amount ? inc.amount.toFixed(2) : ''"
+                                       @focus="$el.value = String(inc.amount || ''); $el.select()"
+                                       @blur="resolveIncomeLine(inc, $el)"
+                                       @keydown.enter.prevent="resolveIncomeLine(inc, $el); $el.blur()"
+                                       class="w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm px-3 py-1 text-right tabular-nums text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 placeholder-gray-300 dark:placeholder-gray-600"
+                                       placeholder="0.00">
+                            </td>
+                            <td class="px-3 py-1.5 text-center">
+                                <select x-model="inc.period"
+                                        class="bg-transparent border-0 p-0 text-xs text-gray-500 dark:text-gray-400 focus:ring-0 cursor-pointer appearance-none text-center">
+                                    <option value="month">Mo</option>
+                                    <option value="week">Wk</option>
+                                    <option value="annual">Yr</option>
+                                </select>
+                            </td>
+                            <td class="px-3 py-1.5 text-right">
+                                <span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums"
+                                      x-text="'$' + getIncomeMonthly(inc).toFixed(2)"></span>
+                            </td>
+                            <td class="px-2 py-1.5 text-center">
+                                <button x-show="incomeLines.length > 1" @click="removeIncomeLine(idx)"
+                                        class="p-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-negative-500 transition-colors" title="Remove">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            <div class="px-4 py-2 flex items-center justify-between border-t border-gray-100 dark:border-gray-600/30">
+                <button @click="addIncomeLine()"
+                        class="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-500 transition-colors inline-flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Add income source
+                </button>
+                <button @click="resetIncomeToAvg()"
+                        class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+                    Reset to 3-mo averages
+                </button>
+            </div>
+        </div>
+
+        <!-- Budget vs Income bar -->
+        <div class="mb-3">
+            <div class="flex items-center justify-between text-xs mb-1.5">
+                <span class="text-gray-500 dark:text-gray-400">Total budgeted</span>
+                <span class="font-semibold tabular-nums"
+                      :class="totalBudget <= avgIncome ? 'text-positive-600 dark:text-positive-400' : 'text-negative-500 dark:text-negative-400'"
+                      x-text="fmt(totalBudget)"></span>
+            </div>
+            <div class="h-4 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 relative">
+                <div class="h-full rounded-full transition-all duration-300"
+                     :class="totalBudget <= avgIncome ? 'bg-positive-500' : 'bg-negative-500'"
+                     :style="'width: ' + Math.min(totalBudget / Math.max(avgIncome, 1) * 100, 100) + '%'"></div>
+                <div class="absolute top-0 bottom-0 w-0.5 bg-brand-600 dark:bg-brand-400" style="left: 100%"></div>
+            </div>
+            <div class="flex items-center justify-between text-[11px] mt-1.5">
+                <div class="flex items-center gap-4">
+                    <span class="text-gray-400 dark:text-gray-500">
+                        <span x-text="fmt(Math.max(avgIncome - totalBudget, 0))"></span> unbudgeted
+                    </span>
+                    <span class="text-gray-400 dark:text-gray-500" x-show="totalBudget > avgIncome">
+                        <span class="text-negative-500 font-semibold" x-text="fmt(totalBudget - avgIncome)"></span> over income
+                    </span>
+                </div>
+                <span class="text-gray-400 dark:text-gray-500">Income: <span class="font-semibold text-gray-600 dark:text-gray-300" x-text="fmt(avgIncome)"></span></span>
+            </div>
+        </div>
+
+        <!-- Quick stats -->
+        <div class="grid grid-cols-4 gap-3 mt-4">
+            <div class="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3 text-center">
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Fixed</p>
+                <p class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums" x-text="fmt(fixedTotal)"></p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3 text-center">
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Flexible</p>
+                <p class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums" x-text="fmt(flexibleTotal)"></p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3 text-center">
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Categories</p>
+                <p class="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums" x-text="budgetedCount + '/' + cats.length"></p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3 text-center">
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">% of Income</p>
+                <p class="text-sm font-bold tabular-nums"
+                   :class="incomePercent <= 100 ? 'text-positive-600 dark:text-positive-400' : 'text-negative-500 dark:text-negative-400'"
+                   x-text="incomePercent + '%'"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- CATEGORY BUDGET TABLE                                       -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden mb-6">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <div>
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Set Your Budgets</h2>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Based on your last 3 months of spending. Click a suggestion to use it.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button @click="clearAll()"
+                        class="text-xs text-gray-400 hover:text-negative-500 transition-colors font-medium">
+                    Clear all
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-gray-100 dark:border-gray-700">
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">Category</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">3-Mo Avg</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">Monthly Budget</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">Per</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">/month</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">Use Avg</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
+                    <template x-for="(cat, idx) in cats" :key="cat.id">
+                        <tr :class="cat.is_fixed ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''">
+                            <td class="px-6 py-2.5">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-gray-900 dark:text-gray-100" :class="cat.parent_id ? '' : 'font-semibold'" x-text="cat.name"></span>
+                                    <span x-show="cat.is_fixed" class="px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">fixed</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-2.5 text-right">
+                                <span class="text-sm tabular-nums"
+                                      :class="cat.avg_spend > 0 ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-300 dark:text-gray-600'"
+                                      x-text="cat.avg_spend > 0 ? fmt(cat.avg_spend) : '—'"></span>
+                            </td>
+                            <td class="px-4 py-2.5">
+                                <input type="text" inputmode="decimal"
+                                       :value="catDisplay(cat)"
+                                       @focus="$el.value = String(cat.budget || ''); $el.select()"
+                                       @blur="resolveCat(cat, $el)"
+                                       @keydown.enter.prevent="resolveCat(cat, $el); $el.blur()"
+                                       class="w-full bg-transparent border border-gray-200 dark:border-gray-600 rounded-lg text-sm px-3 py-1.5 text-right tabular-nums text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 placeholder-gray-300 dark:placeholder-gray-600"
+                                       placeholder="0.00">
+                            </td>
+                            <td class="px-4 py-2.5 text-center">
+                                <select x-model="cat.period" @change="markDirty()"
+                                        class="bg-transparent border-0 p-0 text-xs text-gray-500 dark:text-gray-400 focus:ring-0 cursor-pointer appearance-none text-center">
+                                    <option value="month">Mo</option>
+                                    <option value="week">Wk</option>
+                                    <option value="annual">Yr</option>
+                                </select>
+                            </td>
+                            <td class="px-4 py-2.5 text-right">
+                                <span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums"
+                                      x-text="'$' + getMonthly(cat).toFixed(2)"></span>
+                            </td>
+                            <td class="px-4 py-2.5 text-center">
+                                <button x-show="cat.avg_spend > 0"
+                                        @click="cat.budget = cat.avg_spend; cat.period = 'month'; markDirty()"
+                                        class="px-2 py-1 text-[10px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 rounded-md hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
+                                        title="Use 3-month average">
+                                    Use
+                                </button>
+                                <span x-show="cat.avg_spend <= 0" class="text-xs text-gray-300 dark:text-gray-600">—</span>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+                <tfoot class="border-t-2 border-gray-200 dark:border-gray-600">
+                    <tr>
+                        <td class="px-6 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Total</td>
+                        <td class="px-4 py-3 text-sm font-bold text-gray-500 dark:text-gray-400 tabular-nums text-right" x-text="fmt(totalAvg)"></td>
+                        <td class="px-4 py-3"></td>
+                        <td class="px-4 py-3"></td>
+                        <td class="px-4 py-3 text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums text-right" x-text="fmt(totalBudget)"></td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="text-xs font-semibold tabular-nums"
+                                  :class="budgetDeltaPct > 0 ? 'text-negative-500' : budgetDeltaPct < 0 ? 'text-positive-600 dark:text-positive-400' : 'text-gray-400'"
+                                  x-text="(budgetDeltaPct > 0 ? '+' : '') + budgetDeltaPct + '%'"
+                                  x-show="totalAvg > 0"></span>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- TIPS                                                        -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Tips for setting budgets</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-500 dark:text-gray-400">
+            <div class="flex gap-2.5">
+                <div class="flex-shrink-0 w-7 h-7 rounded-full bg-positive-100 dark:bg-positive-900/30 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </div>
+                <div>
+                    <p class="font-semibold text-gray-700 dark:text-gray-300 mb-0.5">Start with averages</p>
+                    <p>Click "Auto-fill from spending" to pre-populate budgets based on your actual spending patterns. Adjust from there.</p>
+                </div>
+            </div>
+            <div class="flex gap-2.5">
+                <div class="flex-shrink-0 w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+                <div>
+                    <p class="font-semibold text-gray-700 dark:text-gray-300 mb-0.5">Fixed costs first</p>
+                    <p>Budget your fixed expenses (rent, insurance, subscriptions) first. These rarely change, so set them and forget them.</p>
+                </div>
+            </div>
+            <div class="flex gap-2.5">
+                <div class="flex-shrink-0 w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div>
+                    <p class="font-semibold text-gray-700 dark:text-gray-300 mb-0.5">Adjust monthly</p>
+                    <p>Use month overrides on the Budget Position page to handle one-off changes without touching your default budget.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('budgetSetup', () => ({
+        cats: [],
+        incomeLines: [],
+        _nextKey: 1,
+        dirty: false,
+        saving: false,
+
+        evalFormula(raw) {
+            let expr = String(raw).trim();
+            if (expr.startsWith('=')) expr = expr.slice(1);
+            if (!expr) return 0;
+            if (/^[\d\s+\-*/().]+$/.test(expr)) {
+                try { return Math.round(Function('"use strict"; return (' + expr + ')')() * 100) / 100; }
+                catch { return NaN; }
+            }
+            return parseFloat(expr) || 0;
+        },
+
+        init() {
+            const raw = {{ suggestions | tojson }};
+            this.cats = raw.map(c => ({
+                ...c,
+                budget: c.current_budget || 0,
+                period: 'month',
+            }));
+
+            const incomeCats = {{ income_cats | tojson }};
+            if (incomeCats.length > 0) {
+                this.incomeLines = incomeCats.map(ic => ({
+                    _key: this._nextKey++,
+                    id: ic.id,
+                    name: ic.name,
+                    avg: ic.avg_income,
+                    amount: ic.budgeted_amount || ic.avg_income || 0,
+                    period: 'month',
+                    isNew: false,
+                }));
+            } else {
+                this.incomeLines = [{
+                    _key: this._nextKey++,
+                    id: null,
+                    name: 'Primary income',
+                    avg: {{ avg_income }},
+                    amount: {{ avg_income }},
+                    period: 'month',
+                    isNew: true,
+                }];
+            }
+
+        },
+
+        fmt(v) {
+            return '$' + Number(v).toLocaleString('en-NZ', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        },
+
+        getIncomeMonthly(inc) {
+            const v = parseFloat(inc.amount) || 0;
+            if (inc.period === 'week') return Math.round(v * 52 / 12 * 100) / 100;
+            if (inc.period === 'annual') return Math.round(v / 12 * 100) / 100;
+            return Math.round(v * 100) / 100;
+        },
+
+        get totalIncome() {
+            return this.incomeLines.reduce((sum, inc) => sum + this.getIncomeMonthly(inc), 0);
+        },
+
+        get avgIncome() {
+            return this.totalIncome;
+        },
+
+        resolveIncomeLine(inc, el) {
+            const result = this.evalFormula(el.value);
+            if (!isNaN(result)) {
+                inc.amount = result;
+                el.value = result.toFixed(2);
+            } else {
+                el.value = inc.amount ? inc.amount.toFixed(2) : '';
+            }
+        },
+
+        addIncomeLine() {
+            this.incomeLines.push({
+                _key: this._nextKey++,
+                id: null,
+                name: '',
+                avg: 0,
+                amount: 0,
+                period: 'month',
+                isNew: true,
+            });
+        },
+
+        removeIncomeLine(idx) {
+            this.incomeLines.splice(idx, 1);
+        },
+
+        resetIncomeToAvg() {
+            const incomeCats = {{ income_cats | tojson }};
+            if (incomeCats.length > 0) {
+                this.incomeLines = incomeCats.map(ic => ({
+                    _key: this._nextKey++,
+                    id: ic.id,
+                    name: ic.name,
+                    avg: ic.avg_income,
+                    amount: ic.avg_income || 0,
+                    period: 'month',
+                    isNew: false,
+                }));
+            } else {
+                this.incomeLines = [{
+                    _key: this._nextKey++,
+                    id: null,
+                    name: 'Primary income',
+                    avg: {{ avg_income }},
+                    amount: {{ avg_income }},
+                    period: 'month',
+                    isNew: true,
+                }];
+            }
+        },
+
+        catDisplay(cat) {
+            return cat.budget ? cat.budget.toFixed(2) : '';
+        },
+
+        resolveCat(cat, el) {
+            const result = this.evalFormula(el.value);
+            if (!isNaN(result)) {
+                cat.budget = result;
+                el.value = result.toFixed(2);
+                this.markDirty();
+            } else {
+                el.value = cat.budget ? cat.budget.toFixed(2) : '';
+            }
+        },
+
+        getMonthly(cat) {
+            const v = parseFloat(cat.budget) || 0;
+            if (cat.period === 'week') return Math.round(v * 52 / 12 * 100) / 100;
+            if (cat.period === 'annual') return Math.round(v / 12 * 100) / 100;
+            return Math.round(v * 100) / 100;
+        },
+
+        markDirty() {
+            this.dirty = true;
+        },
+
+        get totalBudget() {
+            return this.cats.reduce((sum, c) => sum + this.getMonthly(c), 0);
+        },
+
+        get totalAvg() {
+            return this.cats.reduce((sum, c) => sum + (c.avg_spend || 0), 0);
+        },
+
+        get budgetDeltaPct() {
+            if (this.totalAvg === 0) return 0;
+            return Math.round((this.totalBudget - this.totalAvg) / this.totalAvg * 100);
+        },
+
+        get fixedTotal() {
+            return this.cats.filter(c => c.is_fixed).reduce((sum, c) => sum + this.getMonthly(c), 0);
+        },
+
+        get flexibleTotal() {
+            return this.cats.filter(c => !c.is_fixed).reduce((sum, c) => sum + this.getMonthly(c), 0);
+        },
+
+        get budgetedCount() {
+            return this.cats.filter(c => this.getMonthly(c) > 0).length;
+        },
+
+        get incomePercent() {
+            if (this.totalIncome <= 0) return 0;
+            return Math.round(this.totalBudget / this.totalIncome * 100);
+        },
+
+        applyAllAverages() {
+            this.cats.forEach(c => {
+                if (c.avg_spend > 0) {
+                    c.budget = Math.ceil(c.avg_spend / 5) * 5;
+                    c.period = 'month';
+                }
+            });
+            this.dirty = true;
+        },
+
+        clearAll() {
+            this.cats.forEach(c => { c.budget = 0; c.period = 'month'; });
+            this.dirty = true;
+        },
+
+        async saveAll() {
+            if (this.saving) return;
+            this.saving = true;
+
+            const budgets = {};
+            this.cats.forEach(c => {
+                const monthly = this.getMonthly(c);
+                budgets[c.id] = monthly;
+            });
+
+            const income = this.incomeLines
+                .filter(inc => inc.name.trim())
+                .map(inc => ({
+                    id: inc.id,
+                    name: inc.name.trim(),
+                    amount: this.getIncomeMonthly(inc),
+                }));
+
+            try {
+                const resp = await fetch('/budgets/apply-defaults', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ budgets, income }),
+                });
+                if (resp.ok) {
+                    this.dirty = false;
+                    this.cats.forEach(c => {
+                        c.current_budget = this.getMonthly(c);
+                    });
+                    const data = await resp.json();
+                    if (data.income_ids) {
+                        data.income_ids.forEach((entry, i) => {
+                            if (i < this.incomeLines.length) {
+                                this.incomeLines[i].id = entry.id;
+                                this.incomeLines[i].isNew = false;
+                            }
+                        });
+                    }
+                } else {
+                    window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Save failed', type: 'error' } }));
+                }
+            } catch {
+                window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Save failed', type: 'error' } }));
+            }
+            this.saving = false;
+        },
+    }));
+});
+</script>
+{% endblock %}

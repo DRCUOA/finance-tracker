@@ -114,14 +114,14 @@
                 <button @click="clearSelection()" class="text-xs text-brand-500 hover:text-brand-700 underline transition-colors">Clear</button>
             </div>
             <div class="flex gap-3">
-                <form hx-post="/transactions/batch/categorise" hx-swap="none" class="flex items-center gap-2">
+                <form hx-post="/transactions/batch/categorise" hx-target="#tx-table" hx-swap="innerHTML" class="flex items-center gap-2">
                     <template x-for="id in selected"><input type="hidden" name="tx_ids" :value="id"></template>
                     <select name="category_id" class="rounded-lg border-gray-300 text-sm py-1.5 focus:border-brand-500 focus:ring-brand-500">
                         {{ category_options(category_tree) }}
                     </select>
                     <button type="submit" class="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors">Categorise</button>
                 </form>
-                <form hx-post="/transactions/batch/delete" hx-swap="none" hx-confirm="Delete selected transactions?">
+                <form hx-post="/transactions/batch/delete" hx-target="#tx-table" hx-swap="innerHTML" hx-confirm="Delete selected transactions?">
                     <template x-for="id in selected"><input type="hidden" name="tx_ids" :value="id"></template>
                     <button type="submit" class="btn btn-destructive text-xs py-1.5 px-3">Delete</button>
                 </form>
