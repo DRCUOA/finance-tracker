@@ -69,7 +69,7 @@
                 <div class="bg-white dark:bg-gray-800 rounded-xl ring-1 ring-gray-100 dark:ring-gray-700 p-4">
                     <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Statement Balance</p>
                     <p class="text-lg font-bold text-gray-900 dark:text-gray-100 tabular-nums mt-1">{{ statement_balance|nzd }}</p>
-                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ statement_date }}</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ statement_date|fdate('short') }}</p>
                 </div>
                 <div class="bg-white dark:bg-gray-800 rounded-xl ring-1 ring-gray-100 dark:ring-gray-700 p-4">
                     <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Cleared Balance</p>
@@ -135,7 +135,7 @@
                                 <td class="px-2 py-3 text-center">
                                     <svg class="w-3.5 h-3.5 inline text-positive-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap tabular-nums">{{ tx.date.isoformat() }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap tabular-nums">{{ tx.date|fdate('short') }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{{ tx.description }}</td>
                                 <td class="px-4 py-3 text-sm text-right font-semibold tabular-nums whitespace-nowrap {% if tx.amount >= 0 %}text-positive-600{% else %}text-red-600{% endif %}">
                                     {{ tx.amount|nzd }}

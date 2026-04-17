@@ -1,6 +1,8 @@
 import json
 import uuid
 from datetime import date
+
+from app.dates import fmt_date
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -43,7 +45,7 @@ async def budget_setup(
         "overrides": overrides,
         "current_year": today.year,
         "current_month": today.month,
-        "month_label": today.strftime("%B %Y"),
+        "month_label": fmt_date(today, "month"),
     })
 
 

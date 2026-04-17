@@ -28,7 +28,7 @@
                     <svg class="w-3 h-3 inline text-positive-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
                     {% endif %}
                 </td>
-                <td class="py-1.5 px-3 text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums text-xs">{{ tx.date.strftime('%d %b %y') }}</td>
+                <td class="py-1.5 px-3 text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums text-xs">{{ tx.date|fdate('short') }}</td>
                 <td class="py-1.5 px-3 text-gray-900 dark:text-gray-100 truncate max-w-0" title="{{ tx.description }}">{{ tx.description }}</td>
                 <td class="py-1.5 px-3 text-right tabular-nums whitespace-nowrap text-xs {% if tx.amount < 0 %}text-red-600 dark:text-red-400{% else %}text-positive-600 dark:text-positive-400{% endif %}">{{ tx.amount|nzd }}</td>
                 <td class="py-1.5 px-1 text-center" onclick="event.stopPropagation()">

@@ -32,7 +32,7 @@
                         <svg class="w-3.5 h-3.5 inline text-positive-400" title="Editable" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6-6h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-3.5 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ tx.date }}</td>
+                    <td class="px-6 py-3.5 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ tx.date|fdate('short') }}</td>
                     <td class="px-6 py-3.5 text-sm text-gray-700 dark:text-gray-300">{{ tx.description }}</td>
                     <td class="px-6 py-3.5 text-sm text-right font-medium tabular-nums {% if tx.amount >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
                         {{ tx.amount|nzd }}

@@ -163,6 +163,38 @@ async def delete_commitment(
     return RedirectResponse(url="/commitments", status_code=302)
 
 
+@router.post("/rollover")
+async def rollover(
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await commit_svc.rollover_commitments(db, user.id)
+    await db.commit()
+    return RedirectResponse(url="/commitments", status_code=302)
+
+
+@router.post("/reset-to-budget")
+async def reset_to_budget(
+    request: Request,
+    start_date: str = Form(...),
+    periods: str = Form("1"),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        sd = date.fromisoformat(start_date)
+    except ValueError:
+        sd = date.today().replace(day=1)
+    try:
+        n = max(1, min(int(periods), 24))
+    except (ValueError, TypeError):
+        n = 1
+
+    result = await commit_svc.reset_to_budget(db, user.id, sd, n)
+    await db.commit()
+    return RedirectResponse(url="/commitments", status_code=302)
+
+
 @router.post("/project-recurring")
 async def project_recurring(
     user: User = Depends(require_user),

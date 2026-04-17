@@ -31,7 +31,7 @@
                             {% if info.last_reconciliation %}
                             <span class="text-gray-200 dark:text-gray-600">·</span>
                             <span class="text-sm text-gray-400 dark:text-gray-500">
-                                Last reconciled: <span class="text-gray-700 dark:text-gray-300">{{ info.last_reconciliation.statement_date }}</span>
+                                Last reconciled: <span class="text-gray-700 dark:text-gray-300">{{ info.last_reconciliation.statement_date|fdate('short') }}</span>
                             </span>
                             {% endif %}
                         </div>
@@ -66,7 +66,7 @@
                         <div class="flex-1 max-w-xs">
                             <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Statement Date</label>
                             <input type="date" name="statement_date" required
-                                   value="{{ info.last_reconciliation.statement_date if info.last_reconciliation else '' }}"
+                                   value="{{ info.last_reconciliation.statement_date|fiso if info.last_reconciliation else '' }}"
                                    class="w-full rounded-lg border-gray-300 text-sm py-2 px-3 focus:border-brand-500 focus:ring-brand-500">
                         </div>
                         <div class="flex-1 max-w-xs">

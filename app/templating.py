@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 
 from app.config import APP_VERSION
+from app.dates import fmt_date, fmt_iso, fmt_month
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -69,5 +70,8 @@ def _days_ago(value) -> int | None:
 templates.env.filters["nzd"] = _nzd
 templates.env.filters["timeago"] = _timeago
 templates.env.filters["days_ago"] = _days_ago
+templates.env.filters["fdate"] = fmt_date
+templates.env.filters["fiso"] = fmt_iso
+templates.env.filters["fmonth"] = fmt_month
 templates.env.globals["app_version"] = APP_VERSION
 templates.env.globals["today_date"] = date.today

@@ -71,7 +71,7 @@
                             <td class="py-3 pr-4 text-sm tabular-nums text-right text-gray-500 dark:text-gray-400">{{ acct.statement_imports }}</td>
                             <td class="py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                                 {% if acct.date_from %}
-                                {{ acct.date_from }} — {{ acct.date_to }}
+                                {{ acct.date_from|fdate('short') }} — {{ acct.date_to|fdate('short') }}
                                 {% else %}
                                 <span class="text-gray-300 dark:text-gray-600">—</span>
                                 {% endif %}

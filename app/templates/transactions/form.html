@@ -27,7 +27,7 @@
             </div>
             <div>
                 <label for="tx_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Date</label>
-                <input type="date" name="tx_date" id="tx_date" required value="{{ form_data.tx_date if form_data else (tx.date.isoformat() if tx else '') }}"
+                <input type="date" name="tx_date" id="tx_date" required value="{{ form_data.tx_date if form_data else (tx.date|fiso if tx else '') }}"
                        class="block w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500 transition-colors">
             </div>
         </div>

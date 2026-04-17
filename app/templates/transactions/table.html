@@ -53,7 +53,7 @@
                                :checked="selected.includes('{{ tx.id }}')"
                                @change="toggleOne('{{ tx.id }}', $event.target.checked)">
                     </td>
-                    <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ tx.date.isoformat() }}</td>
+                    <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ tx.date|fdate('short') }}</td>
                     <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100">{{ tx.description }}</td>
                     <td class="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{{ tx.account.name if tx.account else '—' }}</td>
                     <td class="px-4 py-2">

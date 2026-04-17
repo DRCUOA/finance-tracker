@@ -447,7 +447,7 @@ requestAnimationFrame(function() {
                 const amtClass = tx.amount >= 0 ? 'text-positive-600' : 'text-negative-500';
                 return '<tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors group/ddr">' +
                     '<td class="px-2 py-2.5 text-center">' + lockSvg(tx.is_cleared) + '</td>' +
-                    '<td class="px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">' + tx.date + '</td>' +
+                    '<td class="px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">' + fdate(tx.date) + '</td>' +
                     '<td class="px-4 py-2.5 text-sm text-gray-800 dark:text-gray-200 truncate max-w-[280px]" title="' + tx.description.replace(/"/g, '&quot;') + '">' + tx.description + '</td>' +
                     '<td class="px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">' + tx.account_name + '</td>' +
                     '<td class="px-4 py-2.5 text-sm text-right font-medium tabular-nums whitespace-nowrap ' + amtClass + '">' + fmt(tx.amount) + '</td>' +

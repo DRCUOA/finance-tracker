@@ -5,6 +5,8 @@ from decimal import Decimal
 from sqlalchemy import or_, select, func as sa_func, extract, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dates import fmt_date
+
 from app.models.account import Account, ACCOUNT_TYPE_GROUPS, AccountGroup
 from app.models.budget import Budget
 from app.models.category import Category, CategoryType
@@ -55,8 +57,8 @@ def period_bounds(ref: date, period: str) -> tuple[date, date]:
 def period_label(ref: date, period: str) -> str:
     if period == "week":
         mon, sun = week_bounds(ref)
-        return f"Week of {mon.strftime('%b %d')} – {(sun - timedelta(days=1)).strftime('%b %d, %Y')}"
-    return ref.strftime("%B %Y")
+        return f"Week of {fmt_date(mon, 'short')} – {fmt_date(sun - timedelta(days=1))}"
+    return fmt_date(ref, "month")
 
 
 # ---------------------------------------------------------------------------
@@ -307,7 +309,7 @@ async def net_balance_history(
         if period == "week":
             ref = anchor - timedelta(weeks=i)
             _, snapshot_end = week_bounds(ref)
-            label = (snapshot_end - timedelta(days=1)).strftime("%b %d")
+            label = fmt_date(snapshot_end - timedelta(days=1), "short")
         else:
             m = anchor.month - i
             y = anchor.year
@@ -429,7 +431,7 @@ async def import_coverage(
             mo = 12
             yr -= 1
 
-    month_labels = [date(y, m, 1).strftime("%b %y") for y, m in months]
+    month_labels = [fmt_date(date(y, m, 1), "month_abbr") for y, m in months]
 
     account_rows = []
     for acct in accounts:
@@ -474,7 +476,7 @@ async def category_spending_trend(
             y -= 1
         s = date(y, m, 1)
         e = date(y, m + 1, 1) if m < 12 else date(y + 1, 1, 1)
-        month_ranges.append((s, e, s.strftime("%b %y")))
+        month_ranges.append((s, e, fmt_date(s, "month_abbr")))
 
     conditions = [
         Transaction.user_id == user_id,
@@ -623,7 +625,7 @@ async def income_vs_spending_trend(
     for i in range(periods - 1, -1, -1):
         ref = step_period(today, -i, period)
         start, end = period_bounds(ref, period)
-        label = period_label(ref, period) if period == "week" else ref.strftime("%b %y")
+        label = period_label(ref, period) if period == "week" else fmt_date(ref, "month_abbr")
 
         conditions = [
             Transaction.category_id == Category.id,
@@ -831,7 +833,7 @@ async def cashflow_trend(
     for i in range(periods - 1, -1, -1):
         ref = step_period(today, -i, "month")
         m_start, m_end = month_bounds(ref.year, ref.month)
-        label = ref.strftime("%b %y")
+        label = fmt_date(ref, "month_abbr")
 
         opening = Decimal("0.00")
         closing = Decimal("0.00")
@@ -975,10 +977,15 @@ async def weekly_spending_pulse(
     period: str = "week",
     account_ids: list[uuid.UUID] | None = None,
 ) -> dict:
-    """Live position data: actuals + commitments + reserves."""
+    """Live position data: actuals + commitments + reserves.
+
+    Per-category and daily transaction totals use **all** accounts (the
+    *account_ids* argument is ignored) so they match commitment SPENT.
+    """
+    _ = account_ids
     from app.services.commitments import (
         commitment_totals_for_period, commitments_by_category,
-        project_recurring_commitments,
+        project_recurring_commitments, rollover_commitments,
     )
 
     today = date.today()
@@ -1005,33 +1012,13 @@ async def weekly_spending_pulse(
 
     prorate = total_days / 30.0 if period == "week" else 1.0
 
-    # Actuals by category — expense categories + uncategorised, signed net so
-    # refunds offset spend.  The sum is negative for net outflows; abs() gives
-    # the positive "consumed" figure.  Clamp to zero so a net-refund category
-    # never produces a negative "actual spent".
-    expense_cat_ids = [c.id for c in cats]
-    actual_stmt = (
-        select(
-            Transaction.category_id,
-            sa_func.sum(Transaction.amount).label("actual"),
-        )
-        .where(
-            Transaction.user_id == user_id,
-            Transaction.date >= start,
-            Transaction.date < end,
-            Transaction.category_id.in_(expense_cat_ids),
-        )
-        .group_by(Transaction.category_id)
+    # Actuals by category — same query rules as commitment SPENT
+    # (``category_actuals_for_period``): full SUM(amount) per category,
+    # all accounts, net outflow shown positive; uncategorised handled below.
+    actuals = await category_actuals_for_period(
+        db, user_id, start, end, account_ids=None,
     )
-    if account_ids is not None:
-        actual_stmt = actual_stmt.where(Transaction.account_id.in_(account_ids))
-    actuals = {
-        str(r.category_id): max(float(abs(r.actual)), 0.0)
-        for r in (await db.execute(actual_stmt)).all()
-        if r.actual and r.actual < 0
-    }
 
-    # Uncategorised spend (category_id IS NULL, negative amounts only)
     uncat_stmt = (
         select(sa_func.sum(Transaction.amount).label("actual"))
         .where(
@@ -1041,33 +1028,41 @@ async def weekly_spending_pulse(
             Transaction.category_id.is_(None),
         )
     )
-    if account_ids is not None:
-        uncat_stmt = uncat_stmt.where(Transaction.account_id.in_(account_ids))
     uncat_row = (await db.execute(uncat_stmt)).first()
     uncategorised_actual = (
-        max(float(abs(uncat_row.actual)), 0.0)
-        if uncat_row and uncat_row.actual and uncat_row.actual < 0
+        round(float(abs(uncat_row.actual)), 2)
+        if uncat_row and uncat_row.actual is not None and float(uncat_row.actual) < 0
         else 0.0
     )
 
-    # Commitments — use the actual view period so clearing a commitment
-    # is immediately reflected.  Recurring projection still covers the
-    # enclosing month to ensure future instances exist.
-    _, m_end = month_bounds(start.year, start.month)
+    # Commitments — always aggregate for the **calendar month** of *start*
+    # (matches the commitments list on Spending).  Using only [start, end)
+    # hid month-to-due obligations in week view and made partial clears look
+    # like $0 committed.  Actuals stay on the viewing period [start, end).
+    m_start, m_end = month_bounds(start.year, start.month)
     await project_recurring_commitments(db, user_id, m_end)
+    await rollover_commitments(db, user_id)
 
-    commit_totals_raw = await commitment_totals_for_period(db, user_id, start, end)
-    commit_by_cat_raw = await commitments_by_category(db, user_id, start, end)
+    commit_totals_raw = await commitment_totals_for_period(db, user_id, m_start, m_end)
+    commit_by_cat_raw = await commitments_by_category(db, user_id, m_start, m_end)
 
-    commit_totals = {
-        "committed_out": round(commit_totals_raw["committed_out"], 2),
-        "committed_in": round(commit_totals_raw["committed_in"], 2),
-    }
+    committed_in = round(commit_totals_raw["committed_in"], 2)
     commit_by_cat = {
         cid: round(v, 2) for cid, v in commit_by_cat_raw.items()
     }
 
-    # Build per-category rows with live position
+    # Uncategorised committed (no category to absorb against)
+    categorised_committed_total = sum(commit_by_cat.values())
+    uncat_committed = max(
+        round(commit_totals_raw["committed_out"] - categorised_committed_total, 2), 0,
+    )
+
+    # Build per-category rows with live position.
+    # *raw_committed* is month obligation remainder (amount − cleared_amount).
+    # Accrual: committed = max(raw_committed - actual, 0) where *actual* is
+    # the viewing period; spoken_for = actual + committed = max(actual, raw).
+    # *obligation_remaining* (raw) is exposed for tooltips; modal Committed column
+    # uses *committed* so Spent + Committed + Reserved = Total per row.
     period_budget = 0.0
     total_reserved = 0.0
     cat_rows = []
@@ -1076,14 +1071,12 @@ async def weekly_spending_pulse(
         raw_budget = budgets.get(cid, float(cat.budgeted_amount))
         budgeted = round(raw_budget * prorate, 2)
         actual = actuals.get(cid, 0.0)
-        committed = commit_by_cat.get(cid, 0.0)
+        raw_committed = commit_by_cat.get(cid, 0.0)
+        obligation_remaining = round(raw_committed, 2)
+        committed = round(max(raw_committed - actual, 0), 2)
 
-        # Reserve: for categories with reserve_amount, the minimum "spoken for"
-        # is the prorated reserve even if actual+committed is lower
         reserve_raw = float(cat.reserve_amount) * prorate
         reserve = round(reserve_raw, 2)
-        # "spoken for" = max(actual + committed, reserve) for reserved categories
-        # For non-reserved categories, spoken_for = actual + committed
         if reserve > 0:
             spoken_for = round(max(actual + committed, reserve), 2)
             reserve_gap = round(max(reserve - actual - committed, 0), 2)
@@ -1101,7 +1094,8 @@ async def weekly_spending_pulse(
             "category_name": cat.name,
             "budgeted": budgeted,
             "actual": round(actual, 2),
-            "committed": round(committed, 2),
+            "committed": committed,
+            "obligation_remaining": obligation_remaining,
             "reserve": reserve,
             "reserve_gap": reserve_gap,
             "spoken_for": spoken_for,
@@ -1116,6 +1110,7 @@ async def weekly_spending_pulse(
             "budgeted": 0.0,
             "actual": round(uncategorised_actual, 2),
             "committed": 0.0,
+            "obligation_remaining": 0.0,
             "reserve": 0.0,
             "reserve_gap": 0.0,
             "spoken_for": round(uncategorised_actual, 2),
@@ -1127,8 +1122,10 @@ async def weekly_spending_pulse(
     cat_rows.sort(key=lambda r: r["pct"], reverse=True)
 
     total_actual = sum(r["actual"] for r in cat_rows)
-    total_committed = commit_totals["committed_out"]
-    total_spoken_for = round(total_actual + total_committed + total_reserved, 2)
+    total_committed = sum(r["committed"] for r in cat_rows) + uncat_committed
+    total_spoken_for = round(
+        sum(r["spoken_for"] for r in cat_rows) + uncat_committed, 2,
+    )
 
     live_available = round(period_budget - total_spoken_for, 2)
     overall_pct = round(total_spoken_for / period_budget * 100, 1) if period_budget else 0.0
@@ -1140,8 +1137,10 @@ async def weekly_spending_pulse(
     elapsed_budget = budget_daily_rate * days_elapsed
     pace_pct = round(total_actual / elapsed_budget * 100, 1) if elapsed_budget else 0.0
 
-    # Day-by-day expense spend broken down by category.
-    # Expense-type categories + uncategorised; transfers/income excluded.
+    # Day-by-day breakdown: same rules as commitment SPENT — algebraic
+    # SUM(amount) per (date, category), all accounts (no cashflow filter),
+    # including credits/refunds.  Bars use net outflow max(0, -day_net);
+    # tooltips list every category with non-zero net so mixed days are visible.
     daily_stmt = (
         select(
             Transaction.date,
@@ -1161,27 +1160,34 @@ async def weekly_spending_pulse(
         .group_by(Transaction.date, "cat_name")
         .order_by(Transaction.date, "cat_name")
     )
-    if account_ids is not None:
-        daily_stmt = daily_stmt.where(Transaction.account_id.in_(account_ids))
     daily_result = await db.execute(daily_stmt)
 
     daily_map: dict[date, dict[str, float]] = {}
     for r in daily_result.all():
-        if r.total and r.total < 0:
-            amt = round(float(abs(r.total)), 2)
-            daily_map.setdefault(r.date, {})[r.cat_name] = amt
+        if r.total is None:
+            continue
+        net = float(r.total)
+        if net == 0:
+            continue
+        daily_map.setdefault(r.date, {})[r.cat_name] = round(net, 2)
 
     daily_spending = []
     for i in range(total_days):
         d = start + timedelta(days=i)
         cats = daily_map.get(d, {})
+        day_net = round(sum(cats.values()), 2)
+        bar_amount = round(max(0.0, -day_net), 2)
         daily_spending.append({
             "date": d.isoformat(),
-            "label": d.strftime("%a"),
-            "amount": round(sum(cats.values()), 2),
+            "label": fmt_date(d, "weekday"),
+            "amount": bar_amount,
+            "day_net": day_net,
             "categories": [
                 {"name": k, "amount": v}
-                for k, v in sorted(cats.items(), key=lambda x: -x[1])
+                for k, v in sorted(
+                    cats.items(),
+                    key=lambda x: (0 if x[1] < 0 else 1, -abs(x[1])),
+                )
             ],
         })
 
@@ -1193,7 +1199,7 @@ async def weekly_spending_pulse(
         "total_committed": round(total_committed, 2),
         "total_reserved": round(total_reserved, 2),
         "total_spoken_for": total_spoken_for,
-        "committed_in": round(commit_totals["committed_in"], 2),
+        "committed_in": committed_in,
         "live_available": live_available,
         "days_elapsed": days_elapsed,
         "days_remaining": days_remaining,
@@ -1207,6 +1213,51 @@ async def weekly_spending_pulse(
         "daily_spending": daily_spending,
         "budget_daily_rate": budget_daily_rate,
         "categories": cat_rows,
+    }
+
+
+async def category_actuals_for_period(
+    db: AsyncSession, user_id: uuid.UUID,
+    start: date, end: date,
+    account_ids: list[uuid.UUID] | None = None,
+) -> dict[str, float]:
+    """Per expense category: ``SUM(amount)`` for all rows in ``[start, end)``.
+
+    Every matching transaction counts — expenses, refunds, and other
+    signed amounts — with no special casing.  For the commitment
+    “SPENT” label the UI uses the positive magnitude when the net sum
+    is an outflow (``sum < 0``); net inflows omit the category.
+    """
+    cats = (await db.execute(
+        select(Category.id).where(
+            Category.user_id == user_id,
+            Category.category_type == CategoryType.EXPENSE,
+        )
+    )).scalars().all()
+    if not cats:
+        return {}
+
+    cat_ids = list(cats)
+    stmt = (
+        select(
+            Transaction.category_id,
+            sa_func.sum(Transaction.amount).label("net"),
+        )
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.date >= start,
+            Transaction.date < end,
+            Transaction.category_id.in_(cat_ids),
+        )
+        .group_by(Transaction.category_id)
+    )
+    if account_ids is not None:
+        stmt = stmt.where(Transaction.account_id.in_(account_ids))
+
+    return {
+        str(r.category_id): round(float(abs(r.net)), 2)
+        for r in (await db.execute(stmt)).all()
+        if r.net is not None and float(r.net) < 0
     }
 
 
@@ -1353,8 +1404,33 @@ async def rolling_over_under(
         for r in actual_rows
     }
 
+    # Outstanding outflow commitments (accruals) by month across the range
+    from app.models.commitment import Commitment, CommitmentDirection
+    accrual_stmt = (
+        select(
+            extract("year", Commitment.due_date).label("yr"),
+            extract("month", Commitment.due_date).label("mo"),
+            sa_func.sum(Commitment.amount - Commitment.cleared_amount).label("total"),
+        )
+        .where(
+            Commitment.user_id == user_id,
+            Commitment.is_active.is_(True),
+            Commitment.cleared_at.is_(None),
+            Commitment.direction == CommitmentDirection.OUTFLOW,
+            Commitment.due_date >= rolling_start,
+            Commitment.due_date < months[-1][1],
+        )
+        .group_by("yr", "mo")
+    )
+    accrual_rows = (await db.execute(accrual_stmt)).all()
+    accrual_by_month = {
+        (int(r.yr), int(r.mo)): float(r.total) if r.total else 0.0
+        for r in accrual_rows
+    }
+
     today = date.today()
     running_total = 0.0
+    total_accrued = 0.0
     month_rows = []
     for ms, me in months:
         ym = (ms.year, ms.month)
@@ -1364,7 +1440,10 @@ async def rolling_over_under(
             for cid in expense_cat_ids
         )
         month_spend = actual_by_month.get(ym, 0.0)
-        variance = round(month_budget - month_spend, 2)
+        raw_accrued = accrual_by_month.get(ym, 0.0)
+        month_accrued = round(max(raw_accrued - month_spend, 0), 2)
+        total_accrued = round(total_accrued + month_accrued, 2)
+        variance = round(month_budget - month_spend - month_accrued, 2)
         running_total = round(running_total + variance, 2)
 
         phase = _period_phase(ms, me, today)
@@ -1372,9 +1451,10 @@ async def rolling_over_under(
         month_rows.append({
             "year": ms.year,
             "month": ms.month,
-            "label": ms.strftime("%b %Y"),
+            "label": fmt_date(ms, "month_short"),
             "budget": round(month_budget, 2),
             "spent": round(month_spend, 2),
+            "accrued": month_accrued,
             "variance": variance,
             "running_total": running_total,
             "phase": phase,
@@ -1384,5 +1464,6 @@ async def rolling_over_under(
         "rolling_start": rolling_start.isoformat(),
         "period_end": period_end.isoformat(),
         "cumulative_over_under": running_total,
+        "total_accrued": total_accrued,
         "months": month_rows,
     }

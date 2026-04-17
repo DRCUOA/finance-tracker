@@ -100,22 +100,17 @@ async def create_category(
 async def update_category(
     category_id: uuid.UUID,
     name: str = Form(...),
-    budgeted_amount: str = Form("0.00"),
     reserve_amount: str = Form("0.00"),
     is_fixed: str = Form(""),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        ba = Decimal(budgeted_amount)
-    except InvalidOperation:
-        ba = Decimal("0.00")
-    try:
         ra = Decimal(reserve_amount)
     except InvalidOperation:
         ra = Decimal("0.00")
     fixed = is_fixed == "on"
-    await cat_svc.update_category(db, category_id, user.id, name=name, budgeted_amount=ba, reserve_amount=ra, is_fixed=fixed)
+    await cat_svc.update_category(db, category_id, user.id, name=name, reserve_amount=ra, is_fixed=fixed)
     return RedirectResponse(url="/categories", status_code=302)
 
 

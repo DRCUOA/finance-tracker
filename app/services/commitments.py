@@ -2,6 +2,8 @@ import calendar
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+
+from app.dates import fmt_date
 from decimal import Decimal
 
 from sqlalchemy import select, and_
@@ -448,6 +450,263 @@ async def commitments_by_category(
     )
     result = await db.execute(stmt)
     return {str(r.category_id): float(r.total) for r in result.all()}
+
+
+# ---------------------------------------------------------------------------
+# Reset to budget — replace all pending commitments with budget-aligned ones
+# ---------------------------------------------------------------------------
+
+async def reset_to_budget(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    start_date: date,
+    periods: int,
+) -> dict[str, int]:
+    """Wipe every commitment and create fresh ones from the current budget.
+
+    This is a hard reset: ALL commitments are deleted — pending, cleared,
+    active, inactive — so no accruals or stale history carry over.
+
+    For each expense category with a non-zero budget, one outflow
+    commitment is created for each of the *periods* months starting
+    from *start_date* (snapped to the 1st of the month).  Budget overrides
+    for each specific month take precedence over the category default.
+
+    Returns ``{"deleted": n, "created": m}``.
+    """
+    from app.models.budget import Budget
+
+    del_stmt = (
+        select(Commitment)
+        .where(Commitment.user_id == user_id)
+    )
+    all_commitments = list((await db.execute(del_stmt)).scalars().all())
+    deleted = len(all_commitments)
+    for c in all_commitments:
+        await db.delete(c)
+    await db.flush()
+
+    cats_stmt = (
+        select(Category)
+        .where(
+            Category.user_id == user_id,
+            Category.category_type == "expense",
+            Category.parent_id.isnot(None),
+        )
+        .order_by(Category.sort_order)
+    )
+    cats = list((await db.execute(cats_stmt)).scalars().all())
+    if not cats:
+        cats_stmt = (
+            select(Category)
+            .where(
+                Category.user_id == user_id,
+                Category.category_type == "expense",
+            )
+            .order_by(Category.sort_order)
+        )
+        cats = list((await db.execute(cats_stmt)).scalars().all())
+
+    month_start = start_date.replace(day=1)
+    created = 0
+
+    for offset in range(periods):
+        period_start = _add_months(month_start, offset)
+        y, m = period_start.year, period_start.month
+        last_day = calendar.monthrange(y, m)[1]
+
+        override_stmt = (
+            select(Budget.category_id, Budget.amount)
+            .where(
+                Budget.user_id == user_id,
+                Budget.year == y,
+                Budget.month == m,
+            )
+        )
+        overrides = {
+            r.category_id: r.amount
+            for r in (await db.execute(override_stmt)).all()
+        }
+
+        for cat in cats:
+            amount = overrides.get(cat.id, cat.budgeted_amount)
+            if not amount or amount <= 0:
+                continue
+
+            due = date(y, m, min(15, last_day))
+
+            db.add(Commitment(
+                user_id=user_id,
+                category_id=cat.id,
+                title=cat.name,
+                amount=amount,
+                direction=CommitmentDirection.OUTFLOW,
+                due_date=due,
+                is_recurring=False,
+                confidence=CommitmentConfidence.ESTIMATED,
+            ))
+            created += 1
+
+    if created:
+        await db.flush()
+    return {"deleted": deleted, "created": created}
+
+
+# ---------------------------------------------------------------------------
+# Rollover — carry unused accrual forward to the next period
+# ---------------------------------------------------------------------------
+
+async def rollover_commitments(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> dict[str, int]:
+    """Process completed periods and roll unused commitment amounts forward.
+
+    For each past month with uncleared outflow commitments (category-linked):
+    1. Sum the remaining committed amount per category.
+    2. Query actual expense spend for that category in the same month.
+    3. Unused = max(committed − actual, 0).
+    4. Mark old commitments as cleared.
+    5. If unused > 0, add the surplus to the next month's commitment for
+       the same category (creating one if none exists).
+
+    Months are processed oldest-first so cascading rollovers accumulate
+    correctly (January → February → March …).
+
+    Returns ``{"months_processed": n, "lines_rolled": m}``.
+    """
+    today = date.today()
+    current_month = today.replace(day=1)
+
+    month_stmt = (
+        select(
+            sa_func.extract("year", Commitment.due_date).label("yr"),
+            sa_func.extract("month", Commitment.due_date).label("mo"),
+        )
+        .where(
+            Commitment.user_id == user_id,
+            Commitment.is_active.is_(True),
+            Commitment.cleared_at.is_(None),
+            Commitment.direction == CommitmentDirection.OUTFLOW,
+            Commitment.category_id.isnot(None),
+            Commitment.due_date < current_month,
+        )
+        .distinct()
+        .order_by("yr", "mo")
+    )
+    months = [
+        (int(r.yr), int(r.mo))
+        for r in (await db.execute(month_stmt)).all()
+    ]
+
+    months_processed = 0
+    lines_rolled = 0
+
+    for yr, mo in months:
+        m_start = date(yr, mo, 1)
+        m_end = _add_months(m_start, 1)
+
+        commits_stmt = (
+            select(Commitment)
+            .options(selectinload(Commitment.category))
+            .where(
+                Commitment.user_id == user_id,
+                Commitment.is_active.is_(True),
+                Commitment.cleared_at.is_(None),
+                Commitment.direction == CommitmentDirection.OUTFLOW,
+                Commitment.category_id.isnot(None),
+                Commitment.due_date >= m_start,
+                Commitment.due_date < m_end,
+            )
+        )
+        commits = list((await db.execute(commits_stmt)).scalars().all())
+        if not commits:
+            continue
+
+        cat_groups: dict[uuid.UUID, list[Commitment]] = defaultdict(list)
+        for c in commits:
+            cat_groups[c.category_id].append(c)
+
+        actual_stmt = (
+            select(
+                Transaction.category_id,
+                sa_func.sum(Transaction.amount).label("total"),
+            )
+            .where(
+                Transaction.user_id == user_id,
+                Transaction.date >= m_start,
+                Transaction.date < m_end,
+                Transaction.category_id.in_(list(cat_groups.keys())),
+                Transaction.amount < 0,
+            )
+            .group_by(Transaction.category_id)
+        )
+        actuals_by_cat = {
+            r.category_id: abs(float(r.total))
+            for r in (await db.execute(actual_stmt)).all()
+            if r.total
+        }
+
+        now = datetime.now(timezone.utc)
+        for cat_id, cat_commits in cat_groups.items():
+            total_committed = sum(
+                c.amount - c.cleared_amount for c in cat_commits
+            )
+            actual_spend = Decimal(str(actuals_by_cat.get(cat_id, 0.0)))
+            unused = max(total_committed - actual_spend, Decimal("0"))
+
+            for c in cat_commits:
+                c.cleared_at = now
+                c.cleared_amount = c.amount
+
+            if unused > Decimal("0"):
+                next_m_start = m_end
+                next_m_end = _add_months(next_m_start, 1)
+
+                existing = (await db.execute(
+                    select(Commitment).where(
+                        Commitment.user_id == user_id,
+                        Commitment.is_active.is_(True),
+                        Commitment.cleared_at.is_(None),
+                        Commitment.direction == CommitmentDirection.OUTFLOW,
+                        Commitment.category_id == cat_id,
+                        Commitment.due_date >= next_m_start,
+                        Commitment.due_date < next_m_end,
+                    ).limit(1)
+                )).scalar_one_or_none()
+
+                if existing:
+                    existing.amount += unused
+                else:
+                    cat_name = (
+                        cat_commits[0].category.name
+                        if cat_commits[0].category
+                        else "Rollover"
+                    )
+                    last_day = calendar.monthrange(
+                        next_m_start.year, next_m_start.month,
+                    )[1]
+                    db.add(Commitment(
+                        user_id=user_id,
+                        category_id=cat_id,
+                        title=cat_name,
+                        amount=unused,
+                        direction=CommitmentDirection.OUTFLOW,
+                        due_date=date(
+                            next_m_start.year,
+                            next_m_start.month,
+                            min(15, last_day),
+                        ),
+                        is_recurring=False,
+                        confidence=CommitmentConfidence.ESTIMATED,
+                        notes=f"Rolled over from {fmt_date(m_start, 'month_short')}",
+                    ))
+                lines_rolled += 1
+
+        await db.flush()
+        months_processed += 1
+
+    return {"months_processed": months_processed, "lines_rolled": lines_rolled}
 
 
 # ---------------------------------------------------------------------------

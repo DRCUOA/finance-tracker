@@ -143,7 +143,7 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                 {% if tx_age_days == 0 %}Latest tx: today
                 {% elif tx_age_days == 1 %}Latest tx: yesterday
-                {% else %}Latest tx: {{ tx_age_days }}d ago ({{ latest_tx_date.strftime('%d %b') }}){% endif %}
+                {% else %}Latest tx: {{ tx_age_days }}d ago ({{ latest_tx_date|fdate('short') }}){% endif %}
             </div>
             {% elif has_transactions and stats is none %}
             <div class="flex items-center gap-1.5 text-gray-400 dark:text-gray-500">
@@ -187,7 +187,7 @@
 
                 <div class="flex items-center gap-2 flex-wrap">
                     {% if has_transactions and acct_status == 'ACTIVE' %}
-                    {% set default_end = today_date().isoformat() %}
+                    {% set default_end = today_date()|fiso %}
                     <form method="post" action="/bank-feeds/sync-transactions/{{ linked_local.id }}" class="flex items-center gap-2"
                           x-data="syncDates('{{ default_end }}')">
                         <input type="date" name="start_date" x-model="start" required

@@ -84,7 +84,7 @@
         </div>
         {% else %}
         <div class="mt-4 flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
-            <span>{{ p.days_total }} day period &middot; starts {{ start.strftime('%b %d') }}</span>
+            <span>{{ p.days_total }} day period &middot; starts {{ start|fdate('short') }}</span>
         </div>
         {% endif %}
     </div>
@@ -242,7 +242,7 @@
                         <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
                             <div>
                                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Spoken For Breakdown</h3>
-                                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Actual + committed + reserved</p>
+                                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Each row: Total = Spent + Committed + Reserved. Committed is obligation not yet covered by spend this period.</p>
                             </div>
                             <button @click="showSpoken = false" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -265,7 +265,7 @@
                                     <tr>
                                         <td class="px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 truncate max-w-[140px]">{{ cat.category_name }}</td>
                                         <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.actual > 0 %}text-negative-500 dark:text-negative-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ cat.actual|nzd if cat.actual > 0 else '—' }}</td>
-                                        <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.committed > 0 %}text-amber-600 dark:text-amber-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ cat.committed|nzd if cat.committed > 0 else '—' }}</td>
+                                        <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.committed > 0 %}text-amber-600 dark:text-amber-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}" {% if cat.obligation_remaining > cat.committed %}title="Full obligation remaining (after partial clears): {{ cat.obligation_remaining|nzd }}"{% endif %}>{{ cat.committed|nzd if cat.committed > 0 else '—' }}</td>
                                         <td class="px-2 py-2.5 text-xs tabular-nums text-right {% if cat.reserve_gap > 0 %}text-violet-600 dark:text-violet-400 font-medium{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ cat.reserve_gap|nzd if cat.reserve_gap > 0 else '—' }}</td>
                                         <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums text-right font-semibold">{{ cat.spoken_for|nzd }}</td>
                                     </tr>
@@ -301,7 +301,10 @@
 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
     <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Daily Allowance Used</h3>
-        <span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums">Daily budget rate: {{ p.budget_daily_rate|nzd }}</span>
+        <div class="flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+            <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-2 border-dashed" style="border-color:#6366f1"></span>Budget: {{ p.budget_daily_rate|nzd }}/day</span>
+            <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-2" style="border-color:rgba(217,119,6,0.7)"></span>Avg to date: {{ (p.total_actual / p.days_elapsed)|round(2)|nzd }}/day</span>
+        </div>
     </div>
     <canvas id="dailyChart" height="160"></canvas>
 </div>
@@ -315,7 +318,7 @@
         <div class="flex items-center justify-between mb-3">
             <div>
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Rolling Over / Under</h3>
-                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Cumulative budget vs actual spend since start date</p>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Cumulative budget vs actual spend + accruals since start date</p>
             </div>
             <div class="flex items-center gap-3">
                 <form method="get" action="/spending" class="flex items-center gap-2">
@@ -348,6 +351,7 @@
                     <p class="text-xs text-gray-400 dark:text-gray-500">
                         {% if r.cumulative_over_under >= 0 %}under budget cumulatively{% else %}over budget cumulatively{% endif %}
                         &middot; {{ r.months|length }} month{{ 's' if r.months|length != 1 else '' }}
+                        {% if r.total_accrued > 0 %}&middot; {{ r.total_accrued|nzd }} accrued{% endif %}
                     </p>
                 </div>
             </div>
@@ -366,6 +370,7 @@
                     <th class="px-6 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Month</th>
                     <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Budget</th>
                     <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Spent</th>
+                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Accrued</th>
                     <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Variance</th>
                     <th class="px-6 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Running</th>
                 </tr>
@@ -381,6 +386,7 @@
                     </td>
                     <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{{ m.budget|nzd }}</td>
                     <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{{ m.spent|nzd }}</td>
+                    <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{% if m.accrued > 0 %}{{ m.accrued|nzd }}{% else %}&mdash;{% endif %}</td>
                     <td class="px-4 py-2.5 text-sm tabular-nums text-right font-medium {% if m.variance >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
                         {% if m.variance >= 0 %}+{% endif %}{{ m.variance|nzd }}
                     </td>
@@ -534,10 +540,19 @@
                     {% endif %}
                 </div>
                 <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 tabular-nums">
-                    Due {{ c.due_date }}{% if c.category %} · {{ c.category.name }}{% endif %}{% if c.notes %} · {{ c.notes }}{% endif %}
+                    Due {{ c.due_date|fdate('short') }}{% if c.category %} · {{ c.category.name }}{% endif %}{% if c.notes %} · {{ c.notes }}{% endif %}
                     {% if c.cleared_amount > 0 and not c.cleared_at %} · {{ remaining|nzd }} remaining{% endif %}
                 </p>
             </div>
+            {% if c.category and not c.cleared_at %}
+            {% set cat_actual = actuals_by_cat.get(c.category_id|string, 0) %}
+            {% if cat_actual > 0 %}
+            <div class="flex flex-col items-end mr-2 flex-shrink-0">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 leading-none">Spent</span>
+                <span class="text-xs font-semibold tabular-nums leading-tight {% if cat_actual >= (c.amount|float) %}text-blue-500 dark:text-blue-400{% else %}text-positive-500 dark:text-positive-400{% endif %}">{{ cat_actual|nzd }}</span>
+            </div>
+            {% endif %}
+            {% endif %}
             <span class="text-sm font-semibold tabular-nums whitespace-nowrap
                 {% if c.direction.value == 'outflow' %}text-negative-500 dark:text-negative-400{% else %}text-positive-600 dark:text-positive-400{% endif %}">
                 {% if c.direction.value == 'outflow' %}-{% else %}+{% endif %}{{ c.amount|nzd }}
@@ -561,6 +576,15 @@
                     </button>
                 </form>
                 <div x-show="!showClear" class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {% if c.cleared_amount > 0 %}
+                    <form action="/spending/commitments/{{ c.id }}/unclear" method="POST" class="inline">
+                        <input type="hidden" name="period" value="{{ period }}">
+                        <input type="hidden" name="ref" value="{{ start }}">
+                        <button type="submit" title="Reset cleared amount ({{ c.cleared_amount|nzd }})" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                        </button>
+                    </form>
+                    {% endif %}
                     <button type="button" @click="showClear = true; $nextTick(() => $el.closest('.group').querySelector('input[name=amount]')?.select())"
                             title="Clear (enter amount)" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-positive-600 dark:hover:text-positive-400 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -573,6 +597,16 @@
                         </button>
                     </form>
                 </div>
+            </div>
+            {% else %}
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <form action="/spending/commitments/{{ c.id }}/unclear" method="POST" class="inline">
+                    <input type="hidden" name="period" value="{{ period }}">
+                    <input type="hidden" name="ref" value="{{ start }}">
+                    <button type="submit" title="Reactivate commitment (undo clear)" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                    </button>
+                </form>
             </div>
             {% endif %}
         </div>
@@ -743,6 +777,13 @@ requestAnimationFrame(function() {
         const existing = Chart.getChart(dailyCanvas);
         if (existing) existing.destroy();
 
+        let runningSum = 0;
+        const rollingAvg = dailyData.map((d, i) => {
+            if (i >= daysElapsed) return null;
+            runningSum += d.amount;
+            return runningSum / (i + 1);
+        });
+
         Chart.defaults.color = isDark ? '#9ca3af' : '#666';
         Chart.defaults.borderColor = isDark ? 'rgba(75, 85, 99, 0.5)' : 'rgba(0, 0, 0, 0.1)';
 
@@ -777,6 +818,16 @@ requestAnimationFrame(function() {
                         pointRadius: 0,
                         fill: false,
                     },
+                    {
+                        label: 'Avg Spend',
+                        data: rollingAvg,
+                        type: 'line',
+                        borderColor: isDark ? 'rgba(251,191,36,0.7)' : 'rgba(217,119,6,0.7)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: false,
+                        fill: false,
+                    },
                 ]
             },
             options: {
@@ -792,10 +843,11 @@ requestAnimationFrame(function() {
                             title: ctx => {
                                 const pt = ctx[0];
                                 const d = dailyData[pt.dataIndex];
-                                return d ? d.label + ' — ' + d.date : pt.label;
+                                return d ? d.label + ' — ' + fdate(d.date) : pt.label;
                             },
                             label: ctx => {
-                                if (ctx.datasetIndex !== 0) return 'Budget: ' + fmt(ctx.raw);
+                                if (ctx.datasetIndex === 1) return 'Budget: ' + fmt(ctx.raw);
+                                if (ctx.datasetIndex === 2) return 'Avg: ' + fmt(ctx.raw);
                                 return null;
                             },
                             afterBody: ctx => {
@@ -803,9 +855,17 @@ requestAnimationFrame(function() {
                                 if (pt.datasetIndex !== 0) return '';
                                 const d = dailyData[pt.dataIndex];
                                 if (!d || !d.categories || d.categories.length === 0) return '';
-                                const lines = d.categories.map(c => '  ' + c.name + ': ' + fmt(c.amount));
+                                const lines = d.categories.map(c => {
+                                    const v = c.amount;
+                                    if (v < 0) return '  ' + c.name + ': ' + fmt(-v) + ' (spend)';
+                                    return '  ' + c.name + ': ' + fmt(v) + ' (credit)';
+                                });
                                 lines.push('');
-                                lines.push('Total: ' + fmt(d.amount));
+                                const dn = typeof d.day_net === 'number' ? d.day_net : -d.amount;
+                                if (dn < 0) lines.push('Net outflow: ' + fmt(-dn));
+                                else if (dn > 0) lines.push('Net inflow: ' + fmt(dn));
+                                else lines.push('Net: ' + fmt(0));
+                                lines.push('Bar (outflow): ' + fmt(d.amount));
                                 return lines;
                             },
                         },

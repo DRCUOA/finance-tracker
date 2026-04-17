@@ -1,5 +1,7 @@
 import uuid
 from datetime import date
+
+from app.dates import fmt_date
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -10,6 +12,7 @@ from app.database import get_db
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
+from app.services import budgets as budget_svc
 from app.services import commitments as commit_svc
 from app.services import reports as report_svc
 from app.templating import templates
@@ -54,8 +57,14 @@ async def spending_pulse(
         db, user.id, m_start, m_end, include_cleared=True,
     )
 
-    # Rolling over/under — default to start of current year
-    rs_date = date.fromisoformat(rolling_start) if rolling_start else date(today.year, 1, 1)
+    # Rolling over/under — default to first month with a budget override, else Jan 1 this year
+    if rolling_start:
+        rs_date = date.fromisoformat(rolling_start)
+    else:
+        rs_date = (
+            await budget_svc.first_budget_month_start(db, user.id)
+            or date(today.year, 1, 1)
+        )
     rolling = await report_svc.rolling_over_under(
         db, user.id, rs_date, end, account_ids=cashflow_ids,
     )
@@ -74,6 +83,12 @@ async def spending_pulse(
     from app.services import categories as cat_svc
     all_cats = await cat_svc.get_category_tree(db, user.id)
 
+    # Commitment “SPENT”: algebraic SUM(amount) for the category in the
+    # commitment month (all accounts; refunds and expenses both included).
+    actuals_by_cat = await report_svc.category_actuals_for_period(
+        db, user.id, m_start, m_end, account_ids=None,
+    )
+
     return templates.TemplateResponse(request, "spending/index.html", {
         "user": user,
         "period": period,
@@ -82,6 +97,7 @@ async def spending_pulse(
         "end": end,
         "pulse": pulse,
         "commitments": commitments,
+        "actuals_by_cat": actuals_by_cat,
         "all_categories": all_cats,
         "prev_url": prev_url,
         "next_url": next_url,
@@ -132,6 +148,22 @@ async def add_commitment(
     )
     await db.commit()
 
+    return RedirectResponse(
+        url=f"/spending?period={period}&ref={ref}",
+        status_code=302,
+    )
+
+
+@router.post("/commitments/{commitment_id}/unclear")
+async def unclear_commitment(
+    commitment_id: uuid.UUID,
+    period: str = Form("week"),
+    ref: str = Form(""),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await commit_svc.unclear_commitment(db, commitment_id, user.id)
+    await db.commit()
     return RedirectResponse(
         url=f"/spending?period={period}&ref={ref}",
         status_code=302,
@@ -267,7 +299,7 @@ async def spending_category_txs(
         rows.append(
             f'<div class="flex items-center gap-2 px-4 py-2 border-t border-amber-100 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-900/10">'
             f'  <span class="flex-shrink-0"><svg class="w-3 h-3 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></span>'
-            f'  <span class="text-xs text-amber-600 dark:text-amber-400 tabular-nums w-20">due {c.due_date.isoformat()}</span>'
+            f'  <span class="text-xs text-amber-600 dark:text-amber-400 tabular-nums w-20">due {fmt_date(c.due_date, "short")}</span>'
             f'  <span class="text-sm text-amber-700 dark:text-amber-300 truncate flex-1">{c.title}</span>'
             f'  <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400">{c.confidence.value}</span>'
             f'  <span class="text-sm font-medium tabular-nums text-amber-600 dark:text-amber-400 whitespace-nowrap">-{fmt(float(c.amount))}</span>'

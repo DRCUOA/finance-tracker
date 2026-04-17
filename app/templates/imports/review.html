@@ -43,7 +43,7 @@
                                 <input type="checkbox" name="line_ids" value="{{ line.id }}" class="line-cb rounded border-gray-300"
                                        {% if not is_dup %}checked{% endif %}>
                             </td>
-                            <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ line.date }}</td>
+                            <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ line.date|fdate('short') }}</td>
                             <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100">{{ line.description }}</td>
                             <td class="px-4 py-3.5 text-sm text-right font-semibold tabular-nums {% if line.amount >= 0 %}text-positive-600{% else %}text-negative-500{% endif %}">
                                 {{ line.amount|nzd }}

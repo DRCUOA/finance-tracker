@@ -361,3 +361,18 @@ async def get_month_overrides(
     )
     result = await db.execute(stmt)
     return {str(r.category_id): float(r.amount) for r in result.all()}
+
+
+async def first_budget_month_start(
+    db: AsyncSession, user_id: uuid.UUID,
+) -> date | None:
+    """First calendar day of the earliest month that has a budget row."""
+    row = (await db.execute(
+        select(Budget.year, Budget.month)
+        .where(Budget.user_id == user_id)
+        .order_by(Budget.year, Budget.month)
+        .limit(1),
+    )).first()
+    if not row:
+        return None
+    return date(int(row.year), int(row.month), 1)
