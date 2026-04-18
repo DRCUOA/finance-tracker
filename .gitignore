@@ -45,6 +45,9 @@ coverage/
 # Node
 node_modules/
 
+# User-uploaded avatars
+app/static/uploads/avatars/
+
 # Misc
 *.swp
 *.bak
