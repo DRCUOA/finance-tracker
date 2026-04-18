@@ -15,6 +15,7 @@ from app.routers import (
     help,
     imports,
     matching_rules,
+    profile,
     reconciliation,
     reports,
     spending,
@@ -33,6 +34,7 @@ async def root():
 
 
 app.include_router(auth.router)
+app.include_router(profile.router)
 app.include_router(dashboard.router)
 app.include_router(spending.router)
 app.include_router(budgets.router)

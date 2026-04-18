@@ -13,6 +13,7 @@ from app.services import accounts as acct_svc
 from app.services import reconciliation as recon_svc
 from app.services import reports as report_svc
 from app.services import transactions as tx_svc
+from app.services import user_profile as profile_svc
 from app.templating import templates
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -24,13 +25,16 @@ VALID_SPANS = {"", "6m", "1y", "5y", "all"}
 @router.get("", response_class=HTMLResponse)
 async def dashboard(
     request: Request,
-    period: str = Query("month"),
+    period: str | None = Query(None),
     ref: str = Query(""),
     term: str = Query("medium"),
     span: str = Query("1y"),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    prefs = profile_svc.preferences_with_defaults(user.preferences)
+    if period is None:
+        period = prefs["dashboard_default_period"]
     if period not in ("week", "month"):
         period = "month"
     if span not in VALID_SPANS:

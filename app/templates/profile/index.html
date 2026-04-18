@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Profile — Finla{% endblock %}
+{% block page_title %}Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl space-y-8">
+    <p class="text-sm text-gray-500 dark:text-gray-400">Manage your account, preferences, avatar, and password.</p>
+
+    <!-- Account & preferences -->
+    <section class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <h2 class="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">Account &amp; preferences</h2>
+        {% if settings_error %}
+        <div class="mb-4 bg-negative-50 dark:bg-negative-900/30 text-negative-700 dark:text-negative-400 px-4 py-3 rounded-xl text-sm font-medium">{{ settings_error }}</div>
+        {% endif %}
+        <form method="post" action="/profile/settings" class="space-y-4">
+            <div>
+                <label for="email_ro" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Email</label>
+                <input type="text" id="email_ro" value="{{ user.email }}" readonly
+                       class="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/50 text-sm py-2.5 px-3 text-gray-500 dark:text-gray-400 cursor-not-allowed">
+            </div>
+            <div>
+                <label for="display_name" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Display name</label>
+                <input type="text" name="display_name" id="display_name" required maxlength="100" value="{{ user.display_name }}"
+                       class="w-full rounded-xl border border-gray-300 dark:border-gray-600 text-sm py-2.5 px-3 focus:ring-brand-500 focus:border-brand-500">
+            </div>
+            <div>
+                <label for="dashboard_default_period" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Default dashboard period</label>
+                <select name="dashboard_default_period" id="dashboard_default_period"
+                        class="w-full rounded-xl border border-gray-300 dark:border-gray-600 text-sm py-2.5 px-3 focus:ring-brand-500 focus:border-brand-500">
+                    <option value="month" {% if prefs.dashboard_default_period == 'month' %}selected{% endif %}>Month</option>
+                    <option value="week" {% if prefs.dashboard_default_period == 'week' %}selected{% endif %}>Week</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Used when you open the dashboard without a period in the URL.</p>
+            </div>
+            <label class="flex items-center gap-3 cursor-pointer select-none">
+                <input type="checkbox" name="compact_tables" value="1" class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500"
+                       {% if prefs.compact_tables %}checked{% endif %}>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Compact tables</span>
+            </label>
+            <p class="text-xs text-gray-400 dark:text-gray-500 -mt-2">Preference is saved for future layout tweaks across the app.</p>
+            <div class="pt-2">
+                <button type="submit" class="btn btn-primary">Save settings</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- Avatar -->
+    <section class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <h2 class="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">Avatar</h2>
+        {% if avatar_error %}
+        <div class="mb-4 bg-negative-50 dark:bg-negative-900/30 text-negative-700 dark:text-negative-400 px-4 py-3 rounded-xl text-sm font-medium">{{ avatar_error }}</div>
+        {% endif %}
+        <div class="flex flex-col sm:flex-row sm:items-start gap-6">
+            <div class="shrink-0">
+                {% if user.avatar_url %}
+                <img src="{{ user.avatar_url }}" alt="" width="96" height="96" class="w-24 h-24 rounded-2xl object-cover ring-1 ring-gray-200 dark:ring-gray-600">
+                {% else %}
+                <div class="w-24 h-24 rounded-2xl bg-brand-100 dark:bg-brand-800 text-brand-700 dark:text-brand-200 flex items-center justify-center text-2xl font-bold">
+                    {{ user.display_name[0] | upper }}
+                </div>
+                {% endif %}
+            </div>
+            <div class="flex-1 space-y-4">
+                <form method="post" action="/profile/avatar" enctype="multipart/form-data" class="space-y-3">
+                    <div>
+                        <label for="avatar_file" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Upload image</label>
+                        <input type="file" name="file" id="avatar_file" accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp" required
+                               class="block w-full text-sm text-gray-600 dark:text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-brand-600 file:text-white hover:file:bg-brand-700 cursor-pointer">
+                        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">JPEG, PNG, GIF, or WebP. Max 2&nbsp;MB.</p>
+                    </div>
+                    <button type="submit" class="btn btn-secondary">Upload avatar</button>
+                </form>
+                {% if user.avatar_url %}
+                <form method="post" action="/profile/avatar/remove">
+                    <button type="submit" class="btn btn-ghost text-sm text-negative-600 dark:text-negative-400">Remove avatar</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <!-- Password -->
+    <section class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg ring-1 ring-gray-100 dark:ring-gray-700 p-6">
+        <h2 class="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">Change password</h2>
+        {% if password_error %}
+        <div class="mb-4 bg-negative-50 dark:bg-negative-900/30 text-negative-700 dark:text-negative-400 px-4 py-3 rounded-xl text-sm font-medium">{{ password_error }}</div>
+        {% endif %}
+        <form method="post" action="/profile/password" class="space-y-4 max-w-md">
+            <div>
+                <label for="current_password" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Current password</label>
+                <input type="password" name="current_password" id="current_password" required autocomplete="current-password"
+                       class="w-full rounded-xl border border-gray-300 dark:border-gray-600 text-sm py-2.5 px-3 focus:ring-brand-500 focus:border-brand-500">
+            </div>
+            <div>
+                <label for="new_password" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">New password</label>
+                <input type="password" name="new_password" id="new_password" required minlength="8" autocomplete="new-password"
+                       class="w-full rounded-xl border border-gray-300 dark:border-gray-600 text-sm py-2.5 px-3 focus:ring-brand-500 focus:border-brand-500">
+            </div>
+            <div>
+                <label for="confirm_password" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Confirm new password</label>
+                <input type="password" name="confirm_password" id="confirm_password" required minlength="8" autocomplete="new-password"
+                       class="w-full rounded-xl border border-gray-300 dark:border-gray-600 text-sm py-2.5 px-3 focus:ring-brand-500 focus:border-brand-500">
+            </div>
+            <p class="text-xs text-gray-400 dark:text-gray-500">You will stay signed in on this device; other sessions are signed out.</p>
+            <button type="submit" class="btn btn-primary">Update password</button>
+        </form>
+    </section>
+</div>
+
+{% if settings_ok %}
+<script>
+window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Settings saved', type: 'success' } }));
+</script>
+{% endif %}
+{% if avatar_ok %}
+<script>
+window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Avatar updated', type: 'success' } }));
+</script>
+{% endif %}
+{% if password_ok %}
+<script>
+window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Password updated', type: 'success' } }));
+</script>
+{% endif %}
+{% endblock %}
