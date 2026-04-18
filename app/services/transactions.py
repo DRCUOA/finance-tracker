@@ -13,6 +13,9 @@ from app.models.category import Category
 from app.models.reconciliation import Reconciliation, ReconciliationStatus
 
 
+MANUAL_SOURCE = "manual"
+
+
 class DuplicateTransactionError(Exception):
     """Raised when a transaction to be created matches an existing one."""
 
@@ -147,6 +150,7 @@ async def create_transaction(
         amount=amount, description=description,
         original_description=description,
         category_id=category_id, reference=reference, notes=notes,
+        source=MANUAL_SOURCE,
     )
     db.add(tx)
     await db.flush()

@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -18,6 +19,18 @@ from app.services.reports import period_bounds
 from app.templating import templates
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+DEDUPE_INDEX_NAME = "ix_transactions_account_reference_dedupe"
+
+
+def _is_dedupe_violation(exc: IntegrityError) -> bool:
+    """True if the IntegrityError is the per-account reference dedupe index.
+
+    Narrow on purpose: we only want to swallow this one known constraint
+    and surface a friendly message for it. Any other IntegrityError must
+    keep bubbling so we don't silently mask data bugs.
+    """
+    return DEDUPE_INDEX_NAME in str(getattr(exc, "orig", exc))
 
 
 @router.get("", response_class=HTMLResponse)
@@ -321,7 +334,16 @@ async def edit_transaction_modal(
         return JSONResponse({"error": "Not found"}, status_code=404)
     old_account_id = existing.account_id
 
-    tx = await tx_svc.update_transaction(db, tx_id, user.id, **kwargs)
+    try:
+        tx = await tx_svc.update_transaction(db, tx_id, user.id, **kwargs)
+    except IntegrityError as exc:
+        await db.rollback()
+        if not _is_dedupe_violation(exc):
+            raise
+        return JSONResponse(
+            {"error": "Another imported transaction in that account already uses this reference."},
+            status_code=409,
+        )
     if not tx:
         return JSONResponse({"error": "Not found"}, status_code=404)
 
@@ -341,6 +363,7 @@ async def edit_transaction_modal(
 @router.get("/{tx_id}/edit", response_class=HTMLResponse)
 async def edit_form(
     tx_id: uuid.UUID, request: Request,
+    error: str = Query(""),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -349,9 +372,16 @@ async def edit_form(
         return RedirectResponse(url="/transactions", status_code=302)
     accounts = await acct_svc.get_accounts(db, user.id)
     cat_tree = await cat_svc.get_category_tree(db, user.id)
+    error_message = ""
+    if error == "duplicate_reference":
+        error_message = (
+            "Could not save: another imported transaction in that account "
+            "already uses this reference."
+        )
     return templates.TemplateResponse(request, "transactions/form.html", {
         "user": user,
         "tx": tx, "accounts": accounts, "category_tree": cat_tree,
+        "error_message": error_message,
     })
 
 
@@ -380,12 +410,21 @@ async def update_transaction(
     new_account_id = uuid.UUID(account_id)
     existing = await tx_svc.get_transaction(db, tx_id, user.id)
     old_account_id = existing.account_id if existing else None
-    await tx_svc.update_transaction(
-        db, tx_id, user.id,
-        account_id=new_account_id, date=date.fromisoformat(tx_date),
-        amount=amt, description=description,
-        category_id=cid, reference=reference or None, notes=notes or None,
-    )
+    try:
+        await tx_svc.update_transaction(
+            db, tx_id, user.id,
+            account_id=new_account_id, date=date.fromisoformat(tx_date),
+            amount=amt, description=description,
+            category_id=cid, reference=reference or None, notes=notes or None,
+        )
+    except IntegrityError as exc:
+        await db.rollback()
+        if not _is_dedupe_violation(exc):
+            raise
+        return RedirectResponse(
+            url=f"/transactions/{tx_id}/edit?error=duplicate_reference",
+            status_code=302,
+        )
     if cid:
         await categoriser.record_categorisation(db, user.id, cid, description)
     await acct_svc.recalculate_balance(db, new_account_id)

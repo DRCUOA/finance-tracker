@@ -8,7 +8,18 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import DefaultClause
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.compiler import compiles
+
+# JSONB is Postgres-only. The test suite uses in-memory SQLite, so register a
+# compile rule that renders JSONB as plain JSON on SQLite. Production schema
+# (created by Alembic against Postgres) is unaffected.
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_for_sqlite(element, compiler, **kw):  # pragma: no cover - infra
+    return "JSON"
+
 
 from app.database import Base
 from app.models.account import Account, AccountType, AccountTerm
@@ -24,12 +35,41 @@ from app.models.user import User
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 
 
+def _swap_pg_only_defaults() -> dict[tuple[str, str], object]:
+    """Replace Postgres-only ``server_default`` casts with portable literals.
+
+    SQLite chokes on ``'{}'::jsonb``-style defaults. We swap them to plain
+    string literals just for DDL emission, then restore the originals so
+    production behaviour stays unchanged.
+    """
+    snapshot: dict[tuple[str, str], object] = {}
+    for table in Base.metadata.tables.values():
+        for col in table.columns:
+            sd = col.server_default
+            if sd is None:
+                continue
+            sd_text = str(getattr(sd, "arg", "")).lower()
+            if "::jsonb" in sd_text or "::json" in sd_text:
+                snapshot[(table.name, col.name)] = sd
+                col.server_default = DefaultClause("{}")
+    return snapshot
+
+
+def _restore_defaults(snapshot: dict[tuple[str, str], object]) -> None:
+    for (tname, cname), sd in snapshot.items():
+        Base.metadata.tables[tname].columns[cname].server_default = sd
+
+
 @pytest_asyncio.fixture
 async def db():
     """Provide a fresh in-memory SQLite database for each test."""
     engine = create_async_engine(TEST_DB_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    snapshot = _swap_pg_only_defaults()
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    finally:
+        _restore_defaults(snapshot)
 
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as session:
