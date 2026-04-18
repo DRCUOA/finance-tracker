@@ -316,14 +316,25 @@ async def edit_transaction_modal(
     if "notes" in body:
         kwargs["notes"] = body["notes"] or None
 
+    existing = await tx_svc.get_transaction(db, tx_id, user.id)
+    if not existing:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    old_account_id = existing.account_id
+
     tx = await tx_svc.update_transaction(db, tx_id, user.id, **kwargs)
     if not tx:
         return JSONResponse({"error": "Not found"}, status_code=404)
 
     if kwargs.get("category_id"):
         await categoriser.record_categorisation(db, user.id, kwargs["category_id"], tx.description)
-    if kwargs.get("account_id"):
-        await acct_svc.recalculate_balance(db, kwargs["account_id"])
+
+    accounts_to_recalc: set[uuid.UUID] = set()
+    if old_account_id != tx.account_id:
+        accounts_to_recalc.update({old_account_id, tx.account_id})
+    elif "amount" in kwargs:
+        accounts_to_recalc.add(tx.account_id)
+    for acct_id in accounts_to_recalc:
+        await acct_svc.recalculate_balance(db, acct_id)
     return JSONResponse({"ok": True})
 
 
@@ -366,15 +377,20 @@ async def update_transaction(
         return RedirectResponse(url=f"/transactions/{tx_id}/edit", status_code=302)
 
     cid = uuid.UUID(category_id) if category_id else None
+    new_account_id = uuid.UUID(account_id)
+    existing = await tx_svc.get_transaction(db, tx_id, user.id)
+    old_account_id = existing.account_id if existing else None
     await tx_svc.update_transaction(
         db, tx_id, user.id,
-        account_id=uuid.UUID(account_id), date=date.fromisoformat(tx_date),
+        account_id=new_account_id, date=date.fromisoformat(tx_date),
         amount=amt, description=description,
         category_id=cid, reference=reference or None, notes=notes or None,
     )
     if cid:
         await categoriser.record_categorisation(db, user.id, cid, description)
-    await acct_svc.recalculate_balance(db, uuid.UUID(account_id))
+    await acct_svc.recalculate_balance(db, new_account_id)
+    if old_account_id and old_account_id != new_account_id:
+        await acct_svc.recalculate_balance(db, old_account_id)
     return RedirectResponse(url="/transactions", status_code=302)
 
 

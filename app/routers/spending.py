@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from urllib.parse import urlencode
 
 from app.dates import fmt_date
 from decimal import Decimal, InvalidOperation
@@ -12,7 +13,6 @@ from app.database import get_db
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
-from app.services import budgets as budget_svc
 from app.services import commitments as commit_svc
 from app.services import reports as report_svc
 from app.templating import templates
@@ -57,28 +57,29 @@ async def spending_pulse(
         db, user.id, m_start, m_end, include_cleared=True,
     )
 
-    # Rolling over/under — default to first month with a budget override, else Jan 1 this year
+    # Rolling over/under — saved on user. Optional ?rolling_start= overrides this view only (not saved).
+    rs_override = None
     if rolling_start:
-        rs_date = date.fromisoformat(rolling_start)
-    else:
-        rs_date = (
-            await budget_svc.first_budget_month_start(db, user.id)
-            or date(today.year, 1, 1)
+        try:
+            rs_override = date.fromisoformat(rolling_start)
+        except ValueError:
+            pass
+
+    rs_effective = rs_override if rs_override is not None else user.rolling_budget_start
+
+    rolling = None
+    rolling_start_value = ""
+    if rs_effective is not None:
+        rolling = await report_svc.rolling_over_under(
+            db, user.id, rs_effective, end, account_ids=cashflow_ids,
         )
-    rolling = await report_svc.rolling_over_under(
-        db, user.id, rs_date, end, account_ids=cashflow_ids,
-    )
+        rolling_start_value = rs_effective.isoformat()
 
     prev_ref = report_svc.step_period(ref_date, -1, period)
     next_ref = report_svc.step_period(ref_date, 1, period)
     prev_url = f"/spending?period={period}&ref={prev_ref.isoformat()}"
     next_url = f"/spending?period={period}&ref={next_ref.isoformat()}"
-    if rolling_start:
-        prev_url += f"&rolling_start={rolling_start}"
-        next_url += f"&rolling_start={rolling_start}"
     base_url = f"/spending?ref={ref_date.isoformat()}"
-    if rolling_start:
-        base_url += f"&rolling_start={rolling_start}"
 
     from app.services import categories as cat_svc
     all_cats = await cat_svc.get_category_tree(db, user.id)
@@ -103,8 +104,35 @@ async def spending_pulse(
         "next_url": next_url,
         "base_url": base_url,
         "rolling": rolling,
-        "rolling_start": rs_date.isoformat(),
+        "rolling_start": rolling_start_value,
     })
+
+
+@router.post("/rolling-start", response_class=RedirectResponse)
+async def save_rolling_start(
+    period: str = Form("month"),
+    ref: str = Form(""),
+    rolling_start: str = Form(""),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if period not in ("week", "month"):
+        period = "month"
+    today = date.today()
+    ref_date = date.fromisoformat(ref) if ref else today
+    ref_param = ref if ref else ref_date.isoformat()
+    if rolling_start:
+        try:
+            user.rolling_budget_start = date.fromisoformat(rolling_start)
+        except ValueError:
+            pass
+    else:
+        user.rolling_budget_start = None
+    await db.flush()
+    return RedirectResponse(
+        url=f"/spending?{urlencode({'period': period, 'ref': ref_param})}",
+        status_code=302,
+    )
 
 
 # ── Commitment CRUD ────────────────────────────────────────────────
