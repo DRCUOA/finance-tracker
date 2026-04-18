@@ -132,7 +132,7 @@
     <!-- Table (auto-refreshes on txchanged event via HTMX) -->
     <div id="tx-table"
          hx-get="/transactions" hx-trigger="txchanged from:body" hx-swap="innerHTML"
-         hx-vals='js:Object.fromEntries(new URLSearchParams(window.location.search))'>
+         hx-vals='js:{...Object.fromEntries(new URLSearchParams(window.location.search))}'>
         {% include "transactions/table.html" %}
     </div>
 </div>

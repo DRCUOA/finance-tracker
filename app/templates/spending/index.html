@@ -312,7 +312,6 @@
 <!-- ═══════════════════════════════════════════════════════════ -->
 <!-- ROLLING OVER / UNDER                                        -->
 <!-- ═══════════════════════════════════════════════════════════ -->
-{% set r = rolling %}
 <div x-data="{ expanded: false }" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden mb-8">
     <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
         <div class="flex items-center justify-between mb-3">
@@ -321,7 +320,7 @@
                 <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Cumulative budget vs actual spend + accruals since start date</p>
             </div>
             <div class="flex items-center gap-3">
-                <form method="get" action="/spending" class="flex items-center gap-2">
+                <form method="post" action="/spending/rolling-start" class="flex items-center gap-2">
                     <input type="hidden" name="period" value="{{ period }}">
                     <input type="hidden" name="ref" value="{{ start }}">
                     <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">From</label>
@@ -332,9 +331,11 @@
             </div>
         </div>
 
+        {% if rolling %}
         <!-- Cumulative headline -->
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
+                {% set r = rolling %}
                 {% if r.cumulative_over_under >= 0 %}
                 <div class="w-8 h-8 rounded-full bg-positive-100 dark:bg-positive-900/30 flex items-center justify-center">
                     <svg class="w-4 h-4 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -356,8 +357,13 @@
                 </div>
             </div>
         </div>
+        {% else %}
+        <p class="text-sm text-gray-500 dark:text-gray-400">Pick a <span class="font-semibold text-gray-700 dark:text-gray-300">From</span> date and click <span class="font-semibold text-gray-700 dark:text-gray-300">Update</span> to save it on your account. Until you do, no cumulative figures are shown here.</p>
+        {% endif %}
     </div>
 
+    {% if rolling %}
+    {% set r = rolling %}
     <!-- Month-by-month breakdown (expandable) -->
     <button @click="expanded = !expanded" class="w-full px-6 py-3 flex items-center justify-between text-xs font-semibold text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
         <span>Monthly breakdown</span>
@@ -398,6 +404,7 @@
             </tbody>
         </table>
     </div>
+    {% endif %}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════ -->
@@ -506,9 +513,17 @@
     <div class="divide-y divide-gray-50 dark:divide-gray-700/50">
         {% for c in commitments %}
         {% set remaining = c.amount - c.cleared_amount %}
-        <div x-data="{ showClear: false }" class="px-6 py-3 flex items-center gap-3 group
-            {% if c.cleared_at %}opacity-50{% endif %}
-            {% if c.cleared_amount > 0 and not c.cleared_at %}opacity-75{% endif %}">
+        {% set cat_actual = actuals_by_cat.get(c.category_id|string, 0) if c.category else 0 %}
+        {% set partial_mismatch = (
+            c.direction.value == 'outflow'
+            and c.cleared_amount > 0
+            and not c.cleared_at
+            and c.category
+            and (cat_actual|float|round(2)) != (c.cleared_amount|float|round(2))
+        ) %}
+        <div x-data="{ showClear: false }" class="px-6 py-3 flex items-center gap-3 group transition-colors
+            {% if partial_mismatch %}bg-gray-100 dark:bg-gray-700/55{% endif %}
+            {% if c.cleared_at %}opacity-50{% elif not partial_mismatch and c.cleared_amount > 0 and not c.cleared_at %}opacity-75{% endif %}">
             {% if c.direction.value == 'outflow' %}
             <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
                 {% if c.cleared_at %}bg-gray-100 dark:bg-gray-700{% elif c.cleared_amount > 0 %}bg-positive-100 dark:bg-positive-900/40{% else %}bg-amber-100 dark:bg-amber-900/40{% endif %}">
@@ -545,8 +560,7 @@
                 </p>
             </div>
             {% if c.category and not c.cleared_at %}
-            {% set cat_actual = actuals_by_cat.get(c.category_id|string, 0) %}
-            {% if cat_actual > 0 %}
+            {% if cat_actual > 0 or partial_mismatch %}
             <div class="flex flex-col items-end mr-2 flex-shrink-0">
                 <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 leading-none">Spent</span>
                 <span class="text-xs font-semibold tabular-nums leading-tight {% if cat_actual >= (c.amount|float) %}text-blue-500 dark:text-blue-400{% else %}text-positive-500 dark:text-positive-400{% endif %}">{{ cat_actual|nzd }}</span>

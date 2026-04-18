@@ -294,17 +294,6 @@
     <span>Build {{ app_version }}</span>
 </footer>
 
-<!-- Toast notifications -->
-<div id="toast-container" class="fixed top-6 right-6 z-50 space-y-3"
-     x-data="{ toasts: [] }"
-     @notify.window="toasts.push({message: $event.detail.message, type: $event.detail.type || 'success', id: Date.now()}); setTimeout(() => toasts.shift(), 4000)">
-    <template x-for="toast in toasts" :key="toast.id">
-        <div x-transition class="px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium backdrop-blur-sm"
-             :class="toast.type === 'error' ? 'bg-negative-500' : toast.type === 'warning' ? 'bg-amber-500' : 'bg-positive-600'"
-             x-text="toast.message"></div>
-    </template>
-</div>
-
 <!-- Confirm Dialog -->
 <div x-data="{ open: false, title: '', message: '', confirmLabel: '', style: '', _cb: null }"
      @app-confirm.window="
@@ -356,6 +345,416 @@
     </div>
 </div>
 {% endblock %}
+
+<!-- Toast notifications (outside fullpage so login/register still get toasts) -->
+<div id="toast-container" class="fixed top-6 right-6 z-50 space-y-3"
+     x-data="{ toasts: [] }"
+     @notify.window="toasts.push({message: $event.detail.message, type: $event.detail.type || 'success', id: Date.now()}); setTimeout(() => toasts.shift(), 4000)">
+    <template x-for="toast in toasts" :key="toast.id">
+        <div x-transition class="px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium backdrop-blur-sm"
+             :class="toast.type === 'error' ? 'bg-negative-500' : toast.type === 'warning' ? 'bg-amber-500' : 'bg-positive-600'"
+             x-text="toast.message"></div>
+    </template>
+</div>
+
+<!-- Floating calculator (all views) -->
+<div id="floating-calc-root"
+     data-calc-ui
+     x-data="floatingCalc()"
+     x-init="init()"
+     class="fixed bottom-5 right-5 z-[55] flex flex-col items-end gap-2 pointer-events-none"
+     @keydown.escape.window="if (open) { open = false; stopPick(); }"
+     x-init="init()">
+    <div x-show="open"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-y-3 scale-95"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+         x-transition:leave-end="opacity-0 translate-y-3 scale-95"
+         data-calc-ui
+         id="floating-calc-panel"
+         class="pointer-events-auto w-[min(100vw-2rem,17.5rem)] rounded-2xl border border-gray-200/90 dark:border-gray-600/90 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md shadow-xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden"
+         x-cloak>
+        <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100 dark:border-gray-700/80 bg-gray-50/80 dark:bg-gray-900/40">
+            <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Calculator</span>
+            <div class="flex items-center gap-1">
+                <button type="button"
+                        @click="showHistory = !showHistory"
+                        class="p-1 rounded-lg text-gray-500 hover:bg-gray-200/80 dark:hover:bg-gray-700/80 dark:text-gray-400"
+                        title="History">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </button>
+                <button type="button"
+                        @click="startPick()"
+                        :class="pickMode ? 'text-brand-600 dark:text-brand-400 bg-brand-100/80 dark:bg-brand-900/40' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/80 dark:hover:bg-gray-700/80'"
+                        class="p-1 rounded-lg"
+                        title="Click a number on the page to insert it (next click)">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/></svg>
+                </button>
+                <button type="button" @click="open = false; stopPick()" class="p-1 rounded-lg text-gray-400 hover:bg-gray-200/80 dark:hover:bg-gray-700/80" title="Close">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </div>
+        <div x-show="pickMode" class="px-3 py-1.5 text-[10px] font-medium text-amber-700 dark:text-amber-400/90 bg-amber-50/90 dark:bg-amber-950/40 border-b border-amber-100/80 dark:border-amber-900/50">
+            Click an amount or number on the page…
+        </div>
+        <div x-show="showHistory" x-cloak class="max-h-40 overflow-y-auto border-b border-gray-100 dark:border-gray-700/80 text-xs">
+            <p x-show="!history.length" class="px-3 py-4 text-center text-gray-400 dark:text-gray-500">No calculations yet</p>
+            <template x-for="(row, i) in history" :key="i">
+                <div class="px-3 py-2 border-t border-gray-50 dark:border-gray-700/50 flex items-start justify-between gap-2 hover:bg-gray-50/80 dark:hover:bg-gray-700/30">
+                    <div class="min-w-0 flex-1 font-mono text-[11px] text-gray-600 dark:text-gray-300 leading-snug">
+                        <div class="truncate opacity-80" x-text="row.expr"></div>
+                        <div class="font-semibold text-gray-900 dark:text-gray-100" x-text="'= ' + row.result"></div>
+                    </div>
+                    <div class="flex flex-col gap-0.5 shrink-0">
+                        <button type="button" class="text-[10px] px-1.5 py-0.5 rounded text-brand-600 dark:text-brand-400 hover:underline" @click="copyText(row.result)">Copy</button>
+                        <button type="button" class="text-[10px] px-1.5 py-0.5 rounded text-gray-500 hover:underline dark:text-gray-400" @click="useHistory(row)">Use</button>
+                    </div>
+                </div>
+            </template>
+            <div class="px-3 py-2 border-t border-gray-100 dark:border-gray-700/60 flex justify-end" x-show="history.length">
+                <button type="button" class="text-[10px] font-medium text-gray-500 hover:text-negative-500 dark:text-gray-400" @click="clearHistory()">Clear history</button>
+            </div>
+        </div>
+        <div class="p-2 space-y-2">
+            <input type="text" readonly tabindex="0"
+                   x-ref="calcDisplay"
+                   :value="expr || '0'"
+                   class="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-900/50 px-3 py-2 text-right text-sm font-mono text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-brand-400/50"
+                   @click="$el.focus()"/>
+            <div class="grid grid-cols-4 gap-1.5">
+                <button type="button" @click="clearAll()" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-negative-600 dark:text-negative-400 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">C</button>
+                <button type="button" @click="backspace()" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">⌫</button>
+                <button type="button" @click="appendOp('(')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">(</button>
+                <button type="button" @click="appendOp(')')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">)</button>
+                <button type="button" @click="append('7')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">7</button>
+                <button type="button" @click="append('8')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">8</button>
+                <button type="button" @click="append('9')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">9</button>
+                <button type="button" @click="appendOp('/')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">÷</button>
+                <button type="button" @click="append('4')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">4</button>
+                <button type="button" @click="append('5')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">5</button>
+                <button type="button" @click="append('6')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">6</button>
+                <button type="button" @click="appendOp('*')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">×</button>
+                <button type="button" @click="append('1')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">1</button>
+                <button type="button" @click="append('2')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">2</button>
+                <button type="button" @click="append('3')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">3</button>
+                <button type="button" @click="appendOp('-')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">−</button>
+                <button type="button" @click="append('0')" class="col-span-2 rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">0</button>
+                <button type="button" @click="append('.')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">.</button>
+                <button type="button" @click="appendOp('+')" class="rounded-lg border border-gray-200/90 dark:border-gray-600/80 bg-white/90 dark:bg-gray-700/40 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-100/90 dark:hover:bg-gray-600/50 active:scale-[0.98] transition-transform">+</button>
+                <button type="button" @click="equals()" class="col-span-4 rounded-lg border border-brand-600 py-2 text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white dark:bg-brand-500 dark:hover:bg-brand-600 active:scale-[0.98] transition-transform">=</button>
+            </div>
+        </div>
+    </div>
+    <button type="button"
+            data-calc-ui
+            @click="open = !open; if (!open) stopPick()"
+            class="pointer-events-auto flex items-center justify-center w-11 h-11 rounded-full border border-gray-200/90 dark:border-gray-600/80 bg-white/85 dark:bg-gray-800/85 backdrop-blur-md shadow-md text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:border-brand-300/60 dark:hover:border-brand-600/50 transition-colors"
+            title="Calculator">
+        <svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <rect x="4" y="3" width="16" height="18" rx="2"/>
+            <path stroke-linecap="round" d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h2M14 19h2"/>
+        </svg>
+    </button>
+</div>
+<script>
+(function() {
+    var HIST_KEY = 'finla_calc_history';
+    var HIST_MAX = 40;
+
+    function normalizeNumStr(s) {
+        if (s == null) return null;
+        var t = String(s).replace(/,/g, '').replace(/\s+/g, '').trim();
+        if (t === '' || t === '-' || t === '.') return null;
+        if (/^[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?$/.test(t)) return t;
+        var n = parseFloat(t);
+        return isNaN(n) ? null : String(n);
+    }
+
+    function extractFromText(text) {
+        if (!text) return null;
+        var s = text.replace(/\u00a0/g, ' ');
+        var patterns = [
+            /[$£€]\s*([-+]?\d[\d,]*\.?\d*)/,
+            /([-+]?\d[\d,]*\.?\d*)\s*[$£€]/,
+            /([-+]?\d[\d,]*\.?\d+)/,
+        ];
+        for (var i = 0; i < patterns.length; i++) {
+            var m = s.match(patterns[i]);
+            if (m && m[1]) {
+                var v = normalizeNumStr(m[1]);
+                if (v !== null) return v;
+            }
+        }
+        return null;
+    }
+
+    function extractFromElement(el) {
+        if (!el || el.nodeType !== 1) return null;
+        var cur = el;
+        for (var d = 0; d < 8 && cur; d++) {
+            var txt = cur.innerText || cur.textContent || '';
+            var one = extractFromText(txt);
+            if (one !== null) return one;
+            cur = cur.parentElement;
+        }
+        return null;
+    }
+
+    /** When calc is open, route keys unless user is typing in a form field outside the calculator. */
+    function shouldRouteKeysToCalc() {
+        var el = document.activeElement;
+        if (!el) return true;
+        if (el.closest && el.closest('[data-calc-ui]')) return true;
+        if (el.isContentEditable) return false;
+        var tag = el.tagName;
+        if (tag === 'TEXTAREA') return false;
+        if (tag === 'SELECT') return false;
+        if (tag === 'INPUT') {
+            var type = (el.type || '').toLowerCase();
+            if (type === 'button' || type === 'submit' || type === 'checkbox' || type === 'radio' ||
+                type === 'file' || type === 'range' || type === 'color' || type === 'reset' || type === 'hidden') {
+                return true;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    window.floatingCalc = function() {
+        return {
+            open: false,
+            pickMode: false,
+            showHistory: false,
+            expr: '',
+            history: [],
+            _pickHandler: null,
+
+            init: function() {
+                try {
+                    var raw = localStorage.getItem(HIST_KEY);
+                    this.history = raw ? JSON.parse(raw) : [];
+                    if (!Array.isArray(this.history)) this.history = [];
+                } catch (e) {
+                    this.history = [];
+                }
+                var self = this;
+                this.$watch('open', function(v) {
+                    if (v) {
+                        self.$nextTick(function() {
+                            var inp = self.$refs.calcDisplay;
+                            if (inp) inp.focus();
+                        });
+                    }
+                });
+                /* Alpine may run init() more than once; only bind one window listener. */
+                if (!window.__finlaCalcKeydownAttached) {
+                    window.__finlaCalcKeydownAttached = true;
+                    window.addEventListener('keydown', function(e) {
+                        var root = document.getElementById('floating-calc-root');
+                        if (!root) return;
+                        var d = null;
+                        var A = window.Alpine;
+                        if (A && typeof A.$data === 'function') {
+                            try { d = A.$data(root); } catch (err) { /* ignore */ }
+                        }
+                        if (!d && root._x_dataStack && root._x_dataStack[0]) {
+                            d = root._x_dataStack[0];
+                        }
+                        if (d && typeof d.handleCalcKeydown === 'function') {
+                            d.handleCalcKeydown(e);
+                        }
+                    }, true);
+                }
+            },
+
+            handleCalcKeydown: function(e) {
+                if (e._finlaCalcKeyConsumed) return;
+                if (!this.open) return;
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+                if (e.key === 'Escape') return;
+                if (!shouldRouteKeysToCalc()) return;
+
+                var ae = document.activeElement;
+                if (ae && (!ae.closest || !ae.closest('[data-calc-ui]'))) {
+                    if (e.key === 'Enter' && (ae.tagName === 'A' || ae.tagName === 'BUTTON')) return;
+                    if (e.key === ' ' && (ae.tagName === 'A' || ae.tagName === 'BUTTON')) return;
+                }
+
+                var k = e.key;
+                var handled = false;
+
+                if (k >= '0' && k <= '9') {
+                    this.append(k);
+                    handled = true;
+                } else if (k === '.' || k === 'Decimal') {
+                    this.append('.');
+                    handled = true;
+                } else if (k === '+' || k === '-' || k === '*' || k === '/') {
+                    this.appendOp(k);
+                    handled = true;
+                } else if (k === '(' || k === ')') {
+                    this.appendOp(k);
+                    handled = true;
+                } else if (k === 'Enter' || k === '=') {
+                    this.equals();
+                    handled = true;
+                } else if (k === 'Backspace') {
+                    this.backspace();
+                    handled = true;
+                } else if (k === 'Delete') {
+                    this.backspace();
+                    handled = true;
+                }
+
+                if (handled) {
+                    e._finlaCalcKeyConsumed = true;
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            },
+
+            persistHistory: function() {
+                try {
+                    localStorage.setItem(HIST_KEY, JSON.stringify(this.history.slice(0, HIST_MAX)));
+                } catch (e) { /* ignore */ }
+            },
+
+            startPick: function() {
+                var self = this;
+                this.pickMode = !this.pickMode;
+                if (this._pickHandler) {
+                    document.removeEventListener('click', this._pickHandler, true);
+                    this._pickHandler = null;
+                }
+                if (!this.pickMode) return;
+
+                this._pickHandler = function(e) {
+                    var t = e.target;
+                    if (t && t.closest && t.closest('[data-calc-ui]')) {
+                        document.removeEventListener('click', self._pickHandler, true);
+                        self._pickHandler = null;
+                        self.pickMode = false;
+                        return;
+                    }
+                    var num = extractFromElement(t);
+                    document.removeEventListener('click', self._pickHandler, true);
+                    self._pickHandler = null;
+                    self.pickMode = false;
+                    if (num !== null) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        self.append(num);
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: { message: 'Inserted ' + num, type: 'success' }
+                        }));
+                    } else {
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: { message: 'No number found there', type: 'warning' }
+                        }));
+                    }
+                };
+                document.addEventListener('click', this._pickHandler, true);
+            },
+
+            stopPick: function() {
+                this.pickMode = false;
+                if (this._pickHandler) {
+                    document.removeEventListener('click', this._pickHandler, true);
+                    this._pickHandler = null;
+                }
+            },
+
+            append: function(ch) {
+                this.expr += ch;
+            },
+
+            appendOp: function(op) {
+                this.expr += op;
+            },
+
+            clearAll: function() {
+                this.expr = '';
+            },
+
+            backspace: function() {
+                this.expr = this.expr.slice(0, -1);
+            },
+
+            equals: function() {
+                var raw = (this.expr || '').trim();
+                if (!raw) return;
+                if (!/^[-+*/(). \d]+$/.test(raw)) {
+                    window.dispatchEvent(new CustomEvent('notify', {
+                        detail: { message: 'Invalid expression', type: 'error' }
+                    }));
+                    return;
+                }
+                try {
+                    var result = Function('"use strict"; return (' + raw + ')')();
+                    if (typeof result !== 'number' || !isFinite(result)) throw new Error('bad');
+                    var rounded = Math.round(result * 1e12) / 1e12;
+                    var resStr = String(rounded);
+                    this.history.unshift({ expr: raw, result: resStr });
+                    this.history = this.history.slice(0, HIST_MAX);
+                    this.persistHistory();
+                    this.expr = resStr;
+                } catch (err) {
+                    window.dispatchEvent(new CustomEvent('notify', {
+                        detail: { message: 'Could not calculate', type: 'error' }
+                    }));
+                }
+            },
+
+            useHistory: function(row) {
+                this.expr = row.result;
+                this.showHistory = false;
+            },
+
+            clearHistory: function() {
+                this.history = [];
+                this.persistHistory();
+            },
+
+            copyText: function(text) {
+                if (!text && text !== 0) return;
+                var s = String(text);
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(s).then(function() {
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: { message: 'Copied', type: 'success' }
+                        }));
+                    }).catch(function() {
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: { message: 'Copy failed', type: 'error' }
+                        }));
+                    });
+                } else {
+                    var ta = document.createElement('textarea');
+                    ta.value = s;
+                    ta.style.position = 'fixed';
+                    ta.style.left = '-9999px';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    try {
+                        document.execCommand('copy');
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: { message: 'Copied', type: 'success' }
+                        }));
+                    } catch (e2) {
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: { message: 'Copy failed', type: 'error' }
+                        }));
+                    }
+                    document.body.removeChild(ta);
+                }
+            },
+        };
+    };
+})();
+</script>
 
 <script>
 function toggleTheme() {
