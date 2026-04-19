@@ -374,8 +374,7 @@
      x-data="floatingCalc()"
      x-init="init()"
      class="fixed bottom-5 right-5 z-[55] flex flex-col items-end gap-2 pointer-events-none"
-     @keydown.escape.window="if (open) { open = false; stopPick(); }"
-     x-init="init()">
+     @keydown.escape.window="if (open) { open = false; stopPick(); }">
     <div x-show="open"
          x-transition:enter="transition ease-out duration-200"
          x-transition:enter-start="opacity-0 translate-y-3 scale-95"
@@ -764,6 +763,61 @@
             },
         };
     };
+})();
+
+(function() {
+    function closeFloatingCalc() {
+        var root = document.getElementById('floating-calc-root');
+        if (!root) return;
+        var d = null;
+        var A = window.Alpine;
+        if (A && typeof A.$data === 'function') {
+            try { d = A.$data(root); } catch (err) { /* ignore */ }
+        }
+        if (!d && root._x_dataStack && root._x_dataStack[0]) {
+            d = root._x_dataStack[0];
+        }
+        if (!d) return;
+        d.open = false;
+        d.showHistory = false;
+        if (typeof d.stopPick === 'function') d.stopPick();
+    }
+    window.closeFloatingCalc = closeFloatingCalc;
+
+    var lastPath = window.location.pathname;
+
+    function onLocationMaybeChanged() {
+        var p = window.location.pathname;
+        if (p !== lastPath) {
+            lastPath = p;
+            closeFloatingCalc();
+        }
+    }
+
+    document.addEventListener('htmx:afterSwap', function() {
+        window.setTimeout(onLocationMaybeChanged, 0);
+    });
+    document.addEventListener('htmx:afterSettle', function() {
+        window.setTimeout(onLocationMaybeChanged, 0);
+    });
+    window.addEventListener('popstate', function() {
+        window.setTimeout(function() {
+            lastPath = window.location.pathname;
+            closeFloatingCalc();
+        }, 0);
+    });
+    document.addEventListener('htmx:historyRestore', function() {
+        window.setTimeout(function() {
+            lastPath = window.location.pathname;
+            closeFloatingCalc();
+        }, 0);
+    });
+    window.addEventListener('pageshow', function(e) {
+        if (e.persisted) {
+            lastPath = window.location.pathname;
+            closeFloatingCalc();
+        }
+    });
 })();
 </script>
 

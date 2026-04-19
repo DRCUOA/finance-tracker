@@ -71,7 +71,7 @@ def delete_avatar_files(avatar_filename: str | None) -> None:
     rel = avatar_filename.lstrip("/")
     if not rel.startswith("uploads/avatars/"):
         return
-    path = BASE_DIR / "static" / rel.replace("/", Path.sep)
+    path = (BASE_DIR / "static").joinpath(*rel.split("/"))
     try:
         if path.is_file():
             path.unlink()
