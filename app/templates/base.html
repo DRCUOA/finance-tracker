@@ -384,7 +384,8 @@
          x-transition:leave-end="opacity-0 translate-y-3 scale-95"
          data-calc-ui
          id="floating-calc-panel"
-         class="pointer-events-auto w-[min(100vw-2rem,17.5rem)] rounded-2xl border border-gray-200/90 dark:border-gray-600/90 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md shadow-xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden"
+         :class="{ 'hidden': !open }"
+         class="hidden pointer-events-auto w-[min(100vw-2rem,17.5rem)] rounded-2xl border border-gray-200/90 dark:border-gray-600/90 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md shadow-xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden"
          x-cloak>
         <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100 dark:border-gray-700/80 bg-gray-50/80 dark:bg-gray-900/40">
             <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Calculator</span>
@@ -786,6 +787,12 @@
 
     var lastPath = window.location.pathname;
 
+    function isFullPageSwap(e) {
+        var t = e && e.detail && e.detail.target;
+        if (!t) return false;
+        return t === document.body || t.tagName === 'BODY' || t === document.documentElement;
+    }
+
     function onLocationMaybeChanged() {
         var p = window.location.pathname;
         if (p !== lastPath) {
@@ -794,7 +801,15 @@
         }
     }
 
-    document.addEventListener('htmx:afterSwap', function() {
+    document.addEventListener('htmx:beforeSwap', function(e) {
+        if (isFullPageSwap(e)) closeFloatingCalc();
+    });
+    document.addEventListener('htmx:afterSwap', function(e) {
+        if (isFullPageSwap(e)) {
+            lastPath = window.location.pathname;
+            closeFloatingCalc();
+            return;
+        }
         window.setTimeout(onLocationMaybeChanged, 0);
     });
     document.addEventListener('htmx:afterSettle', function() {
