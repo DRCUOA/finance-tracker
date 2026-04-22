@@ -368,6 +368,178 @@
     </template>
 </div>
 
+<!-- Universal text-selection action popover (all views) -->
+<div id="selection-tools-root"
+     data-no-text-tools
+     x-data="selectionTools()"
+     x-init="init()"
+     x-cloak
+     :style="`position: fixed; top: ${y}px; left: ${x}px; transform: translate(-50%, -100%); z-index: 60;`"
+     :class="{ 'hidden': !open }"
+     class="hidden">
+    <div class="flex items-center gap-0.5 rounded-xl border border-gray-200/90 dark:border-gray-600/90 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md shadow-lg ring-1 ring-black/5 dark:ring-white/10 px-1 py-1">
+        <button type="button"
+                @click.prevent.stop="doCopy()"
+                title="Copy to clipboard"
+                class="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+        </button>
+        <span class="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-0.5"></span>
+        <button type="button"
+                @click.prevent.stop="lookup('/accounts')"
+                title="Look up in Accounts"
+                class="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+            </svg>
+        </button>
+        <button type="button"
+                @click.prevent.stop="lookup('/transactions')"
+                title="Look up in Transactions"
+                class="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+        </button>
+        <button type="button"
+                @click.prevent.stop="lookup('/categories')"
+                title="Look up in Categories"
+                class="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+            </svg>
+        </button>
+    </div>
+    <div class="flex justify-center -mt-px">
+        <svg class="w-2.5 h-2.5 text-white dark:text-gray-800" viewBox="0 0 10 10" fill="currentColor">
+            <path d="M0 0 L10 0 L5 6 Z" stroke="rgba(0,0,0,0.08)" stroke-width="0.4"/>
+        </svg>
+    </div>
+</div>
+<script>
+(function() {
+    var MIN_LEN = 2;
+    var MAX_LEN = 200;
+
+    function isInsideExcluded(node) {
+        var el = (node && node.nodeType === 1) ? node : (node && node.parentElement);
+        while (el) {
+            if (el.nodeType === 1) {
+                if (el.hasAttribute && (el.hasAttribute('data-no-text-tools') || el.hasAttribute('data-calc-ui'))) return true;
+                var tag = el.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+                if (el.isContentEditable) return true;
+            }
+            el = el.parentElement;
+        }
+        return false;
+    }
+
+    function getCleanSelection() {
+        var sel = window.getSelection ? window.getSelection() : null;
+        if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+        var text = (sel.toString() || '').replace(/\s+/g, ' ').trim();
+        if (text.length < MIN_LEN) return null;
+        var range = sel.getRangeAt(0);
+        var anchor = sel.anchorNode;
+        var focus = sel.focusNode;
+        if (isInsideExcluded(anchor) || isInsideExcluded(focus)) return null;
+        var rect = range.getBoundingClientRect();
+        if (!rect || (rect.width === 0 && rect.height === 0)) return null;
+        return { text: text, rect: rect };
+    }
+
+    window.selectionTools = function() {
+        return {
+            open: false,
+            x: 0,
+            y: 0,
+            text: '',
+
+            init: function() {
+                var self = this;
+
+                function refresh() {
+                    var s = getCleanSelection();
+                    if (!s) { self.open = false; return; }
+                    self.text = s.text;
+                    self.x = Math.max(60, Math.min(window.innerWidth - 60, s.rect.left + s.rect.width / 2));
+                    self.y = Math.max(40, s.rect.top - 6);
+                    self.open = true;
+                }
+
+                document.addEventListener('mouseup', function() {
+                    setTimeout(refresh, 0);
+                });
+                document.addEventListener('keyup', function(e) {
+                    if (e.key === 'Escape') { self.open = false; return; }
+                    if (e.shiftKey || ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].indexOf(e.key) !== -1) {
+                        setTimeout(refresh, 0);
+                    }
+                });
+                document.addEventListener('selectionchange', function() {
+                    var sel = window.getSelection ? window.getSelection() : null;
+                    if (!sel || sel.isCollapsed) self.open = false;
+                });
+                document.addEventListener('mousedown', function(e) {
+                    if (e.target && e.target.closest && e.target.closest('[data-no-text-tools]')) return;
+                    self.open = false;
+                });
+                window.addEventListener('scroll', function() { self.open = false; }, true);
+                window.addEventListener('resize', function() { self.open = false; });
+                window.addEventListener('blur', function() { self.open = false; });
+            },
+
+            _truncated: function() {
+                var t = this.text || '';
+                if (t.length > MAX_LEN) t = t.slice(0, MAX_LEN);
+                return t;
+            },
+
+            doCopy: function() {
+                var t = this._truncated();
+                this.open = false;
+                var notify = function(msg, type) {
+                    window.dispatchEvent(new CustomEvent('notify', { detail: { message: msg, type: type || 'success' } }));
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(t).then(function() {
+                        notify('Copied');
+                    }).catch(function() {
+                        notify('Copy failed', 'error');
+                    });
+                } else {
+                    var ta = document.createElement('textarea');
+                    ta.value = t;
+                    ta.style.position = 'fixed';
+                    ta.style.left = '-9999px';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    try {
+                        document.execCommand('copy');
+                        notify('Copied');
+                    } catch (e) {
+                        notify('Copy failed', 'error');
+                    }
+                    document.body.removeChild(ta);
+                }
+            },
+
+            lookup: function(basePath) {
+                var t = this._truncated();
+                this.open = false;
+                if (!t) return;
+                var param = (basePath === '/transactions') ? 'search' : 'lookup';
+                var url = basePath + '?' + param + '=' + encodeURIComponent(t);
+                window.open(url, '_blank', 'noopener');
+            },
+        };
+    };
+})();
+</script>
+
 <!-- Floating calculator (all views) -->
 <div id="floating-calc-root"
      data-calc-ui
