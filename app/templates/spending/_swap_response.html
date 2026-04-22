@@ -1,0 +1,7 @@
+{# Concatenated OOB partials for HTMX mutation responses.
+   Each partial's root element carries hx-swap-oob="outerHTML" when htmx_oob is true,
+   so HTMX replaces #hero-cards, #rolling-card, and #commitments-card in place
+   while the rest of the DOM (and all Alpine state) is untouched. #}
+{% include "spending/_hero.html" %}
+{% include "spending/_rolling.html" %}
+{% include "spending/_commitments.html" %}

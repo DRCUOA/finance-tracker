@@ -1,0 +1,239 @@
+<div id="commitments-card"
+     {% if htmx_oob %}hx-swap-oob="outerHTML"{% endif %}
+     x-data="{ showForm: false, open: true }" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden mb-8">
+    <div class="px-6 py-5 flex items-center justify-between" :class="open ? 'border-b border-gray-100 dark:border-gray-700' : ''">
+        <div>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Commitments</h3>
+            <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Known obligations not yet cleared through the bank</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a x-show="open" x-transition.opacity href="/commitments" class="text-xs font-semibold text-gray-400 hover:text-brand-600 dark:text-gray-500 dark:hover:text-brand-400 flex items-center gap-1 transition-colors" title="Manage all commitments">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                Manage
+            </a>
+            <button x-show="open" x-transition.opacity @click="showForm = !showForm" class="text-xs font-semibold text-brand-600 hover:text-brand-500 dark:text-brand-400 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Add
+            </button>
+            <button @click="open = !open" type="button"
+                    class="flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    :title="open ? 'Collapse' : 'Expand'" :aria-expanded="open">
+                <svg class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    <div x-show="open" x-transition>
+
+    <!-- Add commitment form -->
+    <div x-show="showForm" x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 -translate-y-1"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         class="px-6 py-4 bg-gray-50 dark:bg-gray-900/30 border-b border-gray-100 dark:border-gray-700">
+        <form hx-post="/spending/commitments/add" hx-swap="none"
+              action="/spending/commitments/add" method="POST"
+              class="space-y-3"
+              @htmx:after-request="if ($event.detail.successful) { showForm = false; $el.reset(); }">
+            <input type="hidden" name="period" value="{{ period }}">
+            <input type="hidden" name="ref" value="{{ start }}">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Title</label>
+                    <input type="text" name="title" required placeholder="e.g. Rent, Insurance" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Amount</label>
+                    <input type="number" name="amount" step="0.01" min="0" required placeholder="0.00" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 tabular-nums focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Due Date</label>
+                    <input type="date" name="due_date" required value="{{ start }}" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Direction</label>
+                    <select name="direction" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="outflow" selected>Outflow (bill/expense)</option>
+                        <option value="inflow">Inflow (expected income)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Category</label>
+                    <select name="category_id" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="">— None —</option>
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% if cat.children %}
+                        {% for child in cat.children %}
+                        <option value="{{ child.id }}">&nbsp;&nbsp;└ {{ child.name }}</option>
+                        {% endfor %}
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Confidence</label>
+                    <select name="confidence" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="confirmed" selected>Confirmed</option>
+                        <option value="expected">Expected</option>
+                        <option value="estimated">Estimated</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        <input type="checkbox" name="is_recurring" class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                        Recurring
+                    </label>
+                    <select name="recurrence" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="">—</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="fortnightly">Fortnightly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                        <option value="annually">Annually</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Notes</label>
+                    <input type="text" name="notes" placeholder="Optional" class="mt-0.5 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors">Save</button>
+                    <button type="button" @click="showForm = false" class="px-4 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold rounded-lg transition-colors">Cancel</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Commitment list -->
+    <div class="divide-y divide-gray-50 dark:divide-gray-700/50">
+        {% for c in commitments %}
+        {% set remaining = c.amount - c.cleared_amount %}
+        {% set cat_actual = actuals_by_cat.get(c.category_id|string, 0) if c.category else 0 %}
+        {% set partial_mismatch = (
+            c.direction.value == 'outflow'
+            and c.cleared_amount > 0
+            and not c.cleared_at
+            and c.category
+            and (cat_actual|float|round(2)) != (c.cleared_amount|float|round(2))
+        ) %}
+        <div x-data="{ showClear: false }" class="px-6 py-3 flex items-center gap-3 group transition-colors
+            {% if partial_mismatch %}bg-gray-100 dark:bg-gray-700/55{% endif %}
+            {% if c.cleared_at %}opacity-50{% elif not partial_mismatch and c.cleared_amount > 0 and not c.cleared_at %}opacity-75{% endif %}">
+            {% if c.direction.value == 'outflow' %}
+            <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
+                {% if c.cleared_at %}bg-gray-100 dark:bg-gray-700{% elif c.cleared_amount > 0 %}bg-positive-100 dark:bg-positive-900/40{% else %}bg-amber-100 dark:bg-amber-900/40{% endif %}">
+                {% if c.cleared_amount > 0 and not c.cleared_at %}
+                <svg class="w-3.5 h-3.5 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                {% else %}
+                <svg class="w-3.5 h-3.5 {% if c.cleared_at %}text-gray-400{% else %}text-amber-600 dark:text-amber-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                {% endif %}
+            </span>
+            {% else %}
+            <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-positive-100 dark:bg-positive-900/40">
+                <svg class="w-3.5 h-3.5 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            </span>
+            {% endif %}
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ c.title }}</span>
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase
+                        {% if c.confidence.value == 'confirmed' %}bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400
+                        {% elif c.confidence.value == 'expected' %}bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400
+                        {% else %}bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400{% endif %}">{{ c.confidence.value }}</span>
+                    {% if c.is_recurring %}
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-400">{{ c.recurrence.value if c.recurrence else 'recurring' }}</span>
+                    {% endif %}
+                    {% if c.cleared_at %}
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Cleared</span>
+                    {% elif c.cleared_amount > 0 %}
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-positive-100 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400">Partial {{ c.cleared_amount|nzd }}</span>
+                    {% endif %}
+                </div>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 tabular-nums">
+                    Due {{ c.due_date|fdate('short') }}{% if c.category %} · {{ c.category.name }}{% endif %}{% if c.notes %} · {{ c.notes }}{% endif %}
+                    {% if c.cleared_amount > 0 and not c.cleared_at %} · {{ remaining|nzd }} remaining{% endif %}
+                </p>
+            </div>
+            {% if c.category and not c.cleared_at %}
+            {% if cat_actual > 0 or partial_mismatch %}
+            <div class="flex flex-col items-end mr-2 flex-shrink-0">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 leading-none">Spent</span>
+                <span class="text-xs font-semibold tabular-nums leading-tight {% if cat_actual >= (c.amount|float) %}text-blue-500 dark:text-blue-400{% else %}text-positive-500 dark:text-positive-400{% endif %}">{{ cat_actual|nzd }}</span>
+            </div>
+            {% endif %}
+            {% endif %}
+            <span class="text-sm font-semibold tabular-nums whitespace-nowrap
+                {% if c.direction.value == 'outflow' %}text-negative-500 dark:text-negative-400{% else %}text-positive-600 dark:text-positive-400{% endif %}">
+                {% if c.direction.value == 'outflow' %}-{% else %}+{% endif %}{{ c.amount|nzd }}
+            </span>
+            {% if not c.cleared_at %}
+            <div class="flex items-center gap-1">
+                <!-- Inline clear form (shown on click) -->
+                <form x-show="showClear" x-cloak x-transition
+                      hx-post="/spending/commitments/{{ c.id }}/clear" hx-swap="none"
+                      action="/spending/commitments/{{ c.id }}/clear" method="POST"
+                      class="flex items-center gap-1">
+                    <input type="hidden" name="period" value="{{ period }}">
+                    <input type="hidden" name="ref" value="{{ start }}">
+                    <span class="text-xs text-gray-400 dark:text-gray-500">$</span>
+                    <input type="number" name="amount" step="0.01" min="0.01" max="{{ remaining }}"
+                           value="{{ remaining }}"
+                           class="w-20 px-1.5 py-0.5 text-xs tabular-nums text-right border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-brand-500 focus:border-brand-500"
+                           @keydown.escape="showClear = false">
+                    <button type="submit" title="Confirm" class="p-0.5 rounded text-positive-600 dark:text-positive-400 hover:bg-positive-50 dark:hover:bg-positive-900/20 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    </button>
+                    <button type="button" @click="showClear = false" title="Cancel" class="p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </form>
+                <div x-show="!showClear" class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {% if c.cleared_amount > 0 %}
+                    <form hx-post="/spending/commitments/{{ c.id }}/unclear" hx-swap="none"
+                          action="/spending/commitments/{{ c.id }}/unclear" method="POST" class="inline">
+                        <input type="hidden" name="period" value="{{ period }}">
+                        <input type="hidden" name="ref" value="{{ start }}">
+                        <button type="submit" title="Reset cleared amount ({{ c.cleared_amount|nzd }})" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                        </button>
+                    </form>
+                    {% endif %}
+                    <button type="button" @click="showClear = true; $nextTick(() => $el.closest('.group').querySelector('input[name=amount]')?.select())"
+                            title="Clear (enter amount)" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-positive-600 dark:hover:text-positive-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    </button>
+                    <form hx-post="/spending/commitments/{{ c.id }}/delete" hx-swap="none"
+                          action="/spending/commitments/{{ c.id }}/delete" method="POST" class="inline">
+                        <input type="hidden" name="period" value="{{ period }}">
+                        <input type="hidden" name="ref" value="{{ start }}">
+                        <button type="submit" title="Remove" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <form hx-post="/spending/commitments/{{ c.id }}/unclear" hx-swap="none"
+                      action="/spending/commitments/{{ c.id }}/unclear" method="POST" class="inline">
+                    <input type="hidden" name="period" value="{{ period }}">
+                    <input type="hidden" name="ref" value="{{ start }}">
+                    <button type="submit" title="Reactivate commitment (undo clear)" class="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No commitments this period. Add known bills, dues, and expected payments.</p>
+        {% endfor %}
+    </div>
+    </div><!-- /x-show Commitments body -->
+</div>

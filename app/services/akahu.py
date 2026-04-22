@@ -33,6 +33,16 @@ SYNC_MUTABLE_FIELDS = frozenset(
 )
 
 
+def _parse_akahu_ts(ts: str | None) -> datetime | None:
+    """Parse an Akahu ISO 8601 timestamp. Returns ``None`` on any failure."""
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
@@ -152,6 +162,17 @@ async def fetch_account_transactions(
     return all_items
 
 
+async def fetch_pending_transactions() -> list[dict]:
+    """Fetch currently-pending transactions across all connected accounts.
+
+    Uses GET /transactions/pending which returns every pending (authorised but
+    not yet settled) transaction the user token can see. Callers are expected
+    to partition by ``_account`` downstream.
+    """
+    data = await _akahu_get("/transactions/pending")
+    return data.get("items", [])
+
+
 # ---------------------------------------------------------------------------
 # Akahu -> local type mapping
 # ---------------------------------------------------------------------------
@@ -182,9 +203,15 @@ def akahu_account_type(akahu_type: str) -> str:
 async def sync_account_balances(
     db: AsyncSession, user_id: uuid.UUID
 ) -> dict:
-    """Fetch Akahu account balances and update linked local accounts.
+    """Fetch Akahu account balances and store them as the *reported* balance.
 
-    Idempotent: skips write when balance is already equal.
+    The bank-reported balance is the authoritative "where am I right now"
+    number. We keep it in ``Account.reported_balance`` separately from
+    ``current_balance`` (which is transaction-derived). Reports can then show
+    both and surface the delta honestly rather than silently flip-flopping
+    a single column on every sync.
+
+    Idempotent: skips write when both the value and timestamp are unchanged.
     """
     result = {
         "linked_found": 0,
@@ -223,10 +250,26 @@ async def sync_account_balances(
             result["errors"].append(f"{acct.name}: bad balance value ({exc})")
             continue
 
-        if acct.current_balance != new_balance:
-            acct.current_balance = new_balance
+        # Akahu surfaces its own last-refresh timestamps under ``refreshed``.
+        # That's the moment the *bank* told Akahu the balance — what the user
+        # cares about for staleness — distinct from our own sync clock.
+        refreshed = akahu_acct.get("refreshed") or {}
+        reported_as_of = _parse_akahu_ts(refreshed.get("balance"))
+
+        changed = False
+        if acct.reported_balance != new_balance:
+            acct.reported_balance = new_balance
+            changed = True
+        if reported_as_of and acct.reported_balance_as_of != reported_as_of:
+            acct.reported_balance_as_of = reported_as_of
+            changed = True
+
+        if changed:
             result["updated"] += 1
-            log.info("Balance updated: %s %s -> %s", acct.name, acct.current_balance, new_balance)
+            log.info(
+                "Reported balance updated: %s -> %s (as of %s)",
+                acct.name, new_balance, reported_as_of,
+            )
         else:
             result["unchanged"] += 1
 
@@ -238,8 +281,19 @@ async def sync_account_balances(
 # Transaction sync
 # ---------------------------------------------------------------------------
 
-def _parse_akahu_tx(raw: dict, account_id: uuid.UUID, user_id: uuid.UUID) -> dict:
-    """Parse a raw Akahu transaction dict into local Transaction field values."""
+def _parse_akahu_tx(
+    raw: dict,
+    account_id: uuid.UUID,
+    user_id: uuid.UUID,
+    is_pending: bool = False,
+) -> dict:
+    """Parse a raw Akahu transaction dict into local Transaction field values.
+
+    ``is_pending`` is provided by the caller based on which endpoint the row
+    came from (the posted endpoint always yields ``False``; the pending
+    endpoint always yields ``True``). Akahu does not put a flag on the row
+    itself — the endpoint is the source of truth.
+    """
     meta = raw.get("meta") or {}
     tx_date_str = raw.get("date", "")
     try:
@@ -252,15 +306,7 @@ def _parse_akahu_tx(raw: dict, account_id: uuid.UUID, user_id: uuid.UUID) -> dic
     except InvalidOperation:
         amount = Decimal("0.00")
 
-    akahu_updated_str = raw.get("updated_at", "")
-    akahu_updated_at = None
-    if akahu_updated_str:
-        try:
-            akahu_updated_at = datetime.fromisoformat(
-                akahu_updated_str.replace("Z", "+00:00")
-            )
-        except (ValueError, AttributeError):
-            pass
+    akahu_updated_at = _parse_akahu_ts(raw.get("updated_at"))
 
     return {
         "user_id": user_id,
@@ -274,7 +320,7 @@ def _parse_akahu_tx(raw: dict, account_id: uuid.UUID, user_id: uuid.UUID) -> dic
         "akahu_transaction_id": raw["_id"],
         "akahu_account_id": raw.get("_account", ""),
         "akahu_updated_at": akahu_updated_at,
-        "is_pending": False,
+        "is_pending": is_pending,
     }
 
 
@@ -368,6 +414,9 @@ async def sync_account_transactions(
         range_start = None
         range_end = None
 
+    # Stale detection only applies to *posted* rows — pending rows have their
+    # own lifecycle (see ``sync_account_pending_transactions``) and must not be
+    # tombstoned by the posted sync when they're simply not yet settled.
     if range_start and range_end and seen_akahu_ids:
         stale_stmt = select(Transaction).where(
             Transaction.source == AKAHU_SOURCE,
@@ -375,6 +424,7 @@ async def sync_account_transactions(
             Transaction.account_id == account_id,
             Transaction.date >= range_start,
             Transaction.date <= range_end,
+            Transaction.is_pending.is_(False),
             Transaction.is_source_stale.is_(False),
             Transaction.akahu_transaction_id.notin_(seen_akahu_ids),
         )
@@ -390,6 +440,7 @@ async def sync_account_transactions(
             Transaction.account_id == account_id,
             Transaction.date >= range_start,
             Transaction.date <= range_end,
+            Transaction.is_pending.is_(False),
             Transaction.is_source_stale.is_(False),
         )
         stale_result = await db.execute(stale_stmt)
@@ -398,7 +449,125 @@ async def sync_account_transactions(
             stale_tx.source_stale_since = sa_func.now()
             result["stale_marked"] += 1
 
+    # Record that we've successfully pulled posted transactions for this
+    # account so the reports UI can show the transaction-feed freshness.
+    acct.transactions_as_of = datetime.now(timezone.utc)
+
     await db.flush()
     await recalculate_balance(db, account_id)
 
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Pending transaction sync
+# ---------------------------------------------------------------------------
+
+async def sync_account_pending_transactions(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    account_id: uuid.UUID | None = None,
+) -> dict:
+    """Refresh the set of *pending* transactions for one or all linked accounts.
+
+    Pending rows live in the same ``transactions`` table with
+    ``is_pending=True``. On every call we (a) upsert every row returned from
+    ``/transactions/pending`` and (b) delete any local pending rows that no
+    longer appear — Akahu removes a transaction from the pending endpoint the
+    moment it posts (at which point the posted sync picks it up under a
+    different ID and the stale-pending is already gone).
+
+    Pending rows are excluded from balance recalculation and from category
+    aggregations so they never distort reports or budgets. They show up only
+    as a clearly-badged layer on top of posted data.
+    """
+    result = {
+        "fetched": 0,
+        "inserted": 0,
+        "updated": 0,
+        "unchanged": 0,
+        "removed": 0,
+        "errors": [],
+    }
+
+    stmt = select(Account).where(
+        Account.user_id == user_id,
+        Account.akahu_id.isnot(None),
+    )
+    if account_id is not None:
+        stmt = stmt.where(Account.id == account_id)
+    linked = list((await db.execute(stmt)).scalars().all())
+    if not linked:
+        return result
+
+    akahu_id_to_local: dict[str, Account] = {a.akahu_id: a for a in linked}
+
+    try:
+        raw_pending = await fetch_pending_transactions()
+    except (AkahuConfigError, AkahuAPIError) as exc:
+        result["errors"].append(str(exc))
+        return result
+
+    # Partition by Akahu account ID, keeping only the ones we care about.
+    by_account: dict[str, list[dict]] = {aid: [] for aid in akahu_id_to_local}
+    for raw in raw_pending:
+        aid = raw.get("_account")
+        if aid in by_account:
+            by_account[aid].append(raw)
+
+    result["fetched"] = sum(len(v) for v in by_account.values())
+
+    for akahu_acct_id, rows in by_account.items():
+        acct = akahu_id_to_local[akahu_acct_id]
+        seen: set[str] = set()
+
+        for raw in rows:
+            akahu_tx_id = raw.get("_id")
+            if not akahu_tx_id:
+                continue
+            seen.add(akahu_tx_id)
+            parsed = _parse_akahu_tx(raw, acct.id, user_id, is_pending=True)
+
+            existing = (await db.execute(
+                select(Transaction).where(
+                    Transaction.source == AKAHU_SOURCE,
+                    Transaction.akahu_transaction_id == akahu_tx_id,
+                )
+            )).scalar_one_or_none()
+
+            if existing is None:
+                category_id = await suggest_category(db, user_id, parsed["description"])
+                db.add(Transaction(**parsed, category_id=category_id))
+                result["inserted"] += 1
+            else:
+                changed = False
+                for field in SYNC_MUTABLE_FIELDS:
+                    new_val = parsed.get(field)
+                    old_val = getattr(existing, field, None)
+                    if new_val != old_val:
+                        setattr(existing, field, new_val)
+                        changed = True
+                if changed:
+                    result["updated"] += 1
+                else:
+                    result["unchanged"] += 1
+
+        # Any previously-pending row for this account that no longer appears
+        # in the pending feed has either posted (we'll pick it up fresh under
+        # its posted ID) or been cancelled. Either way, drop the pending row.
+        gone_stmt = select(Transaction).where(
+            Transaction.source == AKAHU_SOURCE,
+            Transaction.account_id == acct.id,
+            Transaction.is_pending.is_(True),
+        )
+        if seen:
+            gone_stmt = gone_stmt.where(
+                Transaction.akahu_transaction_id.notin_(seen)
+            )
+        to_remove = list((await db.execute(gone_stmt)).scalars().all())
+        for tx in to_remove:
+            await db.delete(tx)
+            result["removed"] += 1
+
+    await db.flush()
     return result

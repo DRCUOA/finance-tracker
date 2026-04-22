@@ -68,6 +68,14 @@ class Account(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     akahu_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Bank-reported balance (authoritative "where am I right now"), written by the
+    # feed balance sync. NULL for unlinked accounts.
+    reported_balance: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # When the bank (or aggregator) says the reported balance applies to — distinct
+    # from ``last_synced_at`` which is *our* clock at the moment we pulled it.
+    reported_balance_as_of: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Last time we successfully ingested posted transactions from the feed.
+    transactions_as_of: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -17,6 +17,107 @@
 <div x-data="{ tab: new URLSearchParams(location.search).get('tab') || 'income' }"
      x-init="$watch('tab', v => { const u = new URL(location); u.searchParams.set('tab', v); history.replaceState(null, '', u); })">
 
+    {# ---------------------------------------------------------------- #}
+    {# Feed Reconciliation — live bank balance vs. transaction-derived    #}
+    {# balance, with an explicit "Unreconciled" row. No synthetic         #}
+    {# transactions; category totals on every tab below stay clean.      #}
+    {# ---------------------------------------------------------------- #}
+    {% if feed_summary and feed_summary.any_linked %}
+    {% set worst = feed_summary.worst_health %}
+    {% set banner_cls = {
+        'stale':         'bg-negative-50 ring-negative-200 text-negative-700',
+        'lagging':       'bg-amber-50 ring-amber-200 text-amber-800',
+        'no_delta_info': 'bg-gray-50 ring-gray-200 text-gray-700',
+        'in_sync':       'bg-positive-50 ring-positive-200 text-positive-800',
+        'unlinked':      'bg-gray-50 ring-gray-200 text-gray-600',
+    }[worst] %}
+    <details class="mb-8 rounded-2xl shadow-sm ring-1 {{ banner_cls }}" {% if worst in ('stale', 'lagging') %}open{% endif %}>
+        <summary class="flex items-center gap-3 cursor-pointer px-6 py-4 select-none">
+            <span class="inline-flex h-2.5 w-2.5 rounded-full
+                {% if worst == 'stale' %}bg-negative-500
+                {% elif worst == 'lagging' %}bg-amber-500
+                {% elif worst == 'in_sync' %}bg-positive-500
+                {% else %}bg-gray-400{% endif %}"></span>
+            <span class="text-xs font-semibold uppercase tracking-wider">Feed status</span>
+            <span class="text-sm font-medium">
+                {% if worst == 'stale' %}One or more feeds are stale &mdash; reported balance is more than 72 hours old
+                {% elif worst == 'lagging' %}Feed is lagging &mdash; reports don&rsquo;t yet reflect the bank&rsquo;s current balance
+                {% elif worst == 'no_delta_info' %}Balance not yet reported &mdash; sync to populate
+                {% elif worst == 'in_sync' %}Reports match the bank feed
+                {% else %}No linked feeds
+                {% endif %}
+            </span>
+            <span class="ml-auto text-xs text-gray-500">click to expand</span>
+        </summary>
+        <div class="px-6 pb-6">
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead>
+                        <tr class="text-[10px] uppercase tracking-wider text-gray-500">
+                            <th class="text-left py-2 pr-4">Account</th>
+                            <th class="text-right py-2 px-3">Reported</th>
+                            <th class="text-right py-2 px-3">From posted txns</th>
+                            <th class="text-right py-2 px-3">Pending</th>
+                            <th class="text-right py-2 px-3">Unreconciled</th>
+                            <th class="text-left py-2 pl-3">As of</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-black/5">
+                        {% for a in feed_summary.accounts %}
+                        <tr>
+                            <td class="py-2 pr-4">
+                                <span class="font-medium">{{ a.account_name }}</span>
+                                {% if a.health == 'stale' %}
+                                    <span class="ml-2 text-[10px] uppercase tracking-wider text-negative-600">Stale</span>
+                                {% elif a.health == 'lagging' %}
+                                    <span class="ml-2 text-[10px] uppercase tracking-wider text-amber-700">Lagging</span>
+                                {% elif a.health == 'in_sync' %}
+                                    <span class="ml-2 text-[10px] uppercase tracking-wider text-positive-700">In sync</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-2 px-3 text-right tabular-nums">
+                                {% if a.reported_balance is not none %}{{ a.reported_balance|nzd }}{% else %}&mdash;{% endif %}
+                            </td>
+                            <td class="py-2 px-3 text-right tabular-nums">{{ a.posted_balance|nzd }}</td>
+                            <td class="py-2 px-3 text-right tabular-nums">
+                                {% if a.pending_total %}{{ a.pending_total|nzd }}{% else %}&mdash;{% endif %}
+                            </td>
+                            <td class="py-2 px-3 text-right tabular-nums font-semibold
+                                {% if a.unreconciled_delta and a.unreconciled_delta|abs > 0.01 %}text-amber-700{% else %}text-gray-500{% endif %}">
+                                {% if a.unreconciled_delta is not none %}{{ a.unreconciled_delta|nzd }}{% else %}&mdash;{% endif %}
+                            </td>
+                            <td class="py-2 pl-3 text-xs text-gray-500">
+                                {% if a.feed_lag_hours is not none %}
+                                    {% if a.feed_lag_hours < 1 %}&lt; 1 h ago
+                                    {% elif a.feed_lag_hours < 48 %}{{ a.feed_lag_hours|round(0)|int }} h ago
+                                    {% else %}{{ (a.feed_lag_hours / 24)|round(0)|int }} d ago{% endif %}
+                                {% else %}never{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="text-xs font-semibold border-t-2 border-black/10">
+                            <td class="py-2 pr-4">Total</td>
+                            <td class="py-2 px-3 text-right tabular-nums">{{ feed_summary.reported_total|nzd }}</td>
+                            <td class="py-2 px-3 text-right tabular-nums">{{ feed_summary.posted_total|nzd }}</td>
+                            <td class="py-2 px-3 text-right tabular-nums">{{ feed_summary.pending_total|nzd }}</td>
+                            <td class="py-2 px-3 text-right tabular-nums">{{ feed_summary.unreconciled_total|nzd }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <p class="text-xs text-gray-500 mt-4 leading-relaxed">
+                <strong>Reported</strong> is the balance the bank feed is publishing right now.
+                <strong>From posted txns</strong> is what your report totals are built from &mdash; only settled transactions count.
+                <strong>Pending</strong> is authorised-but-not-yet-settled activity &mdash; shown here for transparency; never mixed into category spend or income.
+                <strong>Unreconciled</strong> is the gap between the bank and what we can explain. It closes itself as the feed catches up; we don&rsquo;t fabricate a transaction to hide it.
+            </p>
+        </div>
+    </details>
+    {% endif %}
+
     <!-- Tab Navigation -->
     <div class="mb-8 border-b border-gray-200 dark:border-gray-700">
         <nav class="flex gap-1 -mb-px overflow-x-auto" aria-label="Report tabs">

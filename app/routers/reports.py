@@ -9,10 +9,24 @@ from app.database import get_db
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
+from app.services import feed_reconciliation as feed_svc
 from app.services import reports as report_svc
 from app.templating import templates
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+# Worst-health picker for the rollup banner: stale > lagging > no_delta_info
+# > in_sync > unlinked. Kept as an ordered list so template-side rendering
+# has a single source of truth.
+_HEALTH_PRIORITY = ("stale", "lagging", "no_delta_info", "in_sync", "unlinked")
+
+
+def _worst_health(healths: list[str]) -> str:
+    for h in _HEALTH_PRIORITY:
+        if h in healths:
+            return h
+    return "unlinked"
 
 
 @router.get("", response_class=HTMLResponse)
@@ -68,6 +82,30 @@ async def reports_page(
         db, user.id, periods=12, account_ids=cashflow_ids,
     )
 
+    # Feed-reconciliation snapshot — one row per linked account showing the
+    # bank-reported balance, our posted-transaction-derived balance, any
+    # pending layer, and the unreconciled delta between them. Deliberately
+    # limited to linked accounts: manual/CSV accounts have no feed to
+    # reconcile against.
+    feed_statuses = await feed_svc.user_feed_status(
+        db, user.id, linked_only=True,
+    )
+    feed_summary = {
+        "accounts": [s.as_dict() for s in feed_statuses],
+        "reported_total": sum(
+            float(s.reported_balance) for s in feed_statuses
+            if s.reported_balance is not None
+        ),
+        "posted_total": sum(float(s.posted_balance) for s in feed_statuses),
+        "pending_total": sum(float(s.pending_total) for s in feed_statuses),
+        "unreconciled_total": sum(
+            float(s.unreconciled_delta) for s in feed_statuses
+            if s.unreconciled_delta is not None
+        ),
+        "any_linked": any(s.is_linked for s in feed_statuses),
+        "worst_health": _worst_health([s.health for s in feed_statuses]),
+    }
+
     prev_ref = report_svc.step_period(ref_date, -1, period)
     next_ref = report_svc.step_period(ref_date, 1, period)
     prev_url = f"/reports?period={period}&ref={prev_ref.isoformat()}"
@@ -89,6 +127,7 @@ async def reports_page(
         "category_comparison": category_comparison,
         "fixed_flexible": fixed_flexible,
         "cashflow": cashflow,
+        "feed_summary": feed_summary,
         "prev_url": prev_url,
         "next_url": next_url,
         "base_url": base_url,

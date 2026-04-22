@@ -55,6 +55,12 @@ class TestNzDateToUtcRange:
 class TestSyncAccountBalances:
     @patch("app.services.akahu.fetch_accounts")
     async def test_updates_linked_account(self, mock_fetch, db, user, account):
+        # Seed current_balance to something unrelated so we can verify the
+        # balance sync now targets ``reported_balance`` and leaves the
+        # transaction-derived ``current_balance`` alone.
+        account.current_balance = Decimal("999.99")
+        await db.flush()
+
         mock_fetch.return_value = [
             make_akahu_account(akahu_id="acc_test_123", balance_current=2500.00)
         ]
@@ -65,11 +71,18 @@ class TestSyncAccountBalances:
         assert result["unchanged"] == 0
 
         await db.refresh(account)
-        assert account.current_balance == Decimal("2500.00")
+        assert account.reported_balance == Decimal("2500.00")
+        # current_balance is transaction-derived; balance sync must not touch it.
+        assert account.current_balance == Decimal("999.99")
 
     @patch("app.services.akahu.fetch_accounts")
     async def test_skips_write_when_unchanged(self, mock_fetch, db, user, account):
-        account.current_balance = Decimal("1234.56")
+        # Pre-seed the reported balance + timestamp so the incoming Akahu
+        # response is a no-op.
+        account.reported_balance = Decimal("1234.56")
+        account.reported_balance_as_of = datetime(
+            2026, 4, 11, 1, 0, 0, tzinfo=timezone.utc
+        )
         await db.flush()
 
         mock_fetch.return_value = [

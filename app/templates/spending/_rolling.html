@@ -1,0 +1,148 @@
+<div id="rolling-card"
+     {% if htmx_oob %}hx-swap-oob="outerHTML"{% endif %}
+     x-data="{ expanded: false, open: true }" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden mb-8">
+    <div class="px-6 py-5" :class="open ? 'border-b border-gray-100 dark:border-gray-700' : ''">
+        <div class="flex items-center justify-between mb-3">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Rolling Over / Under</h3>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Cumulative budget vs actual spend + accruals since start date</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <form x-show="open" x-transition.opacity
+                      hx-post="/spending/rolling-start" hx-swap="none"
+                      method="post" action="/spending/rolling-start"
+                      class="flex items-center gap-2">
+                    <input type="hidden" name="period" value="{{ period }}">
+                    <input type="hidden" name="ref" value="{{ start }}">
+                    <label class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">From</label>
+                    <input type="date" name="rolling_start" value="{{ rolling_start }}"
+                           class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-2.5 py-1 text-xs text-gray-900 dark:text-gray-100 tabular-nums focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                    <button type="submit" class="px-2.5 py-1 text-xs font-semibold text-brand-600 hover:text-brand-500 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors">Update</button>
+                </form>
+                <button @click="open = !open" type="button"
+                        class="flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        :title="open ? 'Collapse' : 'Expand'" :aria-expanded="open">
+                    <svg class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div x-show="open" x-transition>
+
+        {% if rolling %}
+        <!-- Cumulative headline -->
+        {% set r = rolling %}
+        {% set fw = feed_warning %}
+        {# Only offer an adjusted view if the delta is material (>= 1 cent).
+           Anything smaller is within the reconciliation noise floor. #}
+        {% set unrec_material = fw and fw.any_linked and (fw.unreconciled_total|abs) >= 0.01 %}
+        {% set adjusted_over_under = r.cumulative_over_under + (fw.unreconciled_total if unrec_material else 0) %}
+        <div class="flex items-center gap-4 flex-wrap">
+            <div class="flex items-center gap-2">
+                {% if r.cumulative_over_under >= 0 %}
+                <div class="w-8 h-8 rounded-full bg-positive-100 dark:bg-positive-900/30 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-positive-600 dark:text-positive-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                </div>
+                {% else %}
+                <div class="w-8 h-8 rounded-full bg-negative-100 dark:bg-negative-900/30 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-negative-600 dark:text-negative-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                {% endif %}
+                <div>
+                    <p class="text-2xl font-bold tabular-nums {% if r.cumulative_over_under >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
+                        {{ r.cumulative_over_under|nzd }}
+                    </p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500">
+                        {% if r.cumulative_over_under >= 0 %}under budget cumulatively{% else %}over budget cumulatively{% endif %}
+                        &middot; {{ r.months|length }} month{{ 's' if r.months|length != 1 else '' }}
+                        {% if r.total_accrued > 0 %}&middot; {{ r.total_accrued|nzd }} accrued{% endif %}
+                    </p>
+                </div>
+            </div>
+
+            {% if unrec_material %}
+            {# Unreconciled feed delta — bank sees transactions we haven't
+               booked yet (or vice versa). Purely informational; we never
+               touch the monthly breakdown rows with this adjustment. #}
+            <div class="flex items-center gap-3 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 ring-1 ring-amber-200 dark:ring-amber-800/50">
+                <svg class="w-4 h-4 flex-shrink-0 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                <div class="leading-tight">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                        Feed delta
+                        {% if fw.worst_health == 'stale' %}&middot; stale{% elif fw.worst_health == 'lagging' %}&middot; lagging{% endif %}
+                    </p>
+                    <p class="text-sm font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+                        {% if fw.unreconciled_total >= 0 %}+{% endif %}{{ fw.unreconciled_total|nzd }}
+                        <span class="text-[11px] font-normal text-amber-600 dark:text-amber-400/80">
+                            unreconciled{% if fw.account_count > 1 %} across {{ fw.account_count }} accts{% endif %}
+                        </span>
+                    </p>
+                </div>
+                <a href="/reports?ref={{ start }}" class="text-[10px] font-semibold text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 underline-offset-2 hover:underline whitespace-nowrap" title="Review per-account reconciliation">Review</a>
+            </div>
+
+            <div class="flex items-center gap-2 pl-3 border-l border-gray-200 dark:border-gray-700">
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Incl. feed delta</p>
+                    <p class="text-lg font-semibold tabular-nums {% if adjusted_over_under >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}"
+                       title="Cumulative {{ r.cumulative_over_under|nzd }} adjusted by the unreconciled feed delta of {{ fw.unreconciled_total|nzd }}">
+                        {{ adjusted_over_under|nzd }}
+                    </p>
+                    <p class="text-[11px] text-gray-400 dark:text-gray-500">
+                        {% if adjusted_over_under >= 0 %}under budget if bank is right{% else %}over budget if bank is right{% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500 dark:text-gray-400">Pick a <span class="font-semibold text-gray-700 dark:text-gray-300">From</span> date and click <span class="font-semibold text-gray-700 dark:text-gray-300">Update</span> to save it on your account. Until you do, no cumulative figures are shown here.</p>
+        {% endif %}
+        </div><!-- /x-show Rolling headline body -->
+    </div>
+
+    {% if rolling %}
+    {% set r = rolling %}
+    <!-- Month-by-month breakdown (expandable) -->
+    <button x-show="open" x-transition.opacity @click="expanded = !expanded" class="w-full px-6 py-3 flex items-center justify-between text-xs font-semibold text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
+        <span>Monthly breakdown</span>
+        <svg class="w-4 h-4 transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+    </button>
+    <div x-show="open && expanded" x-cloak x-transition>
+        <table class="w-full">
+            <thead class="bg-gray-50 dark:bg-gray-700/60">
+                <tr>
+                    <th class="px-6 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Month</th>
+                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Budget</th>
+                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Spent</th>
+                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Accrued</th>
+                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Variance</th>
+                    <th class="px-6 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Running</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {% for m in r.months %}
+                <tr class="{% if m.phase == 'current' %}bg-brand-50/30 dark:bg-brand-900/10{% elif m.phase == 'future' %}opacity-50{% endif %}">
+                    <td class="px-6 py-2.5 text-sm text-gray-700 dark:text-gray-300">
+                        {{ m.label }}
+                        {% if m.phase == 'current' %}
+                        <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400">Now</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{{ m.budget|nzd }}</td>
+                    <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{{ m.spent|nzd }}</td>
+                    <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{% if m.accrued > 0 %}{{ m.accrued|nzd }}{% else %}&mdash;{% endif %}</td>
+                    <td class="px-4 py-2.5 text-sm tabular-nums text-right font-medium {% if m.variance >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
+                        {% if m.variance >= 0 %}+{% endif %}{{ m.variance|nzd }}
+                    </td>
+                    <td class="px-6 py-2.5 text-sm tabular-nums text-right font-semibold {% if m.running_total >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
+                        {% if m.running_total >= 0 %}+{% endif %}{{ m.running_total|nzd }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>

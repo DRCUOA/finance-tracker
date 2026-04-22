@@ -14,6 +14,7 @@ from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
 from app.services import commitments as commit_svc
+from app.services import feed_reconciliation as feed_svc
 from app.services import reports as report_svc
 from app.templating import templates
 
@@ -25,15 +26,19 @@ def _cashflow_ids(accounts):
     return [a.id for a in accounts if a.is_cashflow] if has_nc else None
 
 
-@router.get("", response_class=HTMLResponse)
-async def spending_pulse(
-    request: Request,
-    period: str = Query("month"),
-    ref: str = Query(""),
-    rolling_start: str = Query(""),
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
+async def _build_spending_context(
+    db: AsyncSession,
+    user: User,
+    period: str,
+    ref: str,
+    rolling_start: str = "",
 ):
+    """Compute the full context dict the spending page needs.
+
+    Shared between the GET handler and the POST mutation handlers that need to
+    re-render partials after a change. Any code path that needs to produce HTML
+    matching the live state of /spending should use this helper.
+    """
     if period not in ("week", "month"):
         period = "month"
 
@@ -57,7 +62,7 @@ async def spending_pulse(
         db, user.id, m_start, m_end, include_cleared=True,
     )
 
-    # Rolling over/under — saved on user. Optional ?rolling_start= overrides this view only (not saved).
+    # Rolling over/under — saved on user. Optional rolling_start overrides this view only (not saved).
     rs_override = None
     if rolling_start:
         try:
@@ -75,6 +80,35 @@ async def spending_pulse(
         )
         rolling_start_value = rs_effective.isoformat()
 
+    # Feed-reconciliation summary for the cashflow scope of this view.
+    # Exposed only in the Rolling Over / Under banner — a negative delta
+    # means the bank has already recorded spending our posted+pending
+    # transactions don't cover, so the "true" cumulative over/under is
+    # worse than what the monthly rows show.
+    feed_statuses = await feed_svc.user_feed_status(
+        db, user.id,
+        account_ids=cashflow_ids if cashflow_ids is not None else None,
+        linked_only=True,
+    )
+    unreconciled_total = float(sum(
+        s.unreconciled_delta for s in feed_statuses
+        if s.unreconciled_delta is not None
+    ))
+    feed_warning = {
+        "any_linked": any(s.is_linked for s in feed_statuses),
+        "unreconciled_total": unreconciled_total,
+        "worst_health": next(
+            (h for h in ("stale", "lagging", "no_delta_info", "in_sync")
+             if any(s.health == h for s in feed_statuses)),
+            "in_sync",
+        ),
+        "account_count": sum(
+            1 for s in feed_statuses
+            if s.unreconciled_delta is not None
+            and abs(float(s.unreconciled_delta)) >= 0.01
+        ),
+    }
+
     prev_ref = report_svc.step_period(ref_date, -1, period)
     next_ref = report_svc.step_period(ref_date, 1, period)
     prev_url = f"/spending?period={period}&ref={prev_ref.isoformat()}"
@@ -84,13 +118,13 @@ async def spending_pulse(
     from app.services import categories as cat_svc
     all_cats = await cat_svc.get_category_tree(db, user.id)
 
-    # Commitment “SPENT”: algebraic SUM(amount) for the category in the
+    # Commitment "SPENT": algebraic SUM(amount) for the category in the
     # commitment month (all accounts; refunds and expenses both included).
     actuals_by_cat = await report_svc.category_actuals_for_period(
         db, user.id, m_start, m_end, account_ids=None,
     )
 
-    return templates.TemplateResponse(request, "spending/index.html", {
+    return {
         "user": user,
         "period": period,
         "period_label": label,
@@ -105,11 +139,51 @@ async def spending_pulse(
         "base_url": base_url,
         "rolling": rolling,
         "rolling_start": rolling_start_value,
-    })
+        "feed_warning": feed_warning,
+    }
 
 
-@router.post("/rolling-start", response_class=RedirectResponse)
+def _is_htmx(request: Request) -> bool:
+    """True if the current request came in via HTMX (not a normal browser nav)."""
+    return request.headers.get("hx-request", "").lower() == "true"
+
+
+async def _htmx_swap_response(
+    request: Request,
+    db: AsyncSession,
+    user: User,
+    period: str,
+    ref: str,
+):
+    """Build an HTMX OOB-swap response that refreshes hero/rolling/commitments.
+
+    Used by every mutating POST when the request came in via HTMX. The browser
+    keeps its Alpine state (card collapse, form toggles) untouched because we
+    only swap the three cards whose data just changed.
+    """
+    ctx = await _build_spending_context(db, user, period, ref)
+    ctx["htmx_oob"] = True
+    return templates.TemplateResponse(
+        request, "spending/_swap_response.html", ctx,
+    )
+
+
+@router.get("", response_class=HTMLResponse)
+async def spending_pulse(
+    request: Request,
+    period: str = Query("month"),
+    ref: str = Query(""),
+    rolling_start: str = Query(""),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    ctx = await _build_spending_context(db, user, period, ref, rolling_start)
+    return templates.TemplateResponse(request, "spending/index.html", ctx)
+
+
+@router.post("/rolling-start")
 async def save_rolling_start(
+    request: Request,
     period: str = Form("month"),
     ref: str = Form(""),
     rolling_start: str = Form(""),
@@ -129,6 +203,9 @@ async def save_rolling_start(
     else:
         user.rolling_budget_start = None
     await db.flush()
+    if _is_htmx(request):
+        await db.commit()
+        return await _htmx_swap_response(request, db, user, period, ref_param)
     return RedirectResponse(
         url=f"/spending?{urlencode({'period': period, 'ref': ref_param})}",
         status_code=302,
@@ -176,6 +253,8 @@ async def add_commitment(
     )
     await db.commit()
 
+    if _is_htmx(request):
+        return await _htmx_swap_response(request, db, user, period, ref)
     return RedirectResponse(
         url=f"/spending?period={period}&ref={ref}",
         status_code=302,
@@ -184,6 +263,7 @@ async def add_commitment(
 
 @router.post("/commitments/{commitment_id}/unclear")
 async def unclear_commitment(
+    request: Request,
     commitment_id: uuid.UUID,
     period: str = Form("week"),
     ref: str = Form(""),
@@ -192,6 +272,8 @@ async def unclear_commitment(
 ):
     await commit_svc.unclear_commitment(db, commitment_id, user.id)
     await db.commit()
+    if _is_htmx(request):
+        return await _htmx_swap_response(request, db, user, period, ref)
     return RedirectResponse(
         url=f"/spending?period={period}&ref={ref}",
         status_code=302,
@@ -200,6 +282,7 @@ async def unclear_commitment(
 
 @router.post("/commitments/{commitment_id}/clear")
 async def clear_commitment(
+    request: Request,
     commitment_id: uuid.UUID,
     period: str = Form("week"),
     ref: str = Form(""),
@@ -215,6 +298,8 @@ async def clear_commitment(
             pass
     await commit_svc.clear_commitment(db, commitment_id, user.id, amount=clear_amt)
     await db.commit()
+    if _is_htmx(request):
+        return await _htmx_swap_response(request, db, user, period, ref)
     return RedirectResponse(
         url=f"/spending?period={period}&ref={ref}",
         status_code=302,
@@ -223,6 +308,7 @@ async def clear_commitment(
 
 @router.post("/commitments/{commitment_id}/delete")
 async def delete_commitment(
+    request: Request,
     commitment_id: uuid.UUID,
     period: str = Form("week"),
     ref: str = Form(""),
@@ -231,6 +317,8 @@ async def delete_commitment(
 ):
     await commit_svc.delete_commitment(db, commitment_id, user.id)
     await db.commit()
+    if _is_htmx(request):
+        return await _htmx_swap_response(request, db, user, period, ref)
     return RedirectResponse(
         url=f"/spending?period={period}&ref={ref}",
         status_code=302,

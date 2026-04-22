@@ -78,12 +78,23 @@ async def delete_account(db: AsyncSession, account_id: uuid.UUID, user_id: uuid.
 
 
 async def recalculate_balance(db: AsyncSession, account_id: uuid.UUID) -> Decimal:
+    """Recompute ``current_balance`` from posted transactions only.
+
+    Pending transactions (``is_pending=True``) are deliberately excluded: they
+    haven't settled at the bank, so including them would make the
+    transaction-derived balance overshoot the eventual posted state and
+    confuse reports/budgets. Pending amounts are surfaced separately via the
+    feed-reconciliation snapshot.
+    """
     acct = await db.get(Account, account_id)
     if not acct:
         return Decimal("0.00")
     result = await db.execute(
         select(sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")))
-        .where(Transaction.account_id == account_id)
+        .where(
+            Transaction.account_id == account_id,
+            Transaction.is_pending.is_(False),
+        )
     )
     tx_sum = result.scalar()
     acct.current_balance = acct.initial_balance + tx_sum
