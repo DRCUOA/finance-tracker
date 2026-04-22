@@ -6,7 +6,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.account import AccountTerm, AccountType
+from app.models.account import (
+    AccountTerm,
+    AccountType,
+    CompoundingFrequency,
+    CompoundingType,
+)
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
@@ -54,8 +59,22 @@ async def list_accounts(
 async def create_form(request: Request, user: User = Depends(require_user)):
     return templates.TemplateResponse(request, "accounts/form.html", {
         "user": user,
-        "account": None, "account_types": AccountType, "account_terms": AccountTerm,
+        "account": None,
+        "account_types": AccountType,
+        "account_terms": AccountTerm,
+        "compounding_types": CompoundingType,
+        "compounding_frequencies": CompoundingFrequency,
     })
+
+
+def _parse_interest_rate(raw: str) -> Decimal | None:
+    """Empty/blank → accrual disabled; otherwise best-effort Decimal parse."""
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        return Decimal(raw)
+    except InvalidOperation:
+        return None
 
 
 @router.post("/create")
@@ -68,6 +87,9 @@ async def create_account(
     initial_balance: str = Form("0.00"),
     institution: str = Form(""),
     is_cashflow: bool = Form(True),
+    interest_rate: str = Form(""),
+    compounding_type: str = Form("compound"),
+    compounding_frequency: str = Form("monthly"),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -80,6 +102,9 @@ async def create_account(
         currency, bal, institution or None,
         term=AccountTerm(term),
         is_cashflow=is_cashflow,
+        interest_rate=_parse_interest_rate(interest_rate),
+        compounding_type=CompoundingType(compounding_type),
+        compounding_frequency=CompoundingFrequency(compounding_frequency),
     )
     return RedirectResponse(url="/accounts", status_code=302)
 
@@ -95,7 +120,11 @@ async def edit_form(
         return RedirectResponse(url="/accounts", status_code=302)
     return templates.TemplateResponse(request, "accounts/form.html", {
         "user": user,
-        "account": account, "account_types": AccountType, "account_terms": AccountTerm,
+        "account": account,
+        "account_types": AccountType,
+        "account_terms": AccountTerm,
+        "compounding_types": CompoundingType,
+        "compounding_frequencies": CompoundingFrequency,
     })
 
 
@@ -110,6 +139,9 @@ async def update_account(
     institution: str = Form(""),
     is_cashflow: bool = Form(False),
     is_active: bool = Form(False),
+    interest_rate: str = Form(""),
+    compounding_type: str = Form("compound"),
+    compounding_frequency: str = Form("monthly"),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -124,6 +156,9 @@ async def update_account(
         currency=currency, initial_balance=bal,
         institution=institution or None,
         is_cashflow=is_cashflow, is_active=is_active,
+        interest_rate=_parse_interest_rate(interest_rate),
+        compounding_type=CompoundingType(compounding_type),
+        compounding_frequency=CompoundingFrequency(compounding_frequency),
     )
     await acct_svc.recalculate_balance(db, account_id)
     return RedirectResponse(url="/accounts", status_code=302)

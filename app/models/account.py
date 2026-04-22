@@ -31,6 +31,31 @@ class AccountGroup(str, enum.Enum):
     LIABILITY = "liability"
 
 
+class CompoundingType(str, enum.Enum):
+    SIMPLE = "simple"
+    COMPOUND = "compound"
+
+
+class CompoundingFrequency(str, enum.Enum):
+    DAILY = "daily"
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    ANNUALLY = "annually"
+
+
+# Periods-per-year used in the compound-interest formula
+# A = P(1 + r/n)^(n*t). Interest accrual treats elapsed wall-clock days as
+# fractional periods, so these values also govern the effective
+# simple/compound conversion when the scheduler runs between period
+# boundaries.
+PERIODS_PER_YEAR: dict[CompoundingFrequency, int] = {
+    CompoundingFrequency.DAILY: 365,
+    CompoundingFrequency.MONTHLY: 12,
+    CompoundingFrequency.QUARTERLY: 4,
+    CompoundingFrequency.ANNUALLY: 1,
+}
+
+
 CUMULATIVE_TERMS: dict[AccountTerm, list[AccountTerm]] = {
     AccountTerm.SHORT: [AccountTerm.SHORT],
     AccountTerm.MEDIUM: [AccountTerm.SHORT, AccountTerm.MEDIUM],
@@ -76,6 +101,27 @@ class Account(Base):
     reported_balance_as_of: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Last time we successfully ingested posted transactions from the feed.
     transactions_as_of: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # --- Interest accrual ----------------------------------------------------
+    # ``interest_rate`` is the APR expressed in percent (e.g. 4.5000 = 4.5%).
+    # NULL disables accrual for this account; zero is also treated as "no-op"
+    # by the service but is a valid configured state.
+    interest_rate: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
+    compounding_type: Mapped[CompoundingType] = mapped_column(
+        Enum(CompoundingType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        server_default="compound",
+        default=CompoundingType.COMPOUND,
+    )
+    compounding_frequency: Mapped[CompoundingFrequency] = mapped_column(
+        Enum(CompoundingFrequency, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        server_default="monthly",
+        default=CompoundingFrequency.MONTHLY,
+    )
+    interest_last_accrued_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # ------------------------------------------------------------------------
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

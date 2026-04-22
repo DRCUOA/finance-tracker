@@ -65,6 +65,11 @@ async def list_transactions(
         date_from=df, date_to=dt, search=search or None,
         sort_by=sort_by, sort_dir=sort_dir, page=page,
     )
+    filter_count, filter_sum = await tx_svc.get_filter_summary(
+        db, user.id, account_id=aid, category_id=cid,
+        uncategorized=uncategorized,
+        date_from=df, date_to=dt, search=search or None,
+    )
     accounts = await acct_svc.get_accounts(db, user.id)
     cat_tree = await cat_svc.get_category_tree(db, user.id)
     total_pages = max(1, (total + 49) // 50)
@@ -75,6 +80,7 @@ async def list_transactions(
     return templates.TemplateResponse(request, template_name, {
         "user": user,
         "transactions": txs, "total": total,
+        "filter_count": filter_count, "filter_sum": filter_sum,
         "accounts": accounts, "category_tree": cat_tree,
         "page": page, "total_pages": total_pages,
         "account_id": account_id, "category_id": category_id,

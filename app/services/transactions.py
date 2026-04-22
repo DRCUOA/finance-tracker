@@ -195,6 +195,63 @@ async def batch_categorise(db: AsyncSession, tx_ids: list[uuid.UUID], user_id: u
     return count
 
 
+async def get_filter_summary(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    account_id: uuid.UUID | None = None,
+    category_id: uuid.UUID | None = None,
+    uncategorized: bool = False,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    search: str | None = None,
+    min_amount: Decimal | None = None,
+    max_amount: Decimal | None = None,
+    is_cleared: bool | None = None,
+) -> tuple[int, Decimal]:
+    """Count + sum of amounts across all transactions matching the given filters.
+
+    Mirrors the WHERE clauses of get_transactions so a subtotal bar above the
+    paginated table can stay in sync with whatever the user has filtered to.
+    """
+    stmt = select(
+        sa_func.count(Transaction.id),
+        sa_func.coalesce(sa_func.sum(Transaction.amount), 0),
+    ).where(Transaction.user_id == user_id)
+
+    if account_id:
+        stmt = stmt.where(Transaction.account_id == account_id)
+    if category_id:
+        stmt = stmt.where(Transaction.category_id == category_id)
+    elif uncategorized:
+        stmt = stmt.where(Transaction.category_id.is_(None))
+    if date_from:
+        stmt = stmt.where(Transaction.date >= date_from)
+    if date_to:
+        stmt = stmt.where(Transaction.date <= date_to)
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            or_(
+                Transaction.description.ilike(pattern),
+                Transaction.notes.ilike(pattern),
+                Transaction.reference.ilike(pattern),
+            )
+        )
+    if min_amount is not None:
+        stmt = stmt.where(Transaction.amount >= min_amount)
+    if max_amount is not None:
+        stmt = stmt.where(Transaction.amount <= max_amount)
+    if is_cleared is not None:
+        stmt = stmt.where(Transaction.is_cleared == is_cleared)
+
+    row = (await db.execute(stmt)).one()
+    count_val = row[0] or 0
+    sum_val = row[1] or Decimal("0")
+    if not isinstance(sum_val, Decimal):
+        sum_val = Decimal(str(sum_val))
+    return int(count_val), sum_val
+
+
 async def get_filtered_transaction_ids(
     db: AsyncSession,
     user_id: uuid.UUID,

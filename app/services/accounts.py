@@ -4,7 +4,14 @@ from decimal import Decimal
 from sqlalchemy import select, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account, AccountTerm, AccountType, CUMULATIVE_TERMS
+from app.models.account import (
+    Account,
+    AccountTerm,
+    AccountType,
+    CUMULATIVE_TERMS,
+    CompoundingFrequency,
+    CompoundingType,
+)
 from app.models.transaction import Transaction
 
 
@@ -40,6 +47,9 @@ async def create_account(
     institution: str | None = None,
     term: AccountTerm = AccountTerm.SHORT,
     is_cashflow: bool = True,
+    interest_rate: Decimal | None = None,
+    compounding_type: CompoundingType = CompoundingType.COMPOUND,
+    compounding_frequency: CompoundingFrequency = CompoundingFrequency.MONTHLY,
 ) -> Account:
     max_order = await db.execute(
         select(sa_func.coalesce(sa_func.max(Account.sort_order), -1))
@@ -51,6 +61,9 @@ async def create_account(
         currency=currency, initial_balance=initial_balance,
         current_balance=initial_balance, institution=institution,
         term=term, is_cashflow=is_cashflow, sort_order=next_order,
+        interest_rate=interest_rate,
+        compounding_type=compounding_type,
+        compounding_frequency=compounding_frequency,
     )
     db.add(acct)
     await db.flush()

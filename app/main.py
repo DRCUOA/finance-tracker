@@ -1,7 +1,11 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.jobs.interest_job import run_daily_interest_accrual
 from app.templating import BASE_DIR
 from app.routers import (
     accounts,
@@ -23,7 +27,43 @@ from app.routers import (
     transactions,
 )
 
-app = FastAPI(title="Finla")
+log = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start the APScheduler instance alongside the FastAPI app.
+
+    We register a single daily job (``run_daily_interest_accrual``) that
+    accrues interest on every eligible account. APScheduler is imported
+    lazily so that tooling which imports ``app.main`` without running the
+    server (e.g. for reflection) doesn't pay the dep cost or fail if the
+    package isn't installed — though in practice it's a hard dep via
+    requirements.txt.
+    """
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.triggers.cron import CronTrigger
+
+    scheduler = AsyncIOScheduler(timezone="UTC")
+    # 00:15 UTC daily — offset slightly from midnight so overnight batch
+    # jobs have settled before we post interest for the new day.
+    scheduler.add_job(
+        run_daily_interest_accrual,
+        CronTrigger(hour=0, minute=15),
+        id="daily_interest_accrual",
+        replace_existing=True,
+        misfire_grace_time=60 * 60 * 6,  # still run if the app was down <6h
+    )
+    scheduler.start()
+    app.state.scheduler = scheduler
+    log.info("scheduler started with daily interest accrual")
+    try:
+        yield
+    finally:
+        scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="Finla", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
