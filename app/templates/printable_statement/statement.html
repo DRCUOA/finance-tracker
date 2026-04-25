@@ -1,0 +1,845 @@
+{#
+  Standalone, print-optimised account statement. Does NOT extend base.html on
+  purpose — the app shell (sidebar / sticky header / dark chrome) has no place
+  on a printed page and would waste ink, break pagination, and confuse the
+  reader. Instead we render a clean white A4 document, add a small floating
+  toolbar (visible on screen only), and trigger window.print() on load.
+
+  The brought-forward / carried-forward layout is driven by pre-paginated
+  `StatementPage` objects the service builds — we simply iterate, inserting
+  a CSS `page-break-after` between pages. This keeps the template logic-free
+  and lets us write unit tests against the service's pagination shape.
+#}
+<!DOCTYPE html>
+<html lang="en" class="size-{{ font_size|default('l') }}">
+<head>
+    <meta charset="UTF-8">
+    <title>Statement — {{ packet.user.display_name }} — {{ packet.start_date|fdate }} to {{ packet.end_date|fdate }}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <style>
+        /* ----- Page setup ----- */
+        @page {
+            size: A4 portrait;
+            margin: 14mm 12mm 14mm 12mm;
+        }
+
+        * { box-sizing: border-box; }
+        html {
+            /* Root font-size governs every rem used below. The size class
+               on <html> (size-xl / size-l / size-m / size-s / size-xs)
+               overrides this per user selection. */
+            font-size: 10.5pt;              /* base for size L (default) */
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #f3f4f6;
+            color: #111827;
+            font-family: 'Helvetica Neue', 'Segoe UI', Arial, sans-serif;
+            line-height: 1.35;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        body { font-size: 1rem; }
+
+        /* ----- Font-size selector -----
+           Every textual element below is declared in `rem` relative to the
+           root font-size. Changing html's font-size therefore scales the
+           whole document proportionally — headers, metrics, table rows,
+           footer, the monogram on the hero avatar — without touching a
+           single other rule. Physical dimensions (sheet size, paddings,
+           the avatar's mm-based diameter) stay fixed, so only the text
+           reflows.
+
+           We deliberately keep the base at 10.5pt for "L" to match the
+           original design; the other tiers are linear steps on either
+           side. XL ≈ +24 %, XS ≈ −29 %. */
+        html.size-xl { font-size: 13pt; }
+        html.size-l  { font-size: 10.5pt; }
+        html.size-m  { font-size: 9.5pt; }
+        html.size-s  { font-size: 8.5pt; }
+        html.size-xs { font-size: 7.5pt; }
+
+        /* Each .sheet renders as a virtual A4 page on screen and a real one
+           when printed. Width/height match @page minus margins so screen
+           preview ≈ printed preview. */
+        .sheet {
+            background: #fff;
+            width: 186mm;
+            min-height: 269mm;
+            margin: 12mm auto;
+            padding: 12mm 12mm 16mm 12mm;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+            page-break-after: always;
+            page-break-inside: avoid;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .sheet:last-of-type { page-break-after: auto; }
+
+        @media print {
+            html, body { background: #fff; }
+            .sheet {
+                width: auto;
+                min-height: 0;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+                page-break-after: always;
+            }
+            .sheet:last-of-type { page-break-after: auto; }
+            .screen-only { display: none !important; }
+        }
+
+        /* ----- Statement header ----- */
+        .brand-bar {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            border-bottom: 2px solid #111827;
+            padding-bottom: 10px;
+            margin-bottom: 14px;
+        }
+        .brand-name {
+            font-size: 1.714rem;            /* 18pt at L */
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .brand-tag {
+            font-size: 0.857rem;            /* 9pt at L */
+            color: #6b7280;
+            margin-top: 2px;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+        .statement-meta {
+            text-align: right;
+            font-size: 0.857rem;            /* 9pt at L */
+            color: #374151;
+        }
+        .statement-meta .title {
+            font-size: 1.143rem;            /* 12pt at L */
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 2px;
+        }
+        .statement-meta .ref {
+            font-family: 'Courier New', monospace;
+            font-size: 0.81rem;             /* 8.5pt at L */
+            color: #6b7280;
+        }
+
+        .addr-block {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 18px;
+            font-size: 0.952rem;            /* 10pt at L */
+        }
+        .addr-block .holder,
+        .addr-block .period {
+            flex: 1;
+        }
+        .addr-block h4 {
+            font-size: 0.762rem;            /* 8pt at L */
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 4px 0;
+            font-weight: 600;
+        }
+        .addr-block .holder-name { font-weight: 600; font-size: 1.048rem; }  /* 11pt at L */
+        .addr-block .period-value { font-weight: 600; font-size: 1.048rem; } /* 11pt at L */
+
+        /* ----- Hero avatar on summary sheet -----
+           Intentionally large so the summary page reads like a personalised
+           cover. Rendered as a bordered circle; falls back to a coloured
+           monogram when the user has no uploaded avatar. `print-color-adjust`
+           keeps the border/background from being stripped by the print
+           engine's "simplify colours" default. */
+        .avatar-hero {
+            flex: 0 0 auto;
+            width: 42mm;
+            height: 42mm;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid #111827;
+            box-shadow: 0 0 0 4px #fff, 0 2px 6px rgba(0,0,0,0.15);
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .avatar-hero img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .avatar-hero .monogram {
+            font-size: 2.095rem;            /* 22pt at L */
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 1px;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1f2937 0%, #4b5563 100%);
+        }
+
+        /* ----- Summary ----- */
+        h2.section {
+            font-size: 1.143rem;            /* 12pt at L */
+            font-weight: 700;
+            margin: 0 0 10px 0;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #d1d5db;
+        }
+        h3.subsection {
+            font-size: 1.048rem;            /* 11pt at L */
+            font-weight: 700;
+            margin: 0 0 6px 0;
+        }
+
+        table.stmt {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.905rem;            /* 9.5pt at L */
+        }
+        table.stmt thead th {
+            background: #111827;
+            color: #fff;
+            font-weight: 600;
+            text-align: left;
+            padding: 6px 8px;
+            font-size: 0.857rem;            /* 9pt at L */
+            letter-spacing: 0.3px;
+        }
+        table.stmt thead th.num { text-align: right; }
+        table.stmt tbody td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+        table.stmt tbody td.num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        table.stmt tbody tr.zebra td { background: #fafafa; }
+        table.stmt tfoot td {
+            padding: 6px 8px;
+            font-weight: 700;
+            background: #f3f4f6;
+            border-top: 2px solid #111827;
+        }
+        table.stmt tfoot td.num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Carry / brought forward rows */
+        tr.carry td {
+            background: #fffbea !important;
+            font-style: italic;
+            color: #92400e;
+            font-weight: 600;
+            border-top: 1px dashed #d97706;
+            border-bottom: 1px dashed #d97706;
+        }
+
+        /* Summary metric grid */
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .metric {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 8px 10px;
+        }
+        .metric .lbl {
+            font-size: 0.714rem;            /* 7.5pt at L */
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .metric .val {
+            font-size: 1.143rem;            /* 12pt at L */
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+        .metric.pos .val { color: #166534; }
+        .metric.neg .val { color: #991b1b; }
+
+        /* ----- Per-account period-movement summary -----
+           Rendered on the *last* detail page of each account only, just
+           below the main transaction table. Intentionally narrow and
+           right-aligned so it reads as a closing summary rather than
+           competing with the full-width txn table. Three cells: In
+           (credits), Out (debits, positive magnitude), Net (In − Out,
+           sign-coloured). */
+        .period-movement {
+            margin-top: 10px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .period-movement .pm-card {
+            min-width: 70mm;
+            border: 1px solid #111827;
+            border-radius: 4px;
+            overflow: hidden;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .period-movement .pm-title {
+            background: #111827;
+            color: #fff;
+            padding: 4px 10px;
+            font-size: 0.762rem;            /* 8pt at L */
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .period-movement table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.857rem;            /* 9pt at L */
+            font-variant-numeric: tabular-nums;
+        }
+        .period-movement th,
+        .period-movement td {
+            padding: 4px 10px;
+            text-align: right;
+            white-space: nowrap;
+        }
+        .period-movement thead th {
+            font-size: 0.714rem;            /* 7.5pt at L */
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .period-movement tbody td { font-weight: 700; }
+        .period-movement .net-pos { color: #166534; }
+        .period-movement .net-neg { color: #991b1b; }
+
+        /* ----- Per-account detail header ----- */
+        .acct-head {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 8px 10px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .acct-head .name { font-size: 1.095rem; font-weight: 700; }       /* 11.5pt at L */
+        .acct-head .sub { font-size: 0.81rem; color: #6b7280; margin-top: 2px; } /* 8.5pt at L */
+        .acct-head .openclose { text-align: right; font-size: 0.857rem; } /* 9pt at L */
+        .acct-head .openclose .line { display: flex; justify-content: space-between; gap: 14px; }
+        .acct-head .openclose .line strong { font-variant-numeric: tabular-nums; }
+
+        /* ----- Footer — forced to page bottom so the legal line and page
+           numbers look consistent on every sheet. ----- */
+        .sheet-body { flex: 1; }
+        .sheet-foot {
+            margin-top: 12px;
+            padding-top: 6px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 0.762rem;            /* 8pt at L */
+            color: #6b7280;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .sheet-foot .legal { max-width: 70%; }
+        .sheet-foot .pagenum { white-space: nowrap; }
+
+        /* ----- Screen-only print toolbar ----- */
+        .toolbar {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+            z-index: 999;
+        }
+        .toolbar button,
+        .toolbar a {
+            background: #111827;
+            color: #fff;
+            border: none;
+            border-radius: 999px;
+            padding: 8px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .toolbar button:hover { background: #374151; }
+        .toolbar a.secondary { background: #fff; color: #111827; border: 1px solid #d1d5db; }
+
+        .empty-row td {
+            text-align: center;
+            color: #9ca3af;
+            font-style: italic;
+            padding: 14px 8px;
+        }
+
+        .amount-pos { color: #166534; }
+        .amount-neg { color: #991b1b; }
+        .txn-ref { font-size: 0.762rem; color: #6b7280; font-family: 'Courier New', monospace; }  /* 8pt at L */
+
+        /* ----- Category chips -----
+           Transaction rows only render a short NUMERIC chip (e.g. "42") in
+           the category colour — keeping every row's chip exactly the same
+           footprint regardless of the category's name length. The name ↔
+           number mapping lives in the summary-page legend. Width is sized
+           for a 3-digit number ("999") so the column never reflows when a
+           user has a large category tree.
+
+           Using `font-variant-numeric: tabular-nums` guarantees "1" and
+           "999" occupy the same glyph cell, so chips line up vertically
+           down the description column. */
+        .cat-num {
+            display: inline-block;
+            /* Width scales with the selected font size so a 3-digit number
+               still fits cleanly at XS through XL. Using `ch` ties the box
+               to the current glyph width of "0", so "999" always fits. */
+            min-width: 2.6ch;
+            padding: 1px 0.6ch;
+            border-radius: 4px;
+            font-size: 0.762rem;            /* 8pt at L */
+            font-weight: 700;
+            line-height: 1.25;
+            color: #fff;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.2px;
+            margin-top: 2px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            box-shadow: inset 0 -1px 0 rgba(0,0,0,0.12);
+            vertical-align: middle;
+        }
+
+        /* Legend block on summary page: each entry is a numbered chip
+           followed by the category name, laid out as a responsive grid so
+           long names don't squash shorter entries. */
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 4px 14px;
+            margin-bottom: 12px;
+            font-size: 0.857rem;            /* 9pt at L */
+        }
+        .legend .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
+        .legend .legend-item .name {
+            color: #111827;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .legend .cat-num { margin-top: 0; }
+
+        /* ----- Greyscale mode -----
+           The user toggles this via a checkbox on the picker (carried over
+           as ?greyscale=on) or the in-view toolbar. We use CSS `filter`
+           instead of overriding every colour rule above because:
+             1. it applies uniformly to the avatar, category pills, amount
+                highlights, and anything else with colour — no risk of one
+                element being missed;
+             2. the OS print dialog's own "Black and white" option doesn't
+                always desaturate colour images (the avatar in particular),
+                so this guarantees consistent output.
+           We apply it to body (not html) so the toolbar itself stays
+           coloured on screen. */
+        body.greyscale .sheet,
+        body.greyscale .sheet * {
+            filter: grayscale(100%) !important;
+        }
+        @media print {
+            body.greyscale {
+                filter: grayscale(100%) !important;
+            }
+        }
+    </style>
+</head>
+<body{% if greyscale %} class="greyscale"{% endif %}>
+
+<div class="toolbar screen-only">
+    <a href="/statements" class="secondary">&larr; Back</a>
+    <label class="secondary" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:#fff;border:1px solid #d1d5db;font-size:12px;font-weight:600;color:#111827;cursor:pointer;">
+        <input id="greyscale-toggle" type="checkbox"{% if greyscale %} checked{% endif %} style="margin:0;">
+        Greyscale
+    </label>
+    <button type="button" onclick="window.print()">Print / Save PDF</button>
+</div>
+
+{# ------------------------------------------------------------------
+   SUMMARY SHEET — Page 1: cover + per-account open/close rollup.
+   ------------------------------------------------------------------ #}
+{% set holder_name = packet.user.display_name %}
+{% set period_text = packet.start_date|fdate('long') ~ '  to  ' ~ packet.end_date|fdate('long') %}
+
+{% macro money(value, currency) -%}
+{%- if value is none -%}—{%- else -%}
+{%- set n = value|float -%}
+{%- if n < 0 -%}-{{ currency }} {{ '{:,.2f}'.format(-n) }}{%- else -%}{{ currency }} {{ '{:,.2f}'.format(n) }}{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
+{# Track total pages across all sheets so footer can show "Page X of Y". #}
+{% set ns = namespace(total_pages=1) %}
+{% for acct in packet.accounts %}
+    {% set ns.total_pages = ns.total_pages + acct.pages|length %}
+{% endfor %}
+{% set total_sheets = ns.total_pages %}
+{% set ns2 = namespace(cur=1) %}
+
+<!-- ================= SHEET 1: Summary ================= -->
+<div class="sheet">
+    <div class="sheet-body">
+        <div class="brand-bar">
+            <div>
+                <div class="brand-name">Finla</div>
+                <div class="brand-tag">Personal Finance · New Zealand</div>
+            </div>
+            <div class="statement-meta">
+                <div class="title">Account Statement</div>
+                <div>Issued {{ packet.generated_at|fdate('long') }}</div>
+                <div class="ref">Ref {{ packet.reference }}</div>
+            </div>
+        </div>
+
+        <div class="addr-block">
+            <div class="avatar-hero">
+                {% if packet.user.avatar_url %}
+                <img src="{{ packet.user.avatar_url }}" alt="{{ holder_name }}">
+                {% else %}
+                {# Fallback monogram: up to two uppercased initials pulled from
+                   the display name. Works even when the user has never
+                   uploaded a profile picture, so the hero block never looks
+                   broken. #}
+                {% set parts = holder_name.split() %}
+                {% set initials = ((parts[0][0] if parts else '') ~ (parts[-1][0] if parts|length > 1 else ''))|upper %}
+                <div class="monogram">{{ initials or '?' }}</div>
+                {% endif %}
+            </div>
+            <div class="holder">
+                <h4>Account holder</h4>
+                <div class="holder-name">{{ holder_name }}</div>
+                <div style="color:#6b7280; font-size:0.857rem;">{{ packet.user.email }}</div>
+            </div>
+            <div class="period">
+                <h4>Statement period</h4>
+                <div class="period-value">{{ packet.start_date|fdate('long') }}</div>
+                <div class="period-value">to {{ packet.end_date|fdate('long') }}</div>
+            </div>
+        </div>
+
+        <h2 class="section">Summary of accounts</h2>
+
+        <table class="stmt" style="margin-bottom:16px;">
+            <thead>
+                <tr>
+                    <th style="width:30%;">Account</th>
+                    <th style="width:15%;">Type</th>
+                    <th style="width:10%;">Ccy</th>
+                    <th class="num">Opening</th>
+                    <th class="num">Credits</th>
+                    <th class="num">Debits</th>
+                    <th class="num">Closing</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in packet.accounts %}
+                <tr {% if loop.index0 is odd %}class="zebra"{% endif %}>
+                    <td>
+                        <div style="font-weight:600;">{{ s.account.name }}</div>
+                        {% if s.account.institution %}
+                        <div style="font-size:0.81rem;color:#6b7280;">{{ s.account.institution }}</div>
+                        {% endif %}
+                    </td>
+                    <td>{{ s.account.account_type.value | replace('_', ' ') | title }}</td>
+                    <td>{{ s.currency }}</td>
+                    <td class="num">{{ money(s.opening_balance, s.currency) }}</td>
+                    <td class="num amount-pos">{{ money(s.total_credits, s.currency) }}</td>
+                    <td class="num amount-neg">{{ money(s.total_debits, s.currency) }}</td>
+                    <td class="num"><strong>{{ money(s.closing_balance, s.currency) }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% for ccy, totals in packet.summary_by_currency.items() %}
+            <tfoot>
+                <tr>
+                    <td colspan="3">Totals — {{ ccy }} ({{ totals.accounts }} account{{ 's' if totals.accounts != 1 else '' }})</td>
+                    <td class="num">{{ money(totals.opening, ccy) }}</td>
+                    <td class="num amount-pos">{{ money(totals.credits, ccy) }}</td>
+                    <td class="num amount-neg">{{ money(totals.debits, ccy) }}</td>
+                    <td class="num">{{ money(totals.closing, ccy) }}</td>
+                </tr>
+            </tfoot>
+            {% endfor %}
+        </table>
+
+        <h2 class="section">At a glance</h2>
+        {% set first_ccy = (packet.summary_by_currency.keys() | list | first) if packet.summary_by_currency else 'NZD' %}
+        {% set first = packet.summary_by_currency[first_ccy] if first_ccy in packet.summary_by_currency else None %}
+        {% if first %}
+        <div class="metrics">
+            <div class="metric">
+                <div class="lbl">Opening total ({{ first_ccy }})</div>
+                <div class="val">{{ money(first.opening, first_ccy) }}</div>
+            </div>
+            <div class="metric pos">
+                <div class="lbl">Total credits</div>
+                <div class="val">{{ money(first.credits, first_ccy) }}</div>
+            </div>
+            <div class="metric neg">
+                <div class="lbl">Total debits</div>
+                <div class="val">{{ money(first.debits, first_ccy) }}</div>
+            </div>
+            <div class="metric">
+                <div class="lbl">Closing total ({{ first_ccy }})</div>
+                <div class="val">{{ money(first.closing, first_ccy) }}</div>
+            </div>
+        </div>
+        {% if packet.summary_by_currency|length > 1 %}
+        <p style="font-size:0.81rem;color:#6b7280;margin-top:-6px;">
+            Additional currencies shown in the summary table above; "At a glance" figures are for {{ first_ccy }} only.
+        </p>
+        {% endif %}
+        {% endif %}
+
+        {% if packet.category_legend %}
+        <h2 class="section" style="margin-top:10px;">Category legend</h2>
+        <p style="font-size:0.857rem;color:#374151;margin:0 0 6px 0;">
+            Each transaction on the following pages is tagged with a
+            numbered, colour-coded chip. Match the number against the key
+            below to identify its category.
+        </p>
+        <div class="legend">
+            {% for tag in packet.category_legend %}
+            <div class="legend-item">
+                <span class="cat-num" style="background-color: {{ tag.color }};">{{ tag.number }}</span>
+                <span class="name">{{ tag.name }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <h2 class="section" style="margin-top:10px;">About this statement</h2>
+        <p style="font-size:0.857rem;color:#374151;margin:0 0 6px 0;">
+            This statement covers posted transactions only. Pending / unsettled
+            items are excluded so the closing balance matches the account's
+            reconciled position in Finla. Each account's detailed transaction
+            history follows this page, with brought-forward and carried-forward
+            balances shown at every page break for continuity.
+        </p>
+    </div>
+    <div class="sheet-foot">
+        <div class="legal">
+            Statement generated by Finla for {{ holder_name }}. For the account
+            holder's personal records only. Amounts are shown in each
+            account's native currency; no FX conversion has been applied.
+        </div>
+        <div class="pagenum">Page {{ ns2.cur }} of {{ total_sheets }}</div>
+    </div>
+</div>
+{% set ns2.cur = ns2.cur + 1 %}
+
+<!-- ================= SHEET 2..N: per-account detail ================= -->
+{% for s in packet.accounts %}
+    {% for page in s.pages %}
+<div class="sheet">
+    <div class="sheet-body">
+        <div class="brand-bar">
+            <div>
+                <div class="brand-name">Finla</div>
+                <div class="brand-tag">Personal Finance · New Zealand</div>
+            </div>
+            <div class="statement-meta">
+                <div class="title">{{ s.account.name }}</div>
+                <div>{{ packet.start_date|fdate }} — {{ packet.end_date|fdate }}</div>
+                <div class="ref">Ref {{ packet.reference }}</div>
+            </div>
+        </div>
+
+        <div class="acct-head">
+            <div>
+                <div class="name">{{ s.account.name }}</div>
+                <div class="sub">
+                    {{ s.account.account_type.value | replace('_', ' ') | title }}
+                    {% if s.account.institution %} · {{ s.account.institution }}{% endif %}
+                    · {{ s.currency }}
+                    {% if page.total_pages > 1 %}
+                    · Detail page {{ page.page_index + 1 }} of {{ page.total_pages }}
+                    {% endif %}
+                </div>
+            </div>
+            <div class="openclose">
+                <div class="line"><span>Opening</span><strong>{{ money(s.opening_balance, s.currency) }}</strong></div>
+                <div class="line"><span>Closing</span><strong>{{ money(s.closing_balance, s.currency) }}</strong></div>
+                <div class="line"><span>Transactions</span><strong>{{ s.txn_count }}</strong></div>
+            </div>
+        </div>
+
+        <table class="stmt">
+            <thead>
+                <tr>
+                    <th style="width:13%;">Date</th>
+                    <th style="width:42%;">Description</th>
+                    <th style="width:11%;">Reference</th>
+                    <th class="num" style="width:11%;">Debit</th>
+                    <th class="num" style="width:11%;">Credit</th>
+                    <th class="num" style="width:12%;">Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {# Brought-forward row: shown on every page except the very first
+                   page of this account (where the Opening is on the header). #}
+                {% if not page.is_first %}
+                <tr class="carry">
+                    <td colspan="5">Balance brought forward from previous page</td>
+                    <td class="num">{{ money(page.brought_forward, s.currency) }}</td>
+                </tr>
+                {% else %}
+                <tr class="carry">
+                    <td colspan="5">Opening balance</td>
+                    <td class="num">{{ money(s.opening_balance, s.currency) }}</td>
+                </tr>
+                {% endif %}
+
+                {% for tx in page.transactions %}
+                <tr {% if loop.index0 is odd %}class="zebra"{% endif %}>
+                    <td>{{ tx.date|fdate }}</td>
+                    <td>
+                        {% if tx.category %}
+                        <span class="cat-num" style="background-color: {{ tx.category.color }};" title="{{ tx.category.name }}">{{ tx.category.number }}</span>
+                        {% endif %}
+                        {{ tx.description }}
+                        {% if tx.reference %}
+                        <div class="txn-ref">Ref: {{ tx.reference }}</div>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:0.81rem;color:#6b7280;">{{ tx.reference or '' }}</td>
+                    <td class="num amount-neg">{% if tx.is_debit %}{{ money(tx.debit, s.currency) }}{% endif %}</td>
+                    <td class="num amount-pos">{% if tx.is_credit %}{{ money(tx.credit, s.currency) }}{% endif %}</td>
+                    <td class="num"><strong>{{ money(tx.running_balance, s.currency) }}</strong></td>
+                </tr>
+                {% endfor %}
+
+                {% if not page.transactions %}
+                <tr class="empty-row"><td colspan="6">No transactions posted in this period.</td></tr>
+                {% endif %}
+
+                {# Carried-forward row only when more pages follow. On the last
+                   page we render a Closing Balance row instead. #}
+                {% if not page.is_last %}
+                <tr class="carry">
+                    <td colspan="5">Balance carried forward to next page</td>
+                    <td class="num">{{ money(page.carried_forward, s.currency) }}</td>
+                </tr>
+                {% else %}
+                <tr class="carry" style="background:#ecfdf5 !important;color:#065f46;border-color:#10b981;">
+                    <td colspan="3"><strong>Closing balance</strong></td>
+                    <td class="num amount-neg"><strong>{{ money(s.total_debits, s.currency) }}</strong></td>
+                    <td class="num amount-pos"><strong>{{ money(s.total_credits, s.currency) }}</strong></td>
+                    <td class="num"><strong>{{ money(s.closing_balance, s.currency) }}</strong></td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        {# Period-movement summary — only on the last detail page of each
+           account. Shows In / Out / Net magnitudes for the whole statement
+           period. Net uses the StatementAccount.net_movement property
+           (closing − opening), which equals credits − debits for posted
+           rows, and is sign-coloured so an outflow period is immediately
+           legible. #}
+        {% if page.is_last %}
+        <div class="period-movement">
+            <div class="pm-card">
+                <div class="pm-title">Period movement</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>In</th>
+                            <th>Out</th>
+                            <th>Net</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="amount-pos">{{ money(s.total_credits, s.currency) }}</td>
+                            <td class="amount-neg">{{ money(s.total_debits, s.currency) }}</td>
+                            <td class="{% if s.net_movement < 0 %}net-neg{% else %}net-pos{% endif %}">
+                                {{ money(s.net_movement, s.currency) }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    <div class="sheet-foot">
+        <div class="legal">
+            {{ s.account.name }} · {{ s.currency }} · Statement period {{ packet.start_date|fdate }} – {{ packet.end_date|fdate }}. Finla — personal records only.
+        </div>
+        <div class="pagenum">Page {{ ns2.cur }} of {{ total_sheets }}</div>
+    </div>
+</div>
+{% set ns2.cur = ns2.cur + 1 %}
+    {% endfor %}
+{% endfor %}
+
+<script>
+// Auto-open the OS print dialog after layout settles. We intentionally wait
+// briefly (a) so the user's fonts finish loading for accurate sizing, and
+// (b) so the content they just triggered has painted — calling print() too
+// early sometimes fires with a blank canvas in Chromium.
+window.addEventListener('load', function() {
+    setTimeout(function() { window.print(); }, 350);
+});
+
+// Greyscale toggle: lets the user flip into grey after the page has already
+// rendered (e.g. they saw the preview and decided to save ink). We also
+// update the URL so a reload or bookmark preserves their choice.
+(function() {
+    var toggle = document.getElementById('greyscale-toggle');
+    if (!toggle) return;
+    toggle.addEventListener('change', function() {
+        document.body.classList.toggle('greyscale', toggle.checked);
+        try {
+            var url = new URL(window.location.href);
+            if (toggle.checked) { url.searchParams.set('greyscale', 'on'); }
+            else { url.searchParams.delete('greyscale'); }
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) { /* older browsers — silently ignore */ }
+    });
+})();
+</script>
+</body>
+</html>

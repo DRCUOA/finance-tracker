@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Generate Statement — Finla{% endblock %}
+{% block page_title %}Generate Statement{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+        Select one or more accounts and a date range. The statement opens in a
+        print-ready view and your browser's print dialog appears automatically
+        — from there choose your printer, or "Save as PDF".
+    </p>
+
+    {% if error %}
+    <div class="mb-6 rounded-xl border border-negative-200 dark:border-negative-700 bg-negative-50 dark:bg-negative-900/30 px-4 py-3 text-sm text-negative-700 dark:text-negative-300">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <form action="/statements/view" method="get" target="_blank"
+          class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+        <!-- Date range -->
+        <div class="p-6">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Period</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label class="block">
+                    <span class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">From</span>
+                    <input type="date" name="from" value="{{ default_from }}" required
+                           class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                </label>
+                <label class="block">
+                    <span class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">To</span>
+                    <input type="date" name="to" value="{{ default_to }}" required
+                           class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                </label>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2" id="quickranges">
+                <button type="button" data-range="this-month" class="text-xs font-medium px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-brand-100 dark:hover:bg-brand-800 transition-colors">This month</button>
+                <button type="button" data-range="last-month" class="text-xs font-medium px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-brand-100 dark:hover:bg-brand-800 transition-colors">Last month</button>
+                <button type="button" data-range="last-3" class="text-xs font-medium px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-brand-100 dark:hover:bg-brand-800 transition-colors">Last 3 months</button>
+                <button type="button" data-range="ytd" class="text-xs font-medium px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-brand-100 dark:hover:bg-brand-800 transition-colors">Year to date</button>
+            </div>
+        </div>
+
+        <!-- Account selector -->
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Accounts</h2>
+                <div class="flex gap-3 text-xs">
+                    <button type="button" id="select-all" class="font-medium text-brand-600 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-100">Select all</button>
+                    <span class="text-gray-300 dark:text-gray-600">·</span>
+                    <button type="button" id="select-none" class="font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Clear</button>
+                </div>
+            </div>
+
+            {% if accounts %}
+            {% for group_label, group_accounts in [("Assets", assets), ("Liabilities", liabilities)] %}
+                {% if group_accounts %}
+                <h3 class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-2 mb-2">{{ group_label }}</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 mb-4">
+                    {% for acct in group_accounts %}
+                    <label class="flex items-center gap-2 py-1.5 cursor-pointer rounded-md hover:bg-gray-50 dark:hover:bg-gray-700/50 px-2 -mx-2 transition-colors">
+                        <input type="checkbox" name="account_id" value="{{ acct.id }}"
+                               {% if preselected and acct.id|string in preselected %}checked{% endif %}
+                               class="statement-acct rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                        <span class="flex-1 min-w-0">
+                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ acct.name }}</span>
+                            <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">
+                                {{ acct.account_type.value | replace('_', ' ') | title }}{% if acct.institution %} · {{ acct.institution }}{% endif %}{% if acct.currency and acct.currency != 'NZD' %} · {{ acct.currency }}{% endif %}
+                            </span>
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            {% endfor %}
+            {% else %}
+            <p class="text-sm text-gray-400 dark:text-gray-500 py-4">No accounts configured.</p>
+            {% endif %}
+        </div>
+
+        <!-- Options -->
+        <div class="p-6 space-y-5">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Options</h2>
+
+            <label class="flex items-start gap-3 cursor-pointer group">
+                <input type="checkbox" name="greyscale" value="on"
+                       class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                <span class="flex-1">
+                    <span class="block text-sm font-medium text-gray-900 dark:text-gray-100">Print / save in greyscale</span>
+                    <span class="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        Removes all colour — useful when saving a PDF to send as a
+                        mono attachment, or to cut toner usage. Category labels
+                        and balances still print, just in shades of grey.
+                    </span>
+                </span>
+            </label>
+
+            <div>
+                <span class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Font size</span>
+                <span class="block text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    Scales every text element on the printed statement. Smaller
+                    sizes fit more rows per page; larger sizes improve legibility
+                    on lower-resolution printers.
+                </span>
+                <div role="radiogroup" aria-label="Font size" class="inline-flex rounded-lg ring-1 ring-gray-300 dark:ring-gray-600 overflow-hidden bg-white dark:bg-gray-700">
+                    {% for size_key, size_label in [('xs', 'XS'), ('s', 'S'), ('m', 'M'), ('l', 'L'), ('xl', 'XL')] %}
+                    <label class="relative cursor-pointer">
+                        <input type="radio" name="font_size" value="{{ size_key }}"
+                               {% if size_key == 'l' %}checked{% endif %}
+                               class="peer sr-only">
+                        <span class="block px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-600 last:border-r-0 peer-checked:bg-brand-600 peer-checked:text-white transition-colors">
+                            {{ size_label }}
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <span class="block text-[11px] text-gray-400 dark:text-gray-500 mt-1">L is the default — it matches what a NZ bank statement looks like.</span>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="px-6 py-4 flex items-center justify-between bg-gray-50/70 dark:bg-gray-900/30 rounded-b-2xl">
+            <a href="/accounts" class="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                Generate &amp; Print
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+(function() {
+    // Quick-range buttons: compute ISO start/end using local-time date math.
+    var fromEl = document.querySelector('input[name="from"]');
+    var toEl = document.querySelector('input[name="to"]');
+    function iso(d) { return d.toISOString().slice(0,10); }
+    function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+    function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+
+    document.querySelectorAll('#quickranges button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var today = new Date();
+            var r = btn.dataset.range;
+            if (r === 'this-month') {
+                fromEl.value = iso(startOfMonth(today));
+                toEl.value = iso(today);
+            } else if (r === 'last-month') {
+                var lm = new Date(today.getFullYear(), today.getMonth()-1, 1);
+                fromEl.value = iso(startOfMonth(lm));
+                toEl.value = iso(endOfMonth(lm));
+            } else if (r === 'last-3') {
+                var start = new Date(today.getFullYear(), today.getMonth()-2, 1);
+                fromEl.value = iso(startOfMonth(start));
+                toEl.value = iso(today);
+            } else if (r === 'ytd') {
+                fromEl.value = iso(new Date(today.getFullYear(), 0, 1));
+                toEl.value = iso(today);
+            }
+        });
+    });
+
+    // Select all / none helpers
+    document.getElementById('select-all').addEventListener('click', function() {
+        document.querySelectorAll('.statement-acct').forEach(function(c){ c.checked = true; });
+    });
+    document.getElementById('select-none').addEventListener('click', function() {
+        document.querySelectorAll('.statement-acct').forEach(function(c){ c.checked = false; });
+    });
+
+    // Submit guard: at least one account must be checked.
+    document.querySelector('form').addEventListener('submit', function(ev) {
+        var checked = document.querySelectorAll('.statement-acct:checked').length;
+        if (checked === 0) {
+            ev.preventDefault();
+            alert('Please select at least one account.');
+        }
+    });
+})();
+</script>
+{% endblock %}

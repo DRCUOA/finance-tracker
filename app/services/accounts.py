@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select, func as sa_func
@@ -47,6 +48,7 @@ async def create_account(
     institution: str | None = None,
     term: AccountTerm = AccountTerm.SHORT,
     is_cashflow: bool = True,
+    opened_on: date | None = None,
     interest_rate: Decimal | None = None,
     compounding_type: CompoundingType = CompoundingType.COMPOUND,
     compounding_frequency: CompoundingFrequency = CompoundingFrequency.MONTHLY,
@@ -56,7 +58,7 @@ async def create_account(
         .where(Account.user_id == user_id)
     )
     next_order = max_order.scalar() + 1
-    acct = Account(
+    acct_kwargs = dict(
         user_id=user_id, name=name, account_type=account_type,
         currency=currency, initial_balance=initial_balance,
         current_balance=initial_balance, institution=institution,
@@ -65,6 +67,11 @@ async def create_account(
         compounding_type=compounding_type,
         compounding_frequency=compounding_frequency,
     )
+    # Only set opened_on when supplied so the column server-default
+    # (CURRENT_DATE) wins for callers that don't care.
+    if opened_on is not None:
+        acct_kwargs["opened_on"] = opened_on
+    acct = Account(**acct_kwargs)
     db.add(acct)
     await db.flush()
     return acct

@@ -1,9 +1,9 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -123,6 +123,13 @@ class Account(Base):
     )
     # ------------------------------------------------------------------------
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # User-editable real-world open date for the underlying account. Drives
+    # the retro interest re-evaluation window so a long-standing account can
+    # be back-dated when added to the tracker mid-life. Distinct from
+    # ``created_at``, which is the system audit timestamp for row insertion.
+    opened_on: Mapped[date] = mapped_column(
+        Date, nullable=False, server_default=text("CURRENT_DATE")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
