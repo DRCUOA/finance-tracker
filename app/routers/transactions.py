@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dates import parse_iso_date, parse_iso_date_or_none
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
@@ -56,8 +57,8 @@ async def list_transactions(
     aid = uuid.UUID(account_id) if account_id else None
     uncategorized = category_id == "__none__"
     cid = uuid.UUID(category_id) if category_id and not uncategorized else None
-    df = date.fromisoformat(date_from) if date_from else None
-    dt = date.fromisoformat(date_to) if date_to else None
+    df = parse_iso_date_or_none(date_from)
+    dt = parse_iso_date_or_none(date_to)
 
     txs, total = await tx_svc.get_transactions(
         db, user.id, account_id=aid, category_id=cid,
@@ -109,8 +110,8 @@ async def filtered_ids(
     aid = uuid.UUID(account_id) if account_id else None
     uncategorized = category_id == "__none__"
     cid = uuid.UUID(category_id) if category_id and not uncategorized else None
-    df = date.fromisoformat(date_from) if date_from else None
-    dt = date.fromisoformat(date_to) if date_to else None
+    df = parse_iso_date_or_none(date_from)
+    dt = parse_iso_date_or_none(date_to)
 
     ids = await tx_svc.get_filtered_transaction_ids(
         db, user.id, account_id=aid, category_id=cid,
@@ -160,7 +161,7 @@ async def create_transaction(
     try:
         tx = await tx_svc.create_transaction(
             db, user.id, uuid.UUID(account_id),
-            date.fromisoformat(tx_date), amt, description,
+            parse_iso_date(tx_date), amt, description,
             category_id=cid, reference=reference or None, notes=notes or None,
             force=bool(force),
         )
@@ -321,7 +322,7 @@ async def edit_transaction_modal(
     body = await request.json()
     kwargs = {}
     if "date" in body and body["date"]:
-        kwargs["date"] = date.fromisoformat(body["date"])
+        kwargs["date"] = parse_iso_date(body["date"])
     if "description" in body:
         kwargs["description"] = body["description"]
     if "amount" in body and body["amount"] is not None:
@@ -419,7 +420,7 @@ async def update_transaction(
     try:
         await tx_svc.update_transaction(
             db, tx_id, user.id,
-            account_id=new_account_id, date=date.fromisoformat(tx_date),
+            account_id=new_account_id, date=parse_iso_date(tx_date),
             amount=amt, description=description,
             category_id=cid, reference=reference or None, notes=notes or None,
         )

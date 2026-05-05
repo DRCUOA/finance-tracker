@@ -1,5 +1,4 @@
 import uuid
-from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -7,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dates import parse_iso_date
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
@@ -54,7 +54,7 @@ async def reconcile_account(
         return RedirectResponse(url="/reconciliation", status_code=302)
 
     try:
-        s_date = date.fromisoformat(statement_date)
+        s_date = parse_iso_date(statement_date)
         s_balance = Decimal(statement_balance)
     except (ValueError, InvalidOperation):
         return RedirectResponse(url="/reconciliation", status_code=302)
@@ -89,7 +89,7 @@ async def save_draft(
     cleared_ids = [uuid.UUID(tid) for tid in form.getlist("cleared_ids")]
 
     try:
-        s_date = date.fromisoformat(statement_date)
+        s_date = parse_iso_date(statement_date)
         s_balance = Decimal(statement_balance)
     except (ValueError, InvalidOperation):
         return RedirectResponse(url="/reconciliation", status_code=302)
@@ -113,7 +113,7 @@ async def finish_reconciliation(
     cleared_ids = [uuid.UUID(tid) for tid in form.getlist("cleared_ids")]
 
     try:
-        s_date = date.fromisoformat(statement_date)
+        s_date = parse_iso_date(statement_date)
         s_balance = Decimal(statement_balance)
     except (ValueError, InvalidOperation):
         return RedirectResponse(url="/reconciliation", status_code=302)

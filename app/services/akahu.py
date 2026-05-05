@@ -18,6 +18,7 @@ from sqlalchemy import func as sa_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.dates import parse_iso_datetime_date_or, parse_iso_datetime_or_none
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.services.categoriser import suggest_category
@@ -31,16 +32,6 @@ AKAHU_SOURCE = "akahu"
 SYNC_MUTABLE_FIELDS = frozenset(
     {"date", "amount", "description", "reference", "akahu_updated_at", "is_pending"}
 )
-
-
-def _parse_akahu_ts(ts: str | None) -> datetime | None:
-    """Parse an Akahu ISO 8601 timestamp. Returns ``None`` on any failure."""
-    if not ts:
-        return None
-    try:
-        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    except (ValueError, AttributeError):
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -254,7 +245,7 @@ async def sync_account_balances(
         # That's the moment the *bank* told Akahu the balance — what the user
         # cares about for staleness — distinct from our own sync clock.
         refreshed = akahu_acct.get("refreshed") or {}
-        reported_as_of = _parse_akahu_ts(refreshed.get("balance"))
+        reported_as_of = parse_iso_datetime_or_none(refreshed.get("balance"))
 
         changed = False
         if acct.reported_balance != new_balance:
@@ -295,18 +286,14 @@ def _parse_akahu_tx(
     itself — the endpoint is the source of truth.
     """
     meta = raw.get("meta") or {}
-    tx_date_str = raw.get("date", "")
-    try:
-        tx_date = datetime.fromisoformat(tx_date_str.replace("Z", "+00:00")).date()
-    except (ValueError, AttributeError):
-        tx_date = date.today()
+    tx_date = parse_iso_datetime_date_or(raw.get("date"), date.today())
 
     try:
         amount = Decimal(str(raw.get("amount", 0)))
     except InvalidOperation:
         amount = Decimal("0.00")
 
-    akahu_updated_at = _parse_akahu_ts(raw.get("updated_at"))
+    akahu_updated_at = parse_iso_datetime_or_none(raw.get("updated_at"))
 
     return {
         "user_id": user_id,
@@ -406,13 +393,9 @@ async def sync_account_transactions(
                 result["unchanged"] += 1
 
     # --- stale detection ---
-    # Parse the UTC date range for the local date filter
-    try:
-        range_start = datetime.fromisoformat(start_utc.replace("Z", "+00:00")).date()
-        range_end = datetime.fromisoformat(end_utc.replace("Z", "+00:00")).date()
-    except (ValueError, AttributeError):
-        range_start = None
-        range_end = None
+    # Parse the UTC date range for the local date filter.
+    range_start = parse_iso_datetime_date_or(start_utc, None)
+    range_end = parse_iso_datetime_date_or(end_utc, None)
 
     # Stale detection only applies to *posted* rows — pending rows have their
     # own lifecycle (see ``sync_account_pending_transactions``) and must not be

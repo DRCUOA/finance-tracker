@@ -8,6 +8,7 @@ from sqlalchemy import func as sa_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dates import parse_iso_date
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -214,8 +215,8 @@ async def sync_transactions(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        sd = date.fromisoformat(start_date)
-        ed = date.fromisoformat(end_date)
+        sd = parse_iso_date(start_date)
+        ed = parse_iso_date(end_date)
     except ValueError:
         return _toast_redirect("/bank-feeds", "Invalid date format", "error")
 

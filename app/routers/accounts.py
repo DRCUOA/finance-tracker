@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dates import parse_iso_date_or
 from app.models.account import (
     AccountTerm,
     AccountType,
@@ -86,12 +87,7 @@ def _parse_opened_on(raw: str) -> date_cls:
     format). Empty/invalid → today, matching the column's server default so
     the form never blocks save on a blank field.
     """
-    if raw is None or str(raw).strip() == "":
-        return datetime.utcnow().date()
-    try:
-        return datetime.strptime(raw.strip(), "%Y-%m-%d").date()
-    except ValueError:
-        return datetime.utcnow().date()
+    return parse_iso_date_or(raw, datetime.utcnow().date())
 
 
 @router.post("/create")

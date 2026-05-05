@@ -15,13 +15,14 @@ from live balances each time the URL is hit.
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dates import parse_iso_date_or
 from app.models.account import AccountGroup
 from app.models.user import User
 from app.routers.auth import require_user
@@ -42,13 +43,6 @@ def _default_range() -> tuple[date, date]:
     """
     today = date.today()
     return today.replace(day=1), today
-
-
-def _parse_iso_date(raw: str, fallback: date) -> date:
-    try:
-        return date.fromisoformat(raw)
-    except (ValueError, TypeError):
-        return fallback
 
 
 def _parse_uuid_list(raw: list[str]) -> list[uuid.UUID]:
@@ -134,8 +128,8 @@ async def view_statement(
         return RedirectResponse(url="/statements", status_code=302)
 
     default_from, default_to = _default_range()
-    start = _parse_iso_date(from_, default_from)
-    end = _parse_iso_date(to, default_to)
+    start = parse_iso_date_or(from_, default_from)
+    end = parse_iso_date_or(to, default_to)
 
     if end < start:
         # Swap silently — user likely picked them in reverse.

@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.dates import parse_iso_date, parse_iso_datetime
 from app.models.account import Account
 from app.models.budget import Budget
 from app.models.category import Category, CategoryKeyword
@@ -180,7 +181,7 @@ async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> di
         cat_id = id_map_cats.get(t["category_id"]) if t.get("category_id") else None
         tx = Transaction(
             user_id=user_id, account_id=acct_id, category_id=cat_id,
-            date=date.fromisoformat(t["date"]),
+            date=parse_iso_date(t["date"]),
             amount=Decimal(str(t["amount"])),
             description=t["description"],
             original_description=t.get("original_description"),
@@ -208,7 +209,7 @@ async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> di
             title=cm["title"],
             amount=Decimal(str(cm["amount"])),
             direction=cm.get("direction", "outflow"),
-            due_date=date.fromisoformat(cm["due_date"]),
+            due_date=parse_iso_date(cm["due_date"]),
             is_recurring=cm.get("is_recurring", False),
             recurrence=cm.get("recurrence"),
             confidence=cm.get("confidence", "confirmed"),
@@ -216,7 +217,7 @@ async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> di
             notes=cm.get("notes"),
         )
         if cm.get("cleared_at"):
-            commit.cleared_at = datetime.fromisoformat(cm["cleared_at"])
+            commit.cleared_at = parse_iso_datetime(cm["cleared_at"])
         db.add(commit)
         cm_count += 1
 
@@ -355,7 +356,7 @@ async def import_account_bundle(
                     user_id=user_id,
                     account_id=acct.id,
                     category_id=cat_id,
-                    date=date.fromisoformat(t["date"]),
+                    date=parse_iso_date(t["date"]),
                     amount=Decimal(str(t["amount"])),
                     description=t["description"],
                     original_description=t.get("original_description"),
