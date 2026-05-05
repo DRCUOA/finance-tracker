@@ -1058,11 +1058,13 @@ async def weekly_spending_pulse(
     )
 
     # Build per-category rows with live position.
-    # *raw_committed* is month obligation remainder (amount − cleared_amount).
-    # Accrual: committed = max(raw_committed - actual, 0) where *actual* is
-    # the viewing period; spoken_for = actual + committed = max(actual, raw).
-    # *obligation_remaining* (raw) is exposed for tooltips; modal Committed column
-    # uses *committed* so Spent + Committed + Reserved = Total per row.
+    # *raw_committed* is month obligation remainder (amount − cleared_amount):
+    # the budgeted amount minus any releases the user has made this month to
+    # offset spending.  No auto-deduction against actuals — the user releases
+    # commitment manually, so a category with spend but no release will show
+    # both the full commitment AND the spend (signalling a release is due).
+    # spoken_for = actual + committed; modal Committed column uses *committed*
+    # so Spent + Committed + Reserved = Total per row.
     period_budget = 0.0
     total_reserved = 0.0
     cat_rows = []
@@ -1073,7 +1075,7 @@ async def weekly_spending_pulse(
         actual = actuals.get(cid, 0.0)
         raw_committed = commit_by_cat.get(cid, 0.0)
         obligation_remaining = round(raw_committed, 2)
-        committed = round(max(raw_committed - actual, 0), 2)
+        committed = round(raw_committed, 2)
 
         reserve_raw = float(cat.reserve_amount) * prorate
         reserve = round(reserve_raw, 2)
