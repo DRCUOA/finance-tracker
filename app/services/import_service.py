@@ -2,15 +2,23 @@ import csv
 import io
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select, and_, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.dates import parse_date_with_formats, parse_iso_date
 from app.models.statement import FileType, Statement, StatementLine, StatementStatus
 from app.models.transaction import Transaction
+
+
+# CSV importer date formats: try the user-specified primary format first, then
+# fall back through this short list of common locale shapes. Centralised so
+# both ``parse_csv_transactions`` and ``apply_csv_mapping`` share the same
+# tolerance.
+CSV_FALLBACK_DATE_FORMATS = ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d", "%m-%d-%Y", "%d-%m-%Y")
 
 
 @dataclass
@@ -63,16 +71,11 @@ def parse_csv_transactions(
         if len(row) <= max(date_col, amount_col, desc_col):
             continue
         try:
-            dt = datetime.strptime(row[date_col].strip(), date_format).date()
+            dt = parse_date_with_formats(
+                row[date_col], (date_format, *CSV_FALLBACK_DATE_FORMATS),
+            )
         except ValueError:
-            for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d", "%m-%d-%Y", "%d-%m-%Y"):
-                try:
-                    dt = datetime.strptime(row[date_col].strip(), fmt).date()
-                    break
-                except ValueError:
-                    continue
-            else:
-                continue
+            continue
 
         try:
             amount_str = row[amount_col].strip().replace(",", "").replace("$", "").replace("£", "").replace("€", "")
@@ -152,16 +155,11 @@ def apply_csv_mapping(
             continue
 
         try:
-            dt = datetime.strptime(row[date_col].strip(), date_format).date()
+            dt = parse_date_with_formats(
+                row[date_col], (date_format, *CSV_FALLBACK_DATE_FORMATS),
+            )
         except ValueError:
-            for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d", "%m-%d-%Y", "%d-%m-%Y"):
-                try:
-                    dt = datetime.strptime(row[date_col].strip(), fmt).date()
-                    break
-                except ValueError:
-                    continue
-            else:
-                continue
+            continue
 
         try:
             amount_str = (
@@ -283,7 +281,7 @@ def apply_ofx_mapping(
         if not date_str or not amount_str:
             continue
 
-        dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+        dt = parse_iso_date(date_str)
         amount = Decimal(amount_str)
 
         desc_parts = [raw[f].strip() for f in desc_sources if raw.get(f, "").strip()]

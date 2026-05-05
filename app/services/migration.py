@@ -11,12 +11,12 @@ import re
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select, func as sa_func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dates import parse_iso_date, parse_iso_date_or_none
 from app.models.account import Account, AccountTerm, AccountType
 from app.models.category import Category, CategoryKeyword, CategoryType
 from app.models.statement import FileType, Statement, StatementStatus
@@ -357,7 +357,7 @@ async def import_external_data(
 
         local_cat_id = cat_id_map.get(cid) if cid else None
 
-        tx_date = date.fromisoformat(t["transaction_date"])
+        tx_date = parse_iso_date(t["transaction_date"])
         amount = Decimal(str(t.get("signed_amount", t["amount"])))
         description = t.get("description", "")
 
@@ -399,8 +399,8 @@ async def import_external_data(
         if not local_acct_id:
             continue
 
-        start = date.fromisoformat(s["statement_from"]) if s.get("statement_from") else None
-        end = date.fromisoformat(s["statement_to"]) if s.get("statement_to") else None
+        start = parse_iso_date_or_none(s.get("statement_from"))
+        end = parse_iso_date_or_none(s.get("statement_to"))
 
         stmt = Statement(
             user_id=user_id,

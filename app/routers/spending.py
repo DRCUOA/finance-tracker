@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 from urllib.parse import urlencode
 
-from app.dates import fmt_date
+from app.dates import fmt_date, parse_iso_date, parse_iso_date_or
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -43,7 +43,7 @@ async def _build_spending_context(
         period = "month"
 
     today = date.today()
-    ref_date = date.fromisoformat(ref) if ref else today
+    ref_date = parse_iso_date(ref) if ref else today
 
     start, end = report_svc.period_bounds(ref_date, period)
     label = report_svc.period_label(ref_date, period)
@@ -66,7 +66,7 @@ async def _build_spending_context(
     rs_override = None
     if rolling_start:
         try:
-            rs_override = date.fromisoformat(rolling_start)
+            rs_override = parse_iso_date(rolling_start)
         except ValueError:
             pass
 
@@ -193,11 +193,11 @@ async def save_rolling_start(
     if period not in ("week", "month"):
         period = "month"
     today = date.today()
-    ref_date = date.fromisoformat(ref) if ref else today
+    ref_date = parse_iso_date(ref) if ref else today
     ref_param = ref if ref else ref_date.isoformat()
     if rolling_start:
         try:
-            user.rolling_budget_start = date.fromisoformat(rolling_start)
+            user.rolling_budget_start = parse_iso_date(rolling_start)
         except ValueError:
             pass
     else:
@@ -243,7 +243,7 @@ async def add_commitment(
         db, user.id,
         title=title.strip(),
         amount=amt,
-        due_date=date.fromisoformat(due_date),
+        due_date=parse_iso_date(due_date),
         direction=direction,
         category_id=cat_id,
         confidence=confidence,
@@ -339,7 +339,7 @@ async def spending_uncategorised_txs(
         period = "week"
 
     today = date.today()
-    ref_date = date.fromisoformat(ref) if ref else today
+    ref_date = parse_iso_date(ref) if ref else today
     start, end = report_svc.period_bounds(ref_date, period)
 
     accounts = await acct_svc.get_accounts(db, user.id)
@@ -388,7 +388,7 @@ async def spending_category_txs(
         period = "week"
 
     today = date.today()
-    ref_date = date.fromisoformat(ref) if ref else today
+    ref_date = parse_iso_date(ref) if ref else today
     start, end = report_svc.period_bounds(ref_date, period)
 
     accounts = await acct_svc.get_accounts(db, user.id)

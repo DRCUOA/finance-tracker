@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dates import parse_iso_date, parse_iso_date_or_none
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
@@ -45,7 +46,7 @@ async def reports_page(
     today = date.today()
 
     if ref:
-        ref_date = date.fromisoformat(ref)
+        ref_date = parse_iso_date(ref)
     elif year and month:
         ref_date = date(year, month, 1)
     else:
@@ -148,7 +149,7 @@ async def spending_breakdown(
     today = date.today()
 
     if ref:
-        ref_date = date.fromisoformat(ref)
+        ref_date = parse_iso_date(ref)
     elif year and month:
         ref_date = date(year, month, 1)
     else:
@@ -188,7 +189,7 @@ async def category_deepdive_page(
         period = "month"
 
     today = date.today()
-    ref_date = date.fromisoformat(ref) if ref else today
+    ref_date = parse_iso_date(ref) if ref else today
 
     start, end = report_svc.period_bounds(ref_date, period)
     label = report_svc.period_label(ref_date, period)
@@ -231,8 +232,8 @@ async def category_deepdive_detail(
     has_nc = any(not a.is_cashflow for a in accounts)
     cf_ids = [a.id for a in accounts if a.is_cashflow] if has_nc else None
 
-    d_from = date.fromisoformat(date_from) if date_from else None
-    d_to = date.fromisoformat(date_to) if date_to else None
+    d_from = parse_iso_date_or_none(date_from)
+    d_to = parse_iso_date_or_none(date_to)
 
     data = await report_svc.category_transactions_detail(
         db, user.id, category_id,

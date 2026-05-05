@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dates import parse_iso_date
 from app.models.account import AccountGroup, AccountTerm
 from app.models.user import User
 from app.routers.auth import require_user
@@ -45,7 +46,7 @@ async def dashboard(
         active_term = AccountTerm(term)
 
     today = date.today()
-    ref_date = date.fromisoformat(ref) if ref else today
+    ref_date = parse_iso_date(ref) if ref else today
 
     start, end = report_svc.period_bounds(ref_date, period)
     label = report_svc.period_label(ref_date, period)

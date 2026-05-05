@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dates import parse_iso_date
 from app.models.commitment import CommitmentConfidence, CommitmentDirection, CommitmentRecurrence
 from app.models.user import User
 from app.routers.auth import require_user
@@ -74,7 +75,7 @@ async def add_commitment(
         db, user.id,
         title=title.strip(),
         amount=amt,
-        due_date=date.fromisoformat(due_date),
+        due_date=parse_iso_date(due_date),
         direction=direction,
         category_id=uuid.UUID(category_id) if category_id else None,
         confidence=confidence,
@@ -111,7 +112,7 @@ async def edit_commitment(
         db, commitment_id, user.id,
         title=title.strip(),
         amount=amt,
-        due_date=date.fromisoformat(due_date),
+        due_date=parse_iso_date(due_date),
         direction=CommitmentDirection(direction),
         category_id=uuid.UUID(category_id) if category_id else None,
         confidence=CommitmentConfidence(confidence),
@@ -182,7 +183,7 @@ async def reset_to_budget(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        sd = date.fromisoformat(start_date)
+        sd = parse_iso_date(start_date)
     except ValueError:
         sd = date.today().replace(day=1)
     try:
@@ -268,7 +269,7 @@ async def wizard_annual_expense(
         db, user.id,
         title=title.strip(),
         amount=amt,
-        due_date=date.fromisoformat(due_date),
+        due_date=parse_iso_date(due_date),
         direction="outflow",
         category_id=uuid.UUID(category_id) if category_id else None,
         confidence="confirmed",
@@ -291,7 +292,7 @@ async def wizard_event_budget(
     event_date_str = form.get("event_date", "")
     count = int(form.get("item_count", "0"))
 
-    event_date = date.fromisoformat(event_date_str) if event_date_str else date.today()
+    event_date = parse_iso_date(event_date_str) if event_date_str else date.today()
 
     for i in range(count):
         item = form.get(f"item_{i}_title", "").strip()
@@ -307,7 +308,7 @@ async def wizard_event_budget(
         except (InvalidOperation, ValueError):
             continue
 
-        item_due = date.fromisoformat(item_date_str) if item_date_str else event_date
+        item_due = parse_iso_date(item_date_str) if item_date_str else event_date
         full_title = f"{event_name}: {item}" if event_name else item
 
         await commit_svc.create_commitment(
@@ -330,8 +331,8 @@ async def wizard_review_history_analyze(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    start = date.fromisoformat(date_from)
-    end = date.fromisoformat(date_to)
+    start = parse_iso_date(date_from)
+    end = parse_iso_date(date_to)
     suggestions = await commit_svc.analyze_history(db, user.id, start, end)
     return JSONResponse({"suggestions": suggestions})
 
