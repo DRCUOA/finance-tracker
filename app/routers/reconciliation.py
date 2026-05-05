@@ -68,7 +68,7 @@ async def reconcile_account(
     return templates.TemplateResponse(request, "reconciliation/reconcile.html", {
         "user": user,
         "account": acct,
-        "statement_date": statement_date,
+        "statement_date": s_date,
         "statement_balance": str(s_balance),
         "cleared_balance": str(cleared_bal),
         "transactions": uncleared,
