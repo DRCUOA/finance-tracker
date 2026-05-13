@@ -119,9 +119,11 @@ async def _build_spending_context(
     all_cats = await cat_svc.get_category_tree(db, user.id)
 
     # Commitment "SPENT": algebraic SUM(amount) for the category in the
-    # commitment month (all accounts; refunds and expenses both included).
+    # commitment month (cashflow accounts only; refunds and expenses both
+    # included).  Asset-only accounts are opted out of cashflow tracking
+    # and so don't contribute to the SPENT against a commitment.
     actuals_by_cat = await report_svc.category_actuals_for_period(
-        db, user.id, m_start, m_end, account_ids=None,
+        db, user.id, m_start, m_end, account_ids=cashflow_ids,
     )
 
     return {

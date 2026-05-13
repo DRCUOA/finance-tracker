@@ -979,10 +979,13 @@ async def weekly_spending_pulse(
 ) -> dict:
     """Live position data: actuals + commitments + reserves.
 
-    Per-category and daily transaction totals use **all** accounts (the
-    *account_ids* argument is ignored) so they match commitment SPENT.
+    Honors *account_ids* across every transaction-derived figure (per-category
+    actuals, the uncategorised bucket, and the daily breakdown).  Callers
+    pass the cashflow-account scope here so movements in opted-out accounts
+    (e.g. an asset-only home loan whose interest accrues into its own
+    ledger) stay out of the user's spending view.  ``None`` means "no
+    filter" — used when every account is in scope.
     """
-    _ = account_ids
     from app.services.commitments import (
         commitment_totals_for_period, commitments_by_category,
         project_recurring_commitments, rollover_commitments,
@@ -1012,11 +1015,11 @@ async def weekly_spending_pulse(
 
     prorate = total_days / 30.0 if period == "week" else 1.0
 
-    # Actuals by category — same query rules as commitment SPENT
-    # (``category_actuals_for_period``): full SUM(amount) per category,
-    # all accounts, net outflow shown positive; uncategorised handled below.
+    # Actuals by category — full SUM(amount) per category, scoped to
+    # *account_ids* (cashflow accounts).  Net outflow shown positive;
+    # uncategorised handled below.
     actuals = await category_actuals_for_period(
-        db, user_id, start, end, account_ids=None,
+        db, user_id, start, end, account_ids=account_ids,
     )
 
     uncat_stmt = (
@@ -1028,6 +1031,8 @@ async def weekly_spending_pulse(
             Transaction.category_id.is_(None),
         )
     )
+    if account_ids is not None:
+        uncat_stmt = uncat_stmt.where(Transaction.account_id.in_(account_ids))
     uncat_row = (await db.execute(uncat_stmt)).first()
     uncategorised_actual = (
         round(float(abs(uncat_row.actual)), 2)
@@ -1139,10 +1144,10 @@ async def weekly_spending_pulse(
     elapsed_budget = budget_daily_rate * days_elapsed
     pace_pct = round(total_actual / elapsed_budget * 100, 1) if elapsed_budget else 0.0
 
-    # Day-by-day breakdown: same rules as commitment SPENT — algebraic
-    # SUM(amount) per (date, category), all accounts (no cashflow filter),
-    # including credits/refunds.  Bars use net outflow max(0, -day_net);
-    # tooltips list every category with non-zero net so mixed days are visible.
+    # Day-by-day breakdown: algebraic SUM(amount) per (date, category),
+    # scoped to *account_ids* (cashflow accounts), including
+    # credits/refunds.  Bars use net outflow max(0, -day_net); tooltips
+    # list every category with non-zero net so mixed days are visible.
     daily_stmt = (
         select(
             Transaction.date,
@@ -1162,6 +1167,8 @@ async def weekly_spending_pulse(
         .group_by(Transaction.date, "cat_name")
         .order_by(Transaction.date, "cat_name")
     )
+    if account_ids is not None:
+        daily_stmt = daily_stmt.where(Transaction.account_id.in_(account_ids))
     daily_result = await db.execute(daily_stmt)
 
     daily_map: dict[date, dict[str, float]] = {}
