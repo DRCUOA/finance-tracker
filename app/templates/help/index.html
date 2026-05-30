@@ -3,7 +3,7 @@
 {% block page_title %}Help & How-To{% endblock %}
 
 {% block content %}
-<div x-data="{ active: window.location.hash.slice(1) || 'getting-started' }" class="flex gap-8 items-start">
+<div x-data="{ active: window.location.hash.slice(1) || 'getting-started' }" class="flex flex-col lg:flex-row gap-8 lg:items-start">
 
     <!-- Sidebar navigation -->
     <nav class="hidden lg:block w-56 flex-shrink-0 sticky top-28">
