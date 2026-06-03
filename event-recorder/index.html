@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Event Recorder</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Event Recorder</h1>
+    <p class="subtitle">Interact with the canvas to record UI events.</p>
+  </header>
+
+  <main class="layout">
+    <section class="canvas-panel">
+      <div class="canvas-toolbar">
+        <span class="hint">Click, drag, scroll, or press keys on the canvas.</span>
+        <button id="clearCanvasBtn" type="button">Clear Canvas</button>
+      </div>
+      <canvas
+        id="stage"
+        tabindex="0"
+        aria-label="Interactive event capture canvas"
+      ></canvas>
+    </section>
+
+    <section class="log-panel">
+      <div class="log-header">
+        <h2>Event Log</h2>
+        <div class="log-controls">
+          <label class="checkbox">
+            <input type="checkbox" id="autoscrollToggle" checked />
+            Auto-scroll
+          </label>
+          <button id="clearLogBtn" type="button">Clear Log</button>
+        </div>
+      </div>
+
+      <div class="filters" id="filters">
+        <label class="filter"><input type="checkbox" data-group="mouse" checked /> Mouse</label>
+        <label class="filter"><input type="checkbox" data-group="keyboard" checked /> Keyboard</label>
+        <label class="filter"><input type="checkbox" data-group="wheel" checked /> Wheel</label>
+        <label class="filter"><input type="checkbox" data-group="pointer" checked /> Pointer</label>
+        <label class="filter"><input type="checkbox" data-group="touch" checked /> Touch</label>
+        <label class="filter"><input type="checkbox" data-group="focus" checked /> Focus</label>
+      </div>
+
+      <ul id="log" class="log-list" aria-live="polite"></ul>
+
+      <footer class="log-footer">
+        <span id="counter">0 events</span>
+      </footer>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
