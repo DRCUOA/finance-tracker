@@ -1,5 +1,5 @@
 {% from "components/category_options.html" import category_options %}
-{% set _qs = "search=" ~ (search|default('')) ~ "&account_id=" ~ (account_id|default('')) ~ "&category_id=" ~ (category_id|default('')) ~ "&date_from=" ~ (date_from|default('')) ~ "&date_to=" ~ (date_to|default('')) %}
+{% set _qs = "search=" ~ (search|default('')) ~ "&account_id=" ~ (account_id|default('')) ~ "&category_id=" ~ (category_id|default('')) ~ "&source=" ~ (source|default('')) ~ "&date_from=" ~ (date_from|default('')) ~ "&date_to=" ~ (date_to|default('')) %}
 
 {# Sort-header helper: renders a clickable column header that toggles asc/desc #}
 {% macro sort_th(col, label, align='left') %}

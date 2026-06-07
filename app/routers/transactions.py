@@ -42,6 +42,7 @@ async def list_transactions(
     date_from: str = Query(""),
     date_to: str = Query(""),
     search: str = Query(""),
+    source: str = Query(""),
     sort_by: str = Query("date"),
     sort_dir: str = Query("desc"),
     page: int = Query(1),
@@ -64,12 +65,14 @@ async def list_transactions(
         db, user.id, account_id=aid, category_id=cid,
         uncategorized=uncategorized,
         date_from=df, date_to=dt, search=search or None,
+        source=source or None,
         sort_by=sort_by, sort_dir=sort_dir, page=page,
     )
     filter_count, filter_sum = await tx_svc.get_filter_summary(
         db, user.id, account_id=aid, category_id=cid,
         uncategorized=uncategorized,
         date_from=df, date_to=dt, search=search or None,
+        source=source or None,
     )
     accounts = await acct_svc.get_accounts(db, user.id)
     cat_tree = await cat_svc.get_category_tree(db, user.id)
@@ -86,7 +89,8 @@ async def list_transactions(
         "page": page, "total_pages": total_pages,
         "account_id": account_id, "category_id": category_id,
         "date_from": date_from, "date_to": date_to,
-        "search": search, "sort_by": sort_by, "sort_dir": sort_dir,
+        "search": search, "source": source,
+        "sort_by": sort_by, "sort_dir": sort_dir,
         "active_period": period,
     })
 
@@ -98,6 +102,7 @@ async def filtered_ids(
     date_from: str = Query(""),
     date_to: str = Query(""),
     search: str = Query(""),
+    source: str = Query(""),
     period: str = Query(""),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
@@ -117,6 +122,7 @@ async def filtered_ids(
         db, user.id, account_id=aid, category_id=cid,
         uncategorized=uncategorized,
         date_from=df, date_to=dt, search=search or None,
+        source=source or None,
     )
     return JSONResponse(content=ids)
 

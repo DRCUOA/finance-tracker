@@ -9,16 +9,17 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import func as sa_func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.dates import parse_iso_datetime_date_or, parse_iso_datetime_or_none
+from app.dates import parse_iso_datetime_or_none
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.services.categoriser import suggest_category
@@ -32,6 +33,18 @@ AKAHU_SOURCE = "akahu"
 SYNC_MUTABLE_FIELDS = frozenset(
     {"date", "amount", "description", "reference", "akahu_updated_at", "is_pending"}
 )
+
+# Akahu indexes transactions by their *transaction date* (when the transaction
+# took place). Banks, however, post weekend/after-hours transactions to a
+# statement on the next business day, so a single statement line can carry a
+# date 1-2 business days after Akahu's transaction date — and Akahu exposes no
+# separate posting/settlement date to bridge the gap. When a sync window is
+# anchored to a statement period, a boundary transaction whose Akahu date sits
+# just outside the requested range would never be fetched, silently dropping a
+# statement line. Pad the fetch window by this many days on each side so those
+# boundary rows are imported. They are real, correctly-dated transactions; they
+# simply also surface on the adjacent days.
+FETCH_WINDOW_PAD_DAYS = 5
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +83,40 @@ def nz_date_to_utc_range(start_date: date, end_date: date) -> tuple[str, str]:
         start_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
         end_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
     )
+
+
+def _shift_utc_iso(raw: str, days: int) -> str:
+    """Shift a UTC ISO 8601 timestamp by ``days`` and re-serialise it.
+
+    Used to widen the Akahu fetch window (see ``FETCH_WINDOW_PAD_DAYS``). Falls
+    back to returning ``raw`` unchanged if it can't be parsed, so a malformed
+    bound never aborts a sync.
+    """
+    dt = parse_iso_datetime_or_none(raw)
+    if dt is None:
+        return raw
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    shifted = dt.astimezone(timezone.utc) + timedelta(days=days)
+    return shifted.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def utc_iso_to_nz_date(raw: str | None, fallback: date | None) -> date | None:
+    """Convert an Akahu UTC timestamp string to its NZ-local calendar date.
+
+    Akahu returns transaction timestamps in UTC. Taking the UTC ``.date()``
+    directly shifts NZ-morning transactions back a day (NZ is UTC+12/+13), so a
+    transaction posted on the 18th NZ time would be stored as the 17th. Convert
+    into Pacific/Auckland before extracting the date so stored dates match what
+    the bank statement shows. ``fallback`` is returned for missing/malformed
+    input.
+    """
+    dt = parse_iso_datetime_or_none(raw)
+    if dt is None:
+        return fallback
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(NZTZ).date()
 
 
 # ---------------------------------------------------------------------------
@@ -286,7 +333,7 @@ def _parse_akahu_tx(
     itself — the endpoint is the source of truth.
     """
     meta = raw.get("meta") or {}
-    tx_date = parse_iso_datetime_date_or(raw.get("date"), date.today())
+    tx_date = utc_iso_to_nz_date(raw.get("date"), date.today())
 
     try:
         amount = Decimal(str(raw.get("amount", 0)))
@@ -342,8 +389,18 @@ async def sync_account_transactions(
         result["errors"].append("Account is not linked to an Akahu account")
         return result
 
+    # Widen the requested window so transactions whose Akahu transaction-date
+    # falls just outside the (statement-anchored) range are still imported.
+    # See FETCH_WINDOW_PAD_DAYS for the why. The stale-detection range below is
+    # derived from these same padded bounds so it stays consistent with exactly
+    # what we fetched.
+    fetch_start_utc = _shift_utc_iso(start_utc, -FETCH_WINDOW_PAD_DAYS)
+    fetch_end_utc = _shift_utc_iso(end_utc, FETCH_WINDOW_PAD_DAYS)
+
     try:
-        raw_txs = await fetch_account_transactions(acct.akahu_id, start_utc, end_utc)
+        raw_txs = await fetch_account_transactions(
+            acct.akahu_id, fetch_start_utc, fetch_end_utc
+        )
     except (AkahuConfigError, AkahuAPIError) as exc:
         result["errors"].append(str(exc))
         return result
@@ -359,43 +416,63 @@ async def sync_account_transactions(
 
         parsed = _parse_akahu_tx(raw, account_id, user_id)
 
-        existing_result = await db.execute(
-            select(Transaction).where(
-                Transaction.source == AKAHU_SOURCE,
-                Transaction.akahu_transaction_id == akahu_tx_id,
+        # Each row is upserted inside its own SAVEPOINT so a single bad row
+        # (e.g. a constraint violation) is isolated and reported instead of
+        # rolling back the entire batch and losing every other transaction.
+        # Counters are only applied once the savepoint commits cleanly.
+        try:
+            async with db.begin_nested():
+                existing_result = await db.execute(
+                    select(Transaction).where(
+                        Transaction.source == AKAHU_SOURCE,
+                        Transaction.akahu_transaction_id == akahu_tx_id,
+                    )
+                )
+                existing: Transaction | None = existing_result.scalar_one_or_none()
+
+                cleared_stale = False
+                if existing is None:
+                    category_id = await suggest_category(db, user_id, parsed["description"])
+                    db.add(Transaction(**parsed, category_id=category_id))
+                    outcome = "inserted"
+                else:
+                    changed = False
+                    for field in SYNC_MUTABLE_FIELDS:
+                        new_val = parsed.get(field)
+                        old_val = getattr(existing, field, None)
+                        if new_val != old_val:
+                            setattr(existing, field, new_val)
+                            changed = True
+
+                    if existing.is_source_stale:
+                        existing.is_source_stale = False
+                        existing.source_stale_since = None
+                        cleared_stale = True
+                        changed = True
+
+                    outcome = "updated" if changed else "unchanged"
+
+                # Force constraint evaluation now, while we're inside the
+                # savepoint, so any IntegrityError is caught per-row below.
+                await db.flush()
+        except IntegrityError as exc:
+            detail = str(getattr(exc, "orig", exc))[:200]
+            result["errors"].append(
+                f"Skipped transaction {akahu_tx_id} "
+                f"({parsed['description'][:60]!r}): {detail}"
             )
-        )
-        existing: Transaction | None = existing_result.scalar_one_or_none()
+            log.warning("Akahu posted sync skipped row %s: %s", akahu_tx_id, exc)
+            continue
 
-        if existing is None:
-            category_id = await suggest_category(db, user_id, parsed["description"])
-            tx = Transaction(**parsed, category_id=category_id)
-            db.add(tx)
-            result["inserted"] += 1
-        else:
-            changed = False
-            for field in SYNC_MUTABLE_FIELDS:
-                new_val = parsed.get(field)
-                old_val = getattr(existing, field, None)
-                if new_val != old_val:
-                    setattr(existing, field, new_val)
-                    changed = True
-
-            if existing.is_source_stale:
-                existing.is_source_stale = False
-                existing.source_stale_since = None
-                result["stale_cleared"] += 1
-                changed = True
-
-            if changed:
-                result["updated"] += 1
-            else:
-                result["unchanged"] += 1
+        result[outcome] += 1
+        if cleared_stale:
+            result["stale_cleared"] += 1
 
     # --- stale detection ---
-    # Parse the UTC date range for the local date filter.
-    range_start = parse_iso_datetime_date_or(start_utc, None)
-    range_end = parse_iso_datetime_date_or(end_utc, None)
+    # Convert the UTC range bounds back to NZ-local dates so they line up with
+    # the NZ-local dates we store on each transaction (see utc_iso_to_nz_date).
+    range_start = utc_iso_to_nz_date(fetch_start_utc, None)
+    range_end = utc_iso_to_nz_date(fetch_end_utc, None)
 
     # Stale detection only applies to *posted* rows — pending rows have their
     # own lifecycle (see ``sync_account_pending_transactions``) and must not be

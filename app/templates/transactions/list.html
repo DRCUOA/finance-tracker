@@ -79,10 +79,10 @@
     <!-- Filters -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-5 mb-6">
         <form id="filter-form" hx-get="/transactions" hx-target="#tx-table" hx-swap="innerHTML" hx-push-url="true"
-              hx-trigger="change from:find select, change from:find input[type='date'], keyup changed delay:300ms from:find input[type='text']"
+              hx-trigger="change, keyup changed delay:300ms"
               @submit.prevent
               @htmx:before-request="clearSelection()"
-              class="grid grid-cols-2 md:grid-cols-5 gap-4">
+              class="grid grid-cols-2 md:grid-cols-6 gap-4">
             <input type="hidden" name="sort_by" value="{{ sort_by }}">
             <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
             <div>
@@ -100,6 +100,14 @@
                     <option value="">All</option>
                     <option value="__none__" {% if category_id == '__none__' %}selected{% endif %}>Uncategorized</option>
                     {{ category_options(category_tree, category_id) }}
+                </select>
+            </div>
+            <div>
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Source</label>
+                <select name="source" class="block w-full rounded-lg border-gray-300 text-sm py-2 focus:border-brand-500 focus:ring-brand-500">
+                    <option value="">All</option>
+                    <option value="manual" {% if source == 'manual' %}selected{% endif %}>Manual</option>
+                    <option value="akahu" {% if source == 'akahu' %}selected{% endif %}>Bank feed</option>
                 </select>
             </div>
             <div>

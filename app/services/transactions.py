@@ -14,10 +14,22 @@ from app.models.reconciliation import Reconciliation, ReconciliationStatus
 
 
 MANUAL_SOURCE = "manual"
+BANK_FEED_SOURCE = "akahu"
 
 
 class DuplicateTransactionError(Exception):
     """Raised when a transaction to be created matches an existing one."""
+
+
+def _source_clause(source: str):
+    """WHERE clause for the manual/bank-feed source filter.
+
+    Pre-integration rows predate the source column and are NULL; they were all
+    hand-entered, so they count as manual.
+    """
+    if source == MANUAL_SOURCE:
+        return or_(Transaction.source == MANUAL_SOURCE, Transaction.source.is_(None))
+    return Transaction.source == source
 
 
 async def get_transactions(
@@ -30,6 +42,7 @@ async def get_transactions(
     date_from: date | None = None,
     date_to: date | None = None,
     search: str | None = None,
+    source: str | None = None,
     min_amount: Decimal | None = None,
     max_amount: Decimal | None = None,
     is_cleared: bool | None = None,
@@ -65,6 +78,8 @@ async def get_transactions(
                 Transaction.reference.ilike(pattern),
             )
         )
+    if source:
+        stmt = stmt.where(_source_clause(source))
     if min_amount is not None:
         stmt = stmt.where(Transaction.amount >= min_amount)
     if max_amount is not None:
@@ -204,6 +219,7 @@ async def get_filter_summary(
     date_from: date | None = None,
     date_to: date | None = None,
     search: str | None = None,
+    source: str | None = None,
     min_amount: Decimal | None = None,
     max_amount: Decimal | None = None,
     is_cleared: bool | None = None,
@@ -237,6 +253,8 @@ async def get_filter_summary(
                 Transaction.reference.ilike(pattern),
             )
         )
+    if source:
+        stmt = stmt.where(_source_clause(source))
     if min_amount is not None:
         stmt = stmt.where(Transaction.amount >= min_amount)
     if max_amount is not None:
@@ -261,6 +279,7 @@ async def get_filtered_transaction_ids(
     date_from: date | None = None,
     date_to: date | None = None,
     search: str | None = None,
+    source: str | None = None,
 ) -> list[str]:
     stmt = select(Transaction.id).where(Transaction.user_id == user_id)
     if account_id:
@@ -282,6 +301,8 @@ async def get_filtered_transaction_ids(
                 Transaction.reference.ilike(pattern),
             )
         )
+    if source:
+        stmt = stmt.where(_source_clause(source))
     result = await db.execute(stmt)
     return [str(row[0]) for row in result.all()]
 
