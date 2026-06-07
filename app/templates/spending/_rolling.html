@@ -5,7 +5,7 @@
         <div class="flex items-center justify-between mb-3">
             <div>
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Rolling Over / Under</h3>
-                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Cumulative budget vs actual spend + accruals since start date</p>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Cumulative planned net vs actual net (income &minus; spend &minus; accruals) since start date</p>
             </div>
             <div class="flex items-center gap-3">
                 <form x-show="open" x-transition.opacity
@@ -114,9 +114,10 @@
             <thead class="bg-gray-50 dark:bg-gray-700/60">
                 <tr>
                     <th class="px-6 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Month</th>
-                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Budget</th>
+                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Income</th>
                     <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Spent</th>
                     <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Accrued</th>
+                    <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Net Budget</th>
                     <th class="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Variance</th>
                     <th class="px-6 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Running</th>
                 </tr>
@@ -130,9 +131,10 @@
                         <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400">Now</span>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{{ m.budget|nzd }}</td>
+                    <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{% if m.income > 0 %}{{ m.income|nzd }}{% else %}&mdash;{% endif %}</td>
                     <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{{ m.spent|nzd }}</td>
                     <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-700 dark:text-gray-300">{% if m.accrued > 0 %}{{ m.accrued|nzd }}{% else %}&mdash;{% endif %}</td>
+                    <td class="px-4 py-2.5 text-sm tabular-nums text-right text-gray-500 dark:text-gray-400">{{ m.net_budget|nzd }}</td>
                     <td class="px-4 py-2.5 text-sm tabular-nums text-right font-medium {% if m.variance >= 0 %}text-positive-600 dark:text-positive-400{% else %}text-negative-500 dark:text-negative-400{% endif %}">
                         {% if m.variance >= 0 %}+{% endif %}{{ m.variance|nzd }}
                     </td>

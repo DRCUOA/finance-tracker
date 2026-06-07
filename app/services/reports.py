@@ -1015,6 +1015,30 @@ async def weekly_spending_pulse(
 
     prorate = total_days / 30.0 if period == "week" else 1.0
 
+    # Income categories — budgeted income forms the spending envelope: what
+    # you expect to bring in is the ceiling on what you can spend.  Honors the
+    # same monthly overrides (Budget is type-agnostic) and proration as
+    # expenses so week/month views stay consistent.
+    income_cats = (await db.execute(
+        select(Category).where(
+            Category.user_id == user_id,
+            Category.category_type == CategoryType.INCOME,
+        ).order_by(Category.sort_order)
+    )).scalars().all()
+    income_budget = 0.0
+    income_cat_rows = []
+    for cat in income_cats:
+        cid = str(cat.id)
+        raw_budget = budgets.get(cid, float(cat.budgeted_amount))
+        budgeted = round(raw_budget * prorate, 2)
+        income_budget += budgeted
+        income_cat_rows.append({
+            "category_id": cid,
+            "category_name": cat.name,
+            "budgeted": budgeted,
+        })
+    income_budget = round(income_budget, 2)
+
     # Actuals by category — full SUM(amount) per category, scoped to
     # *account_ids* (cashflow accounts).  Net outflow shown positive;
     # uncategorised handled below.
@@ -1134,7 +1158,14 @@ async def weekly_spending_pulse(
         sum(r["spoken_for"] for r in cat_rows) + uncat_committed, 2,
     )
 
-    live_available = round(period_budget - total_spoken_for, 2)
+    # Income funds spending: budgeted income is the envelope, drawn down by
+    # everything spoken for.  Expense budget still drives pace/status below as
+    # the spending-discipline reference, while net_budget is the planned
+    # surplus (income you intend to keep).
+    expense_budget = round(period_budget, 2)
+    net_budget = round(income_budget - expense_budget, 2)
+
+    live_available = round(income_budget - total_spoken_for, 2)
     overall_pct = round(total_spoken_for / period_budget * 100, 1) if period_budget else 0.0
     status = _spending_status(overall_pct)
 
@@ -1204,6 +1235,10 @@ async def weekly_spending_pulse(
 
     return {
         "period_budget": round(period_budget, 2),
+        "expense_budget": expense_budget,
+        "income_budget": income_budget,
+        "net_budget": net_budget,
+        "income_categories": income_cat_rows,
         "total_actual": round(total_actual, 2),
         "total_committed": round(total_committed, 2),
         "total_reserved": round(total_reserved, 2),
@@ -1346,8 +1381,13 @@ async def rolling_over_under(
     period_end: date,
     account_ids: list[uuid.UUID] | None = None,
 ) -> dict:
-    """Cumulative budget vs expense-category spend from *rolling_start* through
+    """Cumulative *planned net* vs *actual net* from *rolling_start* through
     the end of the period containing *period_end*.
+
+    Each month's planned net is budgeted income − budgeted expense; actual net
+    is income received − spend − outstanding accruals.  The variance (actual −
+    planned) and its running total show whether the user is beating or trailing
+    their planned surplus over time.
 
     Returns per-month rows and a running total so the template can show the
     cumulative over/under position.
@@ -1374,6 +1414,17 @@ async def rolling_over_under(
     )).scalars().all()
     expense_cat_ids = [c.id for c in cats]
     cat_default_budgets = {c.id: float(c.budgeted_amount) for c in cats}
+
+    # Income categories — budgeted income feeds the planned-net target
+    # (budget income − budget expense) each month.
+    income_cats = (await db.execute(
+        select(Category).where(
+            Category.user_id == user_id,
+            Category.category_type == CategoryType.INCOME,
+        )
+    )).scalars().all()
+    income_cat_ids = [c.id for c in income_cats]
+    income_default_budgets = {c.id: float(c.budgeted_amount) for c in income_cats}
 
     # Budget overrides across the whole range
     budget_rows = (await db.execute(
@@ -1437,6 +1488,32 @@ async def rolling_over_under(
         for r in accrual_rows
     }
 
+    # Actual income received per month (positive inflows in income categories),
+    # scoped to the same cashflow accounts as spend.
+    income_stmt = (
+        select(
+            extract("year", Transaction.date).label("yr"),
+            extract("month", Transaction.date).label("mo"),
+            sa_func.sum(Transaction.amount).label("total"),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.user_id == user_id,
+            Category.category_type == CategoryType.INCOME,
+            Transaction.amount > 0,
+            Transaction.date >= rolling_start,
+            Transaction.date < months[-1][1],
+        )
+        .group_by("yr", "mo")
+    )
+    if account_ids is not None:
+        income_stmt = income_stmt.where(Transaction.account_id.in_(account_ids))
+    income_rows = (await db.execute(income_stmt)).all()
+    income_by_month = {
+        (int(r.yr), int(r.mo)): float(r.total) if r.total else 0.0
+        for r in income_rows
+    }
+
     today = date.today()
     running_total = 0.0
     total_accrued = 0.0
@@ -1448,11 +1525,22 @@ async def rolling_over_under(
             overrides.get(str(cid), cat_default_budgets[cid])
             for cid in expense_cat_ids
         )
+        month_income_budget = sum(
+            overrides.get(str(cid), income_default_budgets[cid])
+            for cid in income_cat_ids
+        )
         month_spend = actual_by_month.get(ym, 0.0)
+        month_income = income_by_month.get(ym, 0.0)
         raw_accrued = accrual_by_month.get(ym, 0.0)
         month_accrued = round(max(raw_accrued - month_spend, 0), 2)
         total_accrued = round(total_accrued + month_accrued, 2)
-        variance = round(month_budget - month_spend - month_accrued, 2)
+
+        # Planned net (budget income − budget expense) vs actual net
+        # (income received − spend − accruals).  Positive variance means you
+        # beat your planned surplus this month.
+        budget_net = month_income_budget - month_budget
+        actual_net = month_income - month_spend - month_accrued
+        variance = round(actual_net - budget_net, 2)
         running_total = round(running_total + variance, 2)
 
         phase = _period_phase(ms, me, today)
@@ -1462,6 +1550,9 @@ async def rolling_over_under(
             "month": ms.month,
             "label": fmt_date(ms, "month_short"),
             "budget": round(month_budget, 2),
+            "income_budget": round(month_income_budget, 2),
+            "net_budget": round(budget_net, 2),
+            "income": round(month_income, 2),
             "spent": round(month_spend, 2),
             "accrued": month_accrued,
             "variance": variance,
