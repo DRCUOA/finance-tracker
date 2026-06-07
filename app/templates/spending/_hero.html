@@ -96,7 +96,7 @@
         <div x-show="open" x-transition>
 
         <!-- Stacked position bar -->
-        {% set bar_total = p.income_budget if p.income_budget > 0 else 1 %}
+        {% set bar_total = p.total_resources if p.total_resources > 0 else 1 %}
         {% set actual_pct = (p.total_actual / bar_total * 100) %}
         {% set commit_pct = (p.total_committed / bar_total * 100) %}
         {% set reserve_pct = (p.total_reserved / bar_total * 100) %}
@@ -341,7 +341,7 @@
         </div>
         {% if p.committed_in > 0 %}
         <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-3 tabular-nums">
-            Expected income this period: <span class="text-positive-500 font-semibold">{{ p.committed_in|nzd }}</span>
+            Expected income this period: <span class="text-positive-500 font-semibold">{{ p.committed_in|nzd }}</span> &middot; included in available
         </p>
         {% endif %}
         </div><!-- /x-show Waterfall body -->

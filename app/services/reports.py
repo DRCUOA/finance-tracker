@@ -1158,15 +1158,18 @@ async def weekly_spending_pulse(
         sum(r["spoken_for"] for r in cat_rows) + uncat_committed, 2,
     )
 
-    # Income funds spending: budgeted income is the envelope, drawn down by
-    # everything spoken for.  Expense budget still drives pace/status below as
-    # the spending-discipline reference, while net_budget is the planned
-    # surplus (income you intend to keep).
+    # Income funds spending.  Total resources for the period = budgeted income
+    # plus the income still scheduled to arrive (committed_in inflows), drawn
+    # down by everything spoken for.  Scheduled income offsets committed
+    # outflows so the position reflects net cashflow, not gross spend.  Expense
+    # budget still drives *pace* below as the spending-discipline reference;
+    # net_budget is the planned surplus (budgeted income you intend to keep).
     expense_budget = round(period_budget, 2)
     net_budget = round(income_budget - expense_budget, 2)
+    total_resources = round(income_budget + committed_in, 2)
 
-    live_available = round(income_budget - total_spoken_for, 2)
-    overall_pct = round(total_spoken_for / period_budget * 100, 1) if period_budget else 0.0
+    live_available = round(total_resources - total_spoken_for, 2)
+    overall_pct = round(total_spoken_for / total_resources * 100, 1) if total_resources else 0.0
     status = _spending_status(overall_pct)
 
     safe_to_spend = round(max(live_available, 0) / max(days_remaining, 1), 2)
@@ -1238,6 +1241,7 @@ async def weekly_spending_pulse(
         "expense_budget": expense_budget,
         "income_budget": income_budget,
         "net_budget": net_budget,
+        "total_resources": total_resources,
         "income_categories": income_cat_rows,
         "total_actual": round(total_actual, 2),
         "total_committed": round(total_committed, 2),
