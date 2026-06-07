@@ -238,6 +238,34 @@ def akahu_account_type(akahu_type: str) -> str:
 # Balance sync
 # ---------------------------------------------------------------------------
 
+
+def _apply_reported_balance(acct: Account, akahu_acct: dict) -> bool:
+    """Copy Akahu's reported balance + as-of timestamp onto ``acct``.
+
+    Single source of truth for writing ``reported_balance`` so the standalone
+    balance sync and the per-account transaction sync store it identically and
+    can't drift apart. Returns True when a field actually changed (idempotent).
+    Raises ``InvalidOperation``/``TypeError`` on an unparseable balance value.
+    """
+    balance_data = akahu_acct.get("balance", {})
+    new_balance = Decimal(str(balance_data.get("current", 0)))
+
+    # Akahu surfaces its own last-refresh timestamps under ``refreshed``. That's
+    # the moment the *bank* told Akahu the balance — what the user cares about
+    # for staleness — distinct from our own sync clock.
+    refreshed = akahu_acct.get("refreshed") or {}
+    reported_as_of = parse_iso_datetime_or_none(refreshed.get("balance"))
+
+    changed = False
+    if acct.reported_balance != new_balance:
+        acct.reported_balance = new_balance
+        changed = True
+    if reported_as_of and acct.reported_balance_as_of != reported_as_of:
+        acct.reported_balance_as_of = reported_as_of
+        changed = True
+    return changed
+
+
 async def sync_account_balances(
     db: AsyncSession, user_id: uuid.UUID
 ) -> dict:
@@ -282,31 +310,16 @@ async def sync_account_balances(
             continue
 
         try:
-            balance_data = akahu_acct.get("balance", {})
-            new_balance = Decimal(str(balance_data.get("current", 0)))
+            changed = _apply_reported_balance(acct, akahu_acct)
         except (InvalidOperation, TypeError) as exc:
             result["errors"].append(f"{acct.name}: bad balance value ({exc})")
             continue
-
-        # Akahu surfaces its own last-refresh timestamps under ``refreshed``.
-        # That's the moment the *bank* told Akahu the balance — what the user
-        # cares about for staleness — distinct from our own sync clock.
-        refreshed = akahu_acct.get("refreshed") or {}
-        reported_as_of = parse_iso_datetime_or_none(refreshed.get("balance"))
-
-        changed = False
-        if acct.reported_balance != new_balance:
-            acct.reported_balance = new_balance
-            changed = True
-        if reported_as_of and acct.reported_balance_as_of != reported_as_of:
-            acct.reported_balance_as_of = reported_as_of
-            changed = True
 
         if changed:
             result["updated"] += 1
             log.info(
                 "Reported balance updated: %s -> %s (as of %s)",
-                acct.name, new_balance, reported_as_of,
+                acct.name, acct.reported_balance, acct.reported_balance_as_of,
             )
         else:
             result["unchanged"] += 1
@@ -512,6 +525,25 @@ async def sync_account_transactions(
     # Record that we've successfully pulled posted transactions for this
     # account so the reports UI can show the transaction-feed freshness.
     acct.transactions_as_of = datetime.now(timezone.utc)
+
+    # Refresh the bank-reported balance in the same pass. Otherwise
+    # reported_balance only updates on the standalone balance sync and silently
+    # drifts stale while transactions keep flowing — which makes the
+    # feed-reconciliation delta compare a stale balance against fresh
+    # transactions and report a phantom gap. Best-effort: a balance-refresh
+    # failure must not fail an otherwise-successful transaction sync.
+    try:
+        balance_accounts = await fetch_accounts()
+        akahu_acct = next(
+            (a for a in balance_accounts if a.get("_id") == acct.akahu_id), None
+        )
+        if akahu_acct is not None:
+            _apply_reported_balance(acct, akahu_acct)
+    except (AkahuConfigError, AkahuAPIError, InvalidOperation, TypeError) as exc:
+        log.warning(
+            "Reported-balance refresh during tx sync failed for %s: %s",
+            acct.name, exc,
+        )
 
     await db.flush()
     await recalculate_balance(db, account_id)

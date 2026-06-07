@@ -152,6 +152,50 @@ class TestSyncAccountTransactions:
         assert {t.akahu_transaction_id for t in txs} == {"trans_001", "trans_002"}
         assert all(t.source == AKAHU_SOURCE for t in txs)
 
+    @patch("app.services.akahu.fetch_accounts")
+    @patch("app.services.akahu.fetch_account_transactions")
+    async def test_refreshes_reported_balance(
+        self, mock_tx_fetch, mock_acct_fetch, db, user, account
+    ):
+        # A stale stored balance from before recent activity. Transaction sync
+        # must pull the current reported balance in the same pass so the
+        # feed-reconciliation surfaces can't drift apart from the live feed.
+        account.reported_balance = Decimal("-8291.47")
+        await db.flush()
+
+        mock_tx_fetch.return_value = [
+            make_akahu_transaction(tx_id="trans_001", amount=-25.00),
+        ]
+        mock_acct_fetch.return_value = [
+            make_akahu_account(akahu_id="acc_test_123", balance_current=-727.78)
+        ]
+
+        await sync_account_transactions(
+            db, user.id, account.id, self.START_UTC, self.END_UTC
+        )
+
+        await db.refresh(account)
+        assert account.reported_balance == Decimal("-727.78")
+
+    @patch("app.services.akahu.fetch_accounts")
+    @patch("app.services.akahu.fetch_account_transactions")
+    async def test_balance_refresh_failure_does_not_fail_tx_sync(
+        self, mock_tx_fetch, mock_acct_fetch, db, user, account
+    ):
+        # A balance-refresh API failure must not roll back an otherwise
+        # successful transaction sync — the transactions still land.
+        mock_tx_fetch.return_value = [
+            make_akahu_transaction(tx_id="trans_001", amount=-25.00),
+        ]
+        mock_acct_fetch.side_effect = AkahuAPIError(503, "Service Unavailable")
+
+        result = await sync_account_transactions(
+            db, user.id, account.id, self.START_UTC, self.END_UTC
+        )
+
+        assert result["inserted"] == 1
+        assert result["errors"] == []
+
     @patch("app.services.akahu.fetch_account_transactions")
     async def test_updates_existing_mutable_fields(self, mock_fetch, db, user, account):
         tx = Transaction(

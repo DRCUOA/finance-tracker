@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.jobs.balance_sync_job import run_daily_balance_sync
 from app.jobs.interest_job import run_daily_interest_accrual
 from app.templating import BASE_DIR
 from app.routers import (
@@ -35,12 +36,13 @@ log = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Start the APScheduler instance alongside the FastAPI app.
 
-    We register a single daily job (``run_daily_interest_accrual``) that
-    accrues interest on every eligible account. APScheduler is imported
-    lazily so that tooling which imports ``app.main`` without running the
-    server (e.g. for reflection) doesn't pay the dep cost or fail if the
-    package isn't installed — though in practice it's a hard dep via
-    requirements.txt.
+    We register two daily jobs: ``run_daily_interest_accrual`` (accrues
+    interest on every eligible account) and ``run_daily_balance_sync`` (pulls
+    every linked account's bank-reported balance so it can't silently drift
+    stale). APScheduler is imported lazily so that tooling which imports
+    ``app.main`` without running the server (e.g. for reflection) doesn't pay
+    the dep cost or fail if the package isn't installed — though in practice
+    it's a hard dep via requirements.txt.
     """
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.cron import CronTrigger
@@ -55,9 +57,18 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
         misfire_grace_time=60 * 60 * 6,  # still run if the app was down <6h
     )
+    # 00:30 UTC daily — after interest accrual so the reported balance we pull
+    # reflects a settled state for the new day.
+    scheduler.add_job(
+        run_daily_balance_sync,
+        CronTrigger(hour=0, minute=30),
+        id="daily_balance_sync",
+        replace_existing=True,
+        misfire_grace_time=60 * 60 * 6,  # still run if the app was down <6h
+    )
     scheduler.start()
     app.state.scheduler = scheduler
-    log.info("scheduler started with daily interest accrual")
+    log.info("scheduler started with daily interest accrual + balance sync")
     try:
         yield
     finally:
