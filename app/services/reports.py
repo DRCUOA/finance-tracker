@@ -1158,15 +1158,20 @@ async def weekly_spending_pulse(
         sum(r["spoken_for"] for r in cat_rows) + uncat_committed, 2,
     )
 
-    # Income funds spending.  Total resources for the period = budgeted income
-    # plus the income still scheduled to arrive (committed_in inflows), drawn
-    # down by everything spoken for.  Scheduled income offsets committed
-    # outflows so the position reflects net cashflow, not gross spend.  Expense
-    # budget still drives *pace* below as the spending-discipline reference;
-    # net_budget is the planned surplus (budgeted income you intend to keep).
+    # Income funds spending.  Total resources for the period = the income we
+    # expect, drawn down by everything spoken for.  Budgeted income (the plan)
+    # and committed_in inflows (the concrete scheduled instances of that same
+    # income, e.g. a Wages budget AND a recurring Wages paycheck commitment)
+    # describe the *same* money, so we take whichever is larger rather than
+    # summing them — summing double-counts the paycheck and overstates
+    # available.  max() also keeps available stable across the commitment
+    # lifecycle: creating, confirming, then clearing an income commitment never
+    # shifts the position.  Expense budget still drives *pace* below as the
+    # spending-discipline reference; net_budget is the planned surplus (budgeted
+    # income you intend to keep).
     expense_budget = round(period_budget, 2)
     net_budget = round(income_budget - expense_budget, 2)
-    total_resources = round(income_budget + committed_in, 2)
+    total_resources = round(max(income_budget, committed_in), 2)
 
     live_available = round(total_resources - total_spoken_for, 2)
     overall_pct = round(total_spoken_for / total_resources * 100, 1) if total_resources else 0.0
