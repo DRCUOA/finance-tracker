@@ -9,14 +9,14 @@ input shape.
 
 Formatting styles
 -----------------
-``short``   – "16 Apr"         (day + abbreviated month, no year)
-``medium``  – "16 Apr 2026"    (default; day + abbreviated month + year)
-``long``    – "16 April 2026"  (day + full month + year)
+``short``   – "16-04-26"       (day-month-year)
+``medium``  – "16-04-26"       (default; day-month-year)
+``long``    – "16-04-26"       (day-month-year)
 ``month``   – "April 2026"     (full month + year)
 ``iso``     – "2026-04-16"     (ISO-8601, used for <input type="date"> values & URLs)
 
 For datetimes an extra ``datetime`` style is available:
-``datetime`` – "16 Apr 2026, 14:30"
+``datetime`` – "16-04-26, 14:30"
 
 Parsers
 -------
@@ -36,9 +36,9 @@ from typing import TypeVar, overload
 
 
 _STYLES = {
-    "short": "%d %b",
-    "medium": "%d %b %Y",
-    "long": "%d %B %Y",
+    "short": "%d-%m-%y",
+    "medium": "%d-%m-%y",
+    "long": "%d-%m-%y",
     "month": "%B %Y",
     "month_short": "%b %Y",
     "month_abbr": "%b %y",
@@ -46,7 +46,11 @@ _STYLES = {
     "iso": "%Y-%m-%d",
 }
 
-_DATETIME_FMT = "%d %b %Y, %H:%M"
+_DATETIME_FMT = "%d-%m-%y, %H:%M"
+
+# Styles whose leading zero is intentional (zero-padded DD-MM-YY) and must
+# not be stripped. Month/weekday/iso styles never start with a zero anyway.
+_NO_LSTRIP = {"short", "medium", "long", "iso"}
 
 
 def fmt_date(value: date | datetime | None, style: str = "medium") -> str:
@@ -61,7 +65,8 @@ def fmt_date(value: date | datetime | None, style: str = "medium") -> str:
     pattern = _STYLES.get(style)
     if pattern is None:
         raise ValueError(f"Unknown date style {style!r}")
-    return value.strftime(pattern).lstrip("0")
+    out = value.strftime(pattern)
+    return out if style in _NO_LSTRIP else out.lstrip("0")
 
 
 def fmt_month(value: date | datetime | None) -> str:

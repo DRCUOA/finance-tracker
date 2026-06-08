@@ -109,12 +109,11 @@
     })();
     </script>
     <script>
-    var _MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    function fdate(iso, style) {
+    function fdate(iso) {
         if (!iso) return '';
-        var p = iso.split('-'), d = +p[2], m = _MONTHS[+p[1] - 1];
-        if (style === 'medium') return d + ' ' + m + ' ' + p[0];
-        return d + ' ' + m;
+        var p = iso.split('-');
+        // DD-MM-YY (ISO parts are already zero-padded; take the last 2 digits of the year)
+        return p[2] + '-' + p[1] + '-' + p[0].slice(2);
     }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">

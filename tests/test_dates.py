@@ -29,14 +29,14 @@ from app.dates import (
 # ---------------------------------------------------------------------------
 
 class TestFmtDate:
-    def test_short_strips_leading_zero(self):
-        assert fmt_date(date(2026, 3, 5), "short") == "5 Mar"
+    def test_short_zero_padded_ddmmyy(self):
+        assert fmt_date(date(2026, 3, 5), "short") == "05-03-26"
 
     def test_medium_default(self):
-        assert fmt_date(date(2026, 3, 31)) == "31 Mar 2026"
+        assert fmt_date(date(2026, 3, 31)) == "31-03-26"
 
     def test_long_full_month(self):
-        assert fmt_date(date(2026, 3, 31), "long") == "31 March 2026"
+        assert fmt_date(date(2026, 3, 31), "long") == "31-03-26"
 
     def test_month_only(self):
         assert fmt_month(date(2026, 3, 1)) == "March 2026"
@@ -56,7 +56,7 @@ class TestFmtDate:
             fmt_date(date(2026, 3, 31), "no-such-style")
 
     def test_datetime_style_only_works_for_datetime(self):
-        assert fmt_date(datetime(2026, 3, 31, 14, 30), "datetime") == "31 Mar 2026, 14:30"
+        assert fmt_date(datetime(2026, 3, 31, 14, 30), "datetime") == "31-03-26, 14:30"
 
 
 # ---------------------------------------------------------------------------
