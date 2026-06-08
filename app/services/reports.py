@@ -976,6 +976,7 @@ async def weekly_spending_pulse(
     start: date, end: date,
     period: str = "week",
     account_ids: list[uuid.UUID] | None = None,
+    project_commitments: bool = True,
 ) -> dict:
     """Live position data: actuals + commitments + reserves.
 
@@ -1069,8 +1070,9 @@ async def weekly_spending_pulse(
     # hid month-to-due obligations in week view and made partial clears look
     # like $0 committed.  Actuals stay on the viewing period [start, end).
     m_start, m_end = month_bounds(start.year, start.month)
-    await project_recurring_commitments(db, user_id, m_end)
-    await rollover_commitments(db, user_id)
+    if project_commitments:
+        await project_recurring_commitments(db, user_id, m_end)
+        await rollover_commitments(db, user_id)
 
     commit_totals_raw = await commitment_totals_for_period(db, user_id, m_start, m_end)
     commit_by_cat_raw = await commitments_by_category(db, user_id, m_start, m_end)
@@ -1390,17 +1392,23 @@ async def rolling_over_under(
     period_end: date,
     account_ids: list[uuid.UUID] | None = None,
 ) -> dict:
-    """Cumulative *planned net* vs *actual net* from *rolling_start* through
-    the end of the period containing *period_end*.
+    """Cumulative over/under position from *rolling_start* through the period
+    containing *period_end*.
 
-    Each month's planned net is budgeted income − budgeted expense; actual net
-    is income received − spend − outstanding accruals.  The variance (actual −
-    planned) and its running total show whether the user is beating or trailing
-    their planned surplus over time.
+    Each month's over/under is the **same** figure the hero card reports for
+    that month: the budget envelope (income resources) minus everything spoken
+    for (spent + committed + reserved).  We obtain it by running the identical
+    per-month computation the hero uses (:func:`weekly_spending_pulse`), so the
+    rolling line and the hero card can never disagree.  The running total is the
+    cumulative sum of those monthly positions.
 
     Returns per-month rows and a running total so the template can show the
     cumulative over/under position.
     """
+    from app.services.commitments import (
+        project_recurring_commitments, rollover_commitments,
+    )
+
     # Enumerate each month from rolling_start to period_end
     months: list[tuple[date, date]] = []
     y, m = rolling_start.year, rolling_start.month
@@ -1414,159 +1422,42 @@ async def rolling_over_under(
             m = 1
             y += 1
 
-    # Expense categories
-    cats = (await db.execute(
-        select(Category).where(
-            Category.user_id == user_id,
-            Category.category_type == CategoryType.EXPENSE,
-        )
-    )).scalars().all()
-    expense_cat_ids = [c.id for c in cats]
-    cat_default_budgets = {c.id: float(c.budgeted_amount) for c in cats}
+    # Materialise recurring commitments / process rollovers once across the
+    # whole range; the per-month pulses below then read the resulting rows
+    # without each re-running the (idempotent but costly) projection sweep.
+    await project_recurring_commitments(db, user_id, months[-1][1])
+    await rollover_commitments(db, user_id)
 
-    # Income categories — budgeted income feeds the planned-net target
-    # (budget income − budget expense) each month.
-    income_cats = (await db.execute(
-        select(Category).where(
-            Category.user_id == user_id,
-            Category.category_type == CategoryType.INCOME,
-        )
-    )).scalars().all()
-    income_cat_ids = [c.id for c in income_cats]
-    income_default_budgets = {c.id: float(c.budgeted_amount) for c in income_cats}
-
-    # Budget overrides across the whole range
-    budget_rows = (await db.execute(
-        select(Budget.category_id, Budget.year, Budget.month, Budget.amount)
-        .where(Budget.user_id == user_id)
-    )).all()
-    budget_lookup: dict[tuple[int, int], dict[str, float]] = {}
-    for br in budget_rows:
-        key = (br.year, br.month)
-        budget_lookup.setdefault(key, {})[str(br.category_id)] = float(br.amount)
-
-    # Actual expense spend across the full range (signed net)
-    # Includes both categorised expense transactions and uncategorised ones
-    actual_stmt = (
-        select(
-            extract("year", Transaction.date).label("yr"),
-            extract("month", Transaction.date).label("mo"),
-            sa_func.sum(Transaction.amount).label("total"),
-        )
-        .outerjoin(Category, Transaction.category_id == Category.id)
-        .where(
-            Transaction.user_id == user_id,
-            Transaction.date >= rolling_start,
-            Transaction.date < months[-1][1],
-            or_(
-                Category.category_type == CategoryType.EXPENSE,
-                Transaction.category_id.is_(None),
-            ),
-        )
-        .group_by("yr", "mo")
-    )
-    if account_ids is not None:
-        actual_stmt = actual_stmt.where(Transaction.account_id.in_(account_ids))
-    actual_rows = (await db.execute(actual_stmt)).all()
-    actual_by_month = {
-        (int(r.yr), int(r.mo)): max(float(abs(r.total)), 0.0) if r.total and r.total < 0 else 0.0
-        for r in actual_rows
-    }
-
-    # Outstanding outflow commitments (accruals) by month across the range
-    from app.models.commitment import Commitment, CommitmentDirection
-    accrual_stmt = (
-        select(
-            extract("year", Commitment.due_date).label("yr"),
-            extract("month", Commitment.due_date).label("mo"),
-            sa_func.sum(Commitment.amount - Commitment.cleared_amount).label("total"),
-        )
-        .where(
-            Commitment.user_id == user_id,
-            Commitment.is_active.is_(True),
-            Commitment.cleared_at.is_(None),
-            Commitment.direction == CommitmentDirection.OUTFLOW,
-            Commitment.due_date >= rolling_start,
-            Commitment.due_date < months[-1][1],
-        )
-        .group_by("yr", "mo")
-    )
-    accrual_rows = (await db.execute(accrual_stmt)).all()
-    accrual_by_month = {
-        (int(r.yr), int(r.mo)): float(r.total) if r.total else 0.0
-        for r in accrual_rows
-    }
-
-    # Actual income received per month (positive inflows in income categories),
-    # scoped to the same cashflow accounts as spend.
-    income_stmt = (
-        select(
-            extract("year", Transaction.date).label("yr"),
-            extract("month", Transaction.date).label("mo"),
-            sa_func.sum(Transaction.amount).label("total"),
-        )
-        .join(Category, Transaction.category_id == Category.id)
-        .where(
-            Transaction.user_id == user_id,
-            Category.category_type == CategoryType.INCOME,
-            Transaction.amount > 0,
-            Transaction.date >= rolling_start,
-            Transaction.date < months[-1][1],
-        )
-        .group_by("yr", "mo")
-    )
-    if account_ids is not None:
-        income_stmt = income_stmt.where(Transaction.account_id.in_(account_ids))
-    income_rows = (await db.execute(income_stmt)).all()
-    income_by_month = {
-        (int(r.yr), int(r.mo)): float(r.total) if r.total else 0.0
-        for r in income_rows
-    }
-
-    today = date.today()
     running_total = 0.0
     total_accrued = 0.0
     month_rows = []
     for ms, me in months:
-        ym = (ms.year, ms.month)
-        overrides = budget_lookup.get(ym, {})
-        month_budget = sum(
-            overrides.get(str(cid), cat_default_budgets[cid])
-            for cid in expense_cat_ids
+        pulse = await weekly_spending_pulse(
+            db, user_id, ms, me, period="month",
+            account_ids=account_ids, project_commitments=False,
         )
-        month_income_budget = sum(
-            overrides.get(str(cid), income_default_budgets[cid])
-            for cid in income_cat_ids
-        )
-        month_spend = actual_by_month.get(ym, 0.0)
-        month_income = income_by_month.get(ym, 0.0)
-        raw_accrued = accrual_by_month.get(ym, 0.0)
-        month_accrued = round(max(raw_accrued - month_spend, 0), 2)
-        total_accrued = round(total_accrued + month_accrued, 2)
-
-        # Planned net (budget income − budget expense) vs actual net
-        # (income received − spend − accruals).  Positive variance means you
-        # beat your planned surplus this month.
-        budget_net = month_income_budget - month_budget
-        actual_net = month_income - month_spend - month_accrued
-        variance = round(actual_net - budget_net, 2)
+        # This month's over/under is exactly the hero's live position.
+        variance = round(pulse["live_available"], 2)
         running_total = round(running_total + variance, 2)
-
-        phase = _period_phase(ms, me, today)
+        # "Accrued" mirrors the hero's Committed obligations for the month.
+        accrued = round(pulse["total_committed"], 2)
+        total_accrued = round(total_accrued + accrued, 2)
 
         month_rows.append({
             "year": ms.year,
             "month": ms.month,
             "label": fmt_date(ms, "month_short"),
-            "budget": round(month_budget, 2),
-            "income_budget": round(month_income_budget, 2),
-            "net_budget": round(budget_net, 2),
-            "income": round(month_income, 2),
-            "spent": round(month_spend, 2),
-            "accrued": month_accrued,
+            "budget": pulse["expense_budget"],
+            "income_budget": pulse["income_budget"],
+            "net_budget": pulse["net_budget"],
+            # Income column shows the resource envelope (max of budgeted income
+            # and scheduled inflows) — the same figure that funds live position.
+            "income": pulse["total_resources"],
+            "spent": pulse["total_actual"],
+            "accrued": accrued,
             "variance": variance,
             "running_total": running_total,
-            "phase": phase,
+            "phase": pulse["period_phase"],
         })
 
     return {
