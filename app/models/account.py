@@ -82,7 +82,6 @@ class Account(Base):
     account_type: Mapped[AccountType] = mapped_column(Enum(AccountType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
     initial_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"))
-    current_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"))
     institution: Mapped[str | None] = mapped_column(String(100))
     term: Mapped[AccountTerm] = mapped_column(
         Enum(AccountTerm, values_callable=lambda x: [e.value for e in x]),

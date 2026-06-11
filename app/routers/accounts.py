@@ -17,6 +17,7 @@ from app.models.account import (
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
+from app.services.balances import aggregate_net_worth, balances_for
 from app.services import interest as interest_svc
 from app.services import reconciliation as recon_svc
 from app.services import reports as report_svc
@@ -34,8 +35,9 @@ async def list_accounts(
     accounts = await acct_svc.get_accounts(db, user.id, active_only=False)
     assets = [a for a in accounts if a.group.value == "asset"]
     liabilities = [a for a in accounts if a.group.value == "liability"]
-    total_assets = sum(a.current_balance for a in assets)
-    total_liabilities = sum(abs(a.current_balance) for a in liabilities)
+    balances = await balances_for(db, user.id, account_ids=[a.id for a in accounts])
+    nw = aggregate_net_worth(accounts, balances)
+    total_assets, total_liabilities = nw.assets, nw.liabilities
     coverage = await report_svc.import_coverage(db, user.id)
 
     acct_recon = {}
@@ -50,8 +52,9 @@ async def list_accounts(
     return templates.TemplateResponse(request, "accounts/list.html", {
         "user": user,
         "assets": assets, "liabilities": liabilities,
+        "balances": balances,
         "total_assets": total_assets, "total_liabilities": total_liabilities,
-        "net_worth": total_assets - total_liabilities,
+        "net_worth": nw.net,
         "account_types": AccountType,
         "coverage": coverage,
         "acct_recon": acct_recon,
@@ -196,7 +199,6 @@ async def update_account(
         compounding_type=CompoundingType(compounding_type),
         compounding_frequency=CompoundingFrequency(compounding_frequency),
     )
-    await acct_svc.recalculate_balance(db, account_id)
     return RedirectResponse(url="/accounts", status_code=302)
 
 

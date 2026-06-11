@@ -181,7 +181,6 @@ async def confirm_import(
     result = await import_svc.import_statement_lines(
         db, user.id, uuid.UUID(statement_id), line_ids, uuid.UUID(account_id),
     )
-    await acct_svc.recalculate_balance(db, uuid.UUID(account_id))
     return templates.TemplateResponse(request, "imports/done.html", {
         "user": user,
         "count": result.imported,

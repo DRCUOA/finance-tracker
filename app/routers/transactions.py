@@ -188,7 +188,6 @@ async def create_transaction(
 
     if cid:
         await categoriser.record_categorisation(db, user.id, cid, description)
-    await acct_svc.recalculate_balance(db, uuid.UUID(account_id))
     return RedirectResponse(url="/transactions", status_code=302)
 
 
@@ -239,14 +238,7 @@ async def batch_delete(
     form = await request.form()
     tx_ids = [uuid.UUID(tid) for tid in form.getlist("tx_ids")]
     if tx_ids:
-        affected_accounts = set()
-        for tid in tx_ids:
-            tx = await tx_svc.get_transaction(db, tid, user.id)
-            if tx:
-                affected_accounts.add(tx.account_id)
         await tx_svc.batch_delete(db, tx_ids, user.id)
-        for acct_id in affected_accounts:
-            await acct_svc.recalculate_balance(db, acct_id)
     resp = RedirectResponse(url="/transactions", status_code=302)
     if request.headers.get("HX-Request") == "true":
         resp.headers["HX-Trigger"] = "txchanged"
@@ -345,7 +337,6 @@ async def edit_transaction_modal(
     existing = await tx_svc.get_transaction(db, tx_id, user.id)
     if not existing:
         return JSONResponse({"error": "Not found"}, status_code=404)
-    old_account_id = existing.account_id
 
     try:
         tx = await tx_svc.update_transaction(db, tx_id, user.id, **kwargs)
@@ -363,13 +354,6 @@ async def edit_transaction_modal(
     if kwargs.get("category_id"):
         await categoriser.record_categorisation(db, user.id, kwargs["category_id"], tx.description)
 
-    accounts_to_recalc: set[uuid.UUID] = set()
-    if old_account_id != tx.account_id:
-        accounts_to_recalc.update({old_account_id, tx.account_id})
-    elif "amount" in kwargs:
-        accounts_to_recalc.add(tx.account_id)
-    for acct_id in accounts_to_recalc:
-        await acct_svc.recalculate_balance(db, acct_id)
     return JSONResponse({"ok": True})
 
 
@@ -421,8 +405,6 @@ async def update_transaction(
 
     cid = uuid.UUID(category_id) if category_id else None
     new_account_id = uuid.UUID(account_id)
-    existing = await tx_svc.get_transaction(db, tx_id, user.id)
-    old_account_id = existing.account_id if existing else None
     try:
         await tx_svc.update_transaction(
             db, tx_id, user.id,
@@ -440,9 +422,6 @@ async def update_transaction(
         )
     if cid:
         await categoriser.record_categorisation(db, user.id, cid, description)
-    await acct_svc.recalculate_balance(db, new_account_id)
-    if old_account_id and old_account_id != new_account_id:
-        await acct_svc.recalculate_balance(db, old_account_id)
     return RedirectResponse(url="/transactions", status_code=302)
 
 
@@ -465,9 +444,7 @@ async def delete_transaction(
         return RedirectResponse(url="/transactions", status_code=302)
     tx = await tx_svc.get_transaction(db, tx_id, user.id)
     if tx:
-        acct_id = tx.account_id
         await tx_svc.delete_transaction(db, tx_id, user.id)
-        await acct_svc.recalculate_balance(db, acct_id)
     if request.headers.get("HX-Request") == "true":
         resp = HTMLResponse("")
         resp.headers["HX-Trigger"] = "txchanged"

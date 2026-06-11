@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.transaction import Transaction
+from app.services.balances import BalanceBasis, balance
 
 
 # How long the feed can lag before we flip the account from "in_sync" to
@@ -145,22 +146,17 @@ async def account_feed_status(
     """Compute the feed-reconciliation snapshot for a single account."""
     now = now or datetime.now(timezone.utc)
 
-    posted_sum_stmt = select(
-        sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00"))
-    ).where(
-        Transaction.account_id == account.id,
-        Transaction.is_pending.is_(False),
-    )
+    posted_balance = await balance(db, account.id, basis=BalanceBasis.POSTED)
+
+    # Pending is its own dimension (ALL minus POSTED), not a balance basis —
+    # it feeds the unreconciled-delta row, so it stays a local sum.
     pending_sum_stmt = select(
         sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00"))
     ).where(
         Transaction.account_id == account.id,
         Transaction.is_pending.is_(True),
     )
-    posted_tx_sum = (await db.execute(posted_sum_stmt)).scalar() or Decimal("0.00")
     pending_total = (await db.execute(pending_sum_stmt)).scalar() or Decimal("0.00")
-
-    posted_balance = account.initial_balance + posted_tx_sum
 
     is_linked = bool(account.akahu_id)
     reported = account.reported_balance if is_linked else None

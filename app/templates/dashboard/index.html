@@ -211,8 +211,8 @@
                         {% endif %}
                     </p>
                 </div>
-                <span class="text-sm font-semibold tabular-nums ml-4 whitespace-nowrap {% if acct.current_balance >= 0 %}text-positive-600{% else %}text-negative-500{% endif %}">
-                    {{ acct.current_balance|nzd }}
+                <span class="text-sm font-semibold tabular-nums ml-4 whitespace-nowrap {% if balances[acct.id] >= 0 %}text-positive-600{% else %}text-negative-500{% endif %}">
+                    {{ balances[acct.id]|nzd }}
                 </span>
             </div>
             {% else %}

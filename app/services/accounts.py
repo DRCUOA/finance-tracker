@@ -13,7 +13,6 @@ from app.models.account import (
     CompoundingFrequency,
     CompoundingType,
 )
-from app.models.transaction import Transaction
 
 
 async def get_accounts(
@@ -61,7 +60,7 @@ async def create_account(
     acct_kwargs = dict(
         user_id=user_id, name=name, account_type=account_type,
         currency=currency, initial_balance=initial_balance,
-        current_balance=initial_balance, institution=institution,
+        institution=institution,
         term=term, is_cashflow=is_cashflow, sort_order=next_order,
         interest_rate=interest_rate,
         compounding_type=compounding_type,
@@ -95,28 +94,3 @@ async def delete_account(db: AsyncSession, account_id: uuid.UUID, user_id: uuid.
     await db.delete(acct)
     await db.flush()
     return True
-
-
-async def recalculate_balance(db: AsyncSession, account_id: uuid.UUID) -> Decimal:
-    """Recompute ``current_balance`` from posted transactions only.
-
-    Pending transactions (``is_pending=True``) are deliberately excluded: they
-    haven't settled at the bank, so including them would make the
-    transaction-derived balance overshoot the eventual posted state and
-    confuse reports/budgets. Pending amounts are surfaced separately via the
-    feed-reconciliation snapshot.
-    """
-    acct = await db.get(Account, account_id)
-    if not acct:
-        return Decimal("0.00")
-    result = await db.execute(
-        select(sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")))
-        .where(
-            Transaction.account_id == account_id,
-            Transaction.is_pending.is_(False),
-        )
-    )
-    tx_sum = result.scalar()
-    acct.current_balance = acct.initial_balance + tx_sum
-    await db.flush()
-    return acct.current_balance

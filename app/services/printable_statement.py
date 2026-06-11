@@ -8,18 +8,18 @@ so we do a tiny bit of our own "virtual pagination" to emit NZ-style
 brought-forward / carried-forward rows at deterministic row counts.
 
 The service is pure computation: it reads the same posted-transaction set
-that :func:`app.services.accounts.recalculate_balance` uses (``is_pending=False``)
-so the closing balance always reconciles with what the rest of the app shows.
+(``is_pending=False``) that :func:`app.services.balances.balance` uses, so the
+closing balance always reconciles with what the rest of the app shows.
 """
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Iterable
 
-from sqlalchemy import func as sa_func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -27,6 +27,7 @@ from app.models.account import Account
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.services.balances import BalanceBasis, balance
 
 
 # Row count per paginated chunk inside a single account's detail. Chosen to fit
@@ -287,23 +288,13 @@ async def _opening_balance(
 ) -> Decimal:
     """Balance at the close of ``before - 1 day`` — the statement's starting point.
 
-    Matches :func:`app.services.accounts.recalculate_balance` in excluding
-    pending transactions. Pending items are shown separately in the bank-feed
-    reconciliation view; including them here would conflict with that tool's
-    "unreconciled" figure and with the account's own ``current_balance``.
+    Uses the POSTED basis (excludes pending) so the closing balance always
+    reconciles with what the rest of the app shows. Pending items are surfaced
+    separately in the bank-feed reconciliation view.
     """
-    result = await db.execute(
-        select(sa_func.coalesce(sa_func.sum(Transaction.amount), _ZERO))
-        .where(
-            Transaction.account_id == account.id,
-            Transaction.is_pending.is_(False),
-            Transaction.date < before,
-        )
+    return await balance(
+        db, account.id, basis=BalanceBasis.POSTED, as_of=before - timedelta(days=1)
     )
-    tx_sum = result.scalar() or _ZERO
-    if not isinstance(tx_sum, Decimal):
-        tx_sum = Decimal(str(tx_sum))
-    return (account.initial_balance or _ZERO) + tx_sum
 
 
 async def _period_transactions(

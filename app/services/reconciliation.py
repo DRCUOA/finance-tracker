@@ -3,23 +3,16 @@ import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, func as sa_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
 from app.models.reconciliation import Reconciliation, ReconciliationStatus
 from app.models.transaction import Transaction
+from app.services.balances import BalanceBasis, balance
 
 
 async def get_cleared_balance(db: AsyncSession, account_id: uuid.UUID) -> Decimal:
-    acct = await db.get(Account, account_id)
-    if not acct:
-        return Decimal("0.00")
-    result = await db.execute(
-        select(sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")))
-        .where(Transaction.account_id == account_id, Transaction.is_cleared.is_(True))
-    )
-    return acct.initial_balance + result.scalar()
+    return await balance(db, account_id, basis=BalanceBasis.CLEARED)
 
 
 async def get_uncleared_transactions(

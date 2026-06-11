@@ -25,6 +25,7 @@ from app.models.account import (
     CompoundingType,
 )
 from app.models.transaction import Transaction
+from app.services.balances import BalanceBasis, balance
 from app.services.interest import (
     INTEREST_MARKER,
     INTEREST_SOURCE,
@@ -140,8 +141,7 @@ def _make_savings(user_id, **overrides) -> Account:
         name="Savings",
         account_type=AccountType.SAVINGS,
         currency="NZD",
-        initial_balance=Decimal("0.00"),
-        current_balance=Decimal("10000.00"),
+        initial_balance=Decimal("10000.00"),
         institution="ANZ",
         term=AccountTerm.MEDIUM,
         interest_rate=Decimal("5.0000"),
@@ -165,8 +165,7 @@ def _make_credit_card(user_id, **overrides) -> Account:
         name="Visa",
         account_type=AccountType.CREDIT_CARD,
         currency="NZD",
-        initial_balance=Decimal("0.00"),
-        current_balance=Decimal("-2000.00"),
+        initial_balance=Decimal("-2000.00"),
         institution="Westpac",
         term=AccountTerm.SHORT,
         interest_rate=Decimal("19.9500"),
@@ -197,8 +196,8 @@ class TestAccrueInterestForAccount:
         assert tx.account_id == acct.id
         assert tx.date == now.date()
         assert acct.interest_last_accrued_at == now
-        # Balance must be updated in lockstep with the posted transaction.
-        assert acct.current_balance == Decimal("10000.00") + tx.amount
+        # Derived posted balance reflects the newly posted interest transaction.
+        assert await balance(db, acct.id, basis=BalanceBasis.POSTED) == Decimal("10000.00") + tx.amount
 
     async def test_posts_negative_transaction_for_credit_card(self, db, user):
         anchor = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -211,7 +210,7 @@ class TestAccrueInterestForAccount:
 
         assert tx is not None
         assert tx.amount < 0  # debt grows = balance more negative
-        assert acct.current_balance < Decimal("-2000.00")
+        assert await balance(db, acct.id, basis=BalanceBasis.POSTED) < Decimal("-2000.00")
 
     async def test_no_op_when_rate_unset(self, db, user):
         acct = _make_savings(user.id, interest_rate=None)
@@ -222,7 +221,7 @@ class TestAccrueInterestForAccount:
         assert tx is None
 
     async def test_no_op_when_balance_zero(self, db, user):
-        acct = _make_savings(user.id, current_balance=Decimal("0.00"))
+        acct = _make_savings(user.id, initial_balance=Decimal("0.00"))
         db.add(acct)
         await db.flush()
 
@@ -260,7 +259,7 @@ class TestAccrueInterestForAccount:
         anchor = datetime(2026, 1, 1, tzinfo=timezone.utc)
         acct = _make_savings(
             user.id,
-            current_balance=Decimal("0.01"),
+            initial_balance=Decimal("0.01"),
             interest_rate=Decimal("1.0000"),
             interest_last_accrued_at=anchor,
         )
@@ -394,7 +393,6 @@ class TestRetroReevaluate:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
         )
         acct.created_at = anchor
         acct.opened_on = anchor.date()
@@ -415,8 +413,8 @@ class TestRetroReevaluate:
         assert result.delta == Decimal("41.10")
         assert result.num_days == 30
         assert result.currency == "NZD"
-        # Balance also bumped by the true-up amount.
-        assert acct.current_balance == Decimal("10000.00") + tx.amount
+        # Derived posted balance reflects the true-up transaction.
+        assert await balance(db, acct.id, basis=BalanceBasis.POSTED) == Decimal("10000.00") + tx.amount
 
     async def test_compound_annual_full_year_matches_textbook(self, db, user):
         """One year, compound annually @ 5% on $1000 → $50 of interest.
@@ -428,7 +426,6 @@ class TestRetroReevaluate:
             compounding_type=CompoundingType.COMPOUND,
             compounding_frequency=CompoundingFrequency.ANNUALLY,
             initial_balance=Decimal("1000.00"),
-            current_balance=Decimal("1000.00"),
         )
         acct.created_at = anchor
         acct.opened_on = anchor.date()
@@ -453,7 +450,6 @@ class TestRetroReevaluate:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
         )
         acct.created_at = anchor
         acct.opened_on = anchor.date()
@@ -494,7 +490,6 @@ class TestRetroReevaluate:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
         )
         acct.created_at = anchor
         acct.opened_on = anchor.date()
@@ -520,7 +515,6 @@ class TestRetroReevaluate:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
         )
         acct.created_at = anchor
         acct.opened_on = anchor.date()
@@ -558,9 +552,8 @@ class TestRetroReevaluate:
         acct = _make_credit_card(user.id)
         acct.created_at = anchor
         acct.opened_on = anchor.date()
-        # initial == current means the simulation finds the balance at -2000
-        # for the entire window.
-        acct.initial_balance = acct.current_balance
+        # initial_balance of -2000 with no transactions means the simulation
+        # finds the balance at -2000 for the entire window.
         db.add(acct)
         await db.flush()
 
@@ -588,7 +581,6 @@ class TestRetroReevaluate:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
         )
         a.created_at = anchor
         a.opened_on = anchor.date()
@@ -599,7 +591,6 @@ class TestRetroReevaluate:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("15000.00"),
         )
         b.created_at = anchor
         b.opened_on = anchor.date()
@@ -634,7 +625,6 @@ class TestRetroReevaluate:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
             interest_last_accrued_at=scheduler_anchor,
         )
         acct.created_at = anchor
@@ -661,7 +651,6 @@ class TestRetroResultShape:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
             interest_rate=Decimal("5.0000"),
             compounding_frequency=CompoundingFrequency.MONTHLY,
             currency="USD",
@@ -697,7 +686,6 @@ class TestRetroResultShape:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
         )
         acct.created_at = anchor
         acct.opened_on = anchor.date()
@@ -732,7 +720,6 @@ class TestRetroResultShape:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
         )
         acct.created_at = anchor
         acct.opened_on = anchor.date()
@@ -760,7 +747,6 @@ class TestRetroResultShape:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
             opened_on=opened,
         )
         acct.created_at = created
@@ -788,7 +774,6 @@ class TestRetroResultShape:
             user.id,
             compounding_type=CompoundingType.SIMPLE,
             initial_balance=Decimal("10000.00"),
-            current_balance=Decimal("10000.00"),
             opened_on=opened,
         )
         acct.created_at = created

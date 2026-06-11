@@ -324,7 +324,6 @@ async def import_external_data(
                 account_type=acct_type,
                 currency="NZD",
                 initial_balance=opening,
-                current_balance=opening,
                 term=acct_term,
                 sort_order=(max_order or 0) + 1,
             )
@@ -417,18 +416,6 @@ async def import_external_data(
 
     await db.flush()
 
-    # ---- Recalculate balances ----
-    for local_acct_id in acct_id_map.values():
-        acct = await db.get(Account, local_acct_id)
-        if not acct:
-            continue
-        tx_sum = (await db.execute(
-            select(sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")))
-            .where(Transaction.account_id == acct.id)
-        )).scalar()
-        acct.current_balance = acct.initial_balance + tx_sum
-
-    await db.flush()
     result.cat_id_map = cat_id_map
     return result
 
