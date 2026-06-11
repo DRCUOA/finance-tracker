@@ -7,10 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dates import parse_iso_date
-from app.models.account import AccountGroup, AccountTerm
+from app.models.account import AccountTerm
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
+from app.services.balances import aggregate_net_worth, balances_for
 from app.services import reconciliation as recon_svc
 from app.services import reports as report_svc
 from app.services import transactions as tx_svc
@@ -60,9 +61,9 @@ async def dashboard(
     else:
         cashflow_ids = acct_ids
 
-    total_assets = sum(a.current_balance for a in accounts if a.group == AccountGroup.ASSET)
-    total_liabilities = sum(abs(a.current_balance) for a in accounts if a.group == AccountGroup.LIABILITY)
-    net_worth = total_assets - total_liabilities
+    balances = await balances_for(db, user.id, account_ids=[a.id for a in accounts])
+    nw = aggregate_net_worth(accounts, balances)
+    total_assets, total_liabilities, net_worth = nw.assets, nw.liabilities, nw.net
 
     summary = await report_svc.period_summary(db, user.id, start, end, account_ids=cashflow_ids)
     budget_data = await report_svc.budget_vs_actual(
@@ -115,6 +116,7 @@ async def dashboard(
         "net_history": net_history,
         "recent_txs": recent_txs,
         "accounts": accounts,
+        "balances": balances,
         "acct_recon": acct_recon,
         "period": period,
         "period_label": label,

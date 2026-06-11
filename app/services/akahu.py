@@ -23,7 +23,6 @@ from app.dates import parse_iso_datetime_or_none
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.services.categoriser import suggest_category
-from app.services.accounts import recalculate_balance
 
 log = logging.getLogger(__name__)
 
@@ -271,11 +270,11 @@ async def sync_account_balances(
 ) -> dict:
     """Fetch Akahu account balances and store them as the *reported* balance.
 
-    The bank-reported balance is the authoritative "where am I right now"
-    number. We keep it in ``Account.reported_balance`` separately from
-    ``current_balance`` (which is transaction-derived). Reports can then show
-    both and surface the delta honestly rather than silently flip-flopping
-    a single column on every sync.
+    The bank-reported balance is an external reference to reconcile against.
+    We keep it in ``Account.reported_balance`` separately from the
+    transaction-derived posted balance (see :mod:`app.services.balances`).
+    Reports can then show both and surface the delta honestly rather than
+    silently flip-flopping a single column on every sync.
 
     Idempotent: skips write when both the value and timestamp are unchanged.
     """
@@ -546,7 +545,6 @@ async def sync_account_transactions(
         )
 
     await db.flush()
-    await recalculate_balance(db, account_id)
 
     return result
 

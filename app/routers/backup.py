@@ -94,7 +94,7 @@ async def export_accounts(
     rows = [
         {
             "name": a.name, "type": a.account_type.value, "currency": a.currency,
-            "initial_balance": float(a.initial_balance), "current_balance": float(a.current_balance),
+            "initial_balance": float(a.initial_balance),
             "institution": a.institution or "", "is_active": a.is_active,
         }
         for a in accounts

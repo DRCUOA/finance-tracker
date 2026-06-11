@@ -105,7 +105,6 @@ async def account(db: AsyncSession, user: User) -> Account:
         account_type=AccountType.CHECKING,
         currency="NZD",
         initial_balance=Decimal("0.00"),
-        current_balance=Decimal("1000.00"),
         institution="ANZ",
         term=AccountTerm.SHORT,
         akahu_id="acc_test_123",
@@ -125,7 +124,6 @@ async def unlinked_account(db: AsyncSession, user: User) -> Account:
         account_type=AccountType.CASH,
         currency="NZD",
         initial_balance=Decimal("0.00"),
-        current_balance=Decimal("500.00"),
         institution=None,
         term=AccountTerm.SHORT,
     )

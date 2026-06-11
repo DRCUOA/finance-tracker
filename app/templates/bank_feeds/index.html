@@ -171,7 +171,7 @@
                     <span class="text-sm text-gray-700 dark:text-gray-300">
                         Linked to <span class="font-semibold">{{ linked_local.name }}</span>
                     </span>
-                    {% set local_bal = linked_local.current_balance %}
+                    {% set local_bal = balances[linked_local.id] %}
                     {% set bank_bal = balance.get('current', 0) %}
                     {% set diff = (bank_bal - (local_bal|float))|round(2) %}
                     {% if diff != 0 %}
@@ -225,7 +225,7 @@
                         class="rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 px-3 focus:ring-brand-500 focus:border-brand-500 flex-1 max-w-xs">
                     <option value="">Select account…</option>
                     {% for local in unlinked_local %}
-                    <option value="{{ local.id }}">{{ local.name }} ({{ local.current_balance|nzd }})</option>
+                    <option value="{{ local.id }}">{{ local.name }} ({{ balances[local.id]|nzd }})</option>
                     {% endfor %}
                 </select>
                 <button type="submit"

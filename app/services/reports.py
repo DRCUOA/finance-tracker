@@ -7,11 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dates import fmt_date
 
-from app.models.account import Account, ACCOUNT_TYPE_GROUPS, AccountGroup
+from app.models.account import Account
 from app.models.budget import Budget
 from app.models.category import Category, CategoryType
 from app.models.statement import Statement
 from app.models.transaction import Transaction
+from app.services.balances import BalanceBasis, aggregate_net_worth, balances_for
 
 
 # ---------------------------------------------------------------------------
@@ -319,25 +320,22 @@ async def net_balance_history(
             snapshot_end = date(y, m + 1, 1) if m < 12 else date(y + 1, 1, 1)
             label = f"{y}-{m:02d}"
 
-        assets = Decimal("0.00")
-        liabilities = Decimal("0.00")
-
-        for acct in accounts:
-            tx_sum = (await db.execute(
-                select(sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")))
-                .where(Transaction.account_id == acct.id, Transaction.date < snapshot_end)
-            )).scalar()
-            balance = acct.initial_balance + tx_sum
-            if acct.group == AccountGroup.ASSET:
-                assets += balance
-            else:
-                liabilities += abs(balance)
+        # POSTED basis (decision locked 2026-06-11) — the net-worth chart now
+        # matches the headline balance, which excludes pending. ``date <
+        # snapshot_end`` becomes the inclusive ``as_of = snapshot_end - 1 day``.
+        bals = await balances_for(
+            db, user_id,
+            basis=BalanceBasis.POSTED,
+            as_of=snapshot_end - timedelta(days=1),
+            account_ids=[a.id for a in accounts],
+        )
+        nw = aggregate_net_worth(accounts, bals)
 
         history.append({
             "label": label,
-            "assets": float(assets),
-            "liabilities": float(liabilities),
-            "net_worth": float(assets - liabilities),
+            "assets": float(nw.assets),
+            "liabilities": float(nw.liabilities),
+            "net_worth": float(nw.net),
         })
 
     return history

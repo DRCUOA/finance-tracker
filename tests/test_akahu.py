@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account, AccountType, AccountTerm
 from app.models.category import Category
 from app.models.transaction import Transaction
+from app.services.balances import BalanceBasis, balance
 from app.services.akahu import (
     AkahuAPIError,
     AkahuConfigError,
@@ -55,11 +56,10 @@ class TestNzDateToUtcRange:
 class TestSyncAccountBalances:
     @patch("app.services.akahu.fetch_accounts")
     async def test_updates_linked_account(self, mock_fetch, db, user, account):
-        # Seed current_balance to something unrelated so we can verify the
-        # balance sync now targets ``reported_balance`` and leaves the
-        # transaction-derived ``current_balance`` alone.
-        account.current_balance = Decimal("999.99")
-        await db.flush()
+        # The derived posted balance (initial_balance + txns) is the source of
+        # truth; balance sync must target ``reported_balance`` and leave the
+        # derived balance untouched.
+        derived_before = await balance(db, account.id, basis=BalanceBasis.POSTED)
 
         mock_fetch.return_value = [
             make_akahu_account(akahu_id="acc_test_123", balance_current=2500.00)
@@ -72,8 +72,8 @@ class TestSyncAccountBalances:
 
         await db.refresh(account)
         assert account.reported_balance == Decimal("2500.00")
-        # current_balance is transaction-derived; balance sync must not touch it.
-        assert account.current_balance == Decimal("999.99")
+        # Balance sync must not affect the transaction-derived balance.
+        assert await balance(db, account.id, basis=BalanceBasis.POSTED) == derived_before
 
     @patch("app.services.akahu.fetch_accounts")
     async def test_skips_write_when_unchanged(self, mock_fetch, db, user, account):
@@ -102,7 +102,8 @@ class TestSyncAccountBalances:
         assert result["linked_found"] == 0
 
         await db.refresh(unlinked_account)
-        assert unlinked_account.current_balance == Decimal("500.00")
+        assert unlinked_account.reported_balance is None
+        assert await balance(db, unlinked_account.id, basis=BalanceBasis.POSTED) == unlinked_account.initial_balance
 
     @patch("app.services.akahu.fetch_accounts")
     async def test_missing_in_akahu(self, mock_fetch, db, user, account):

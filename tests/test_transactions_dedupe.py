@@ -62,7 +62,6 @@ async def second_account(db: AsyncSession, user) -> Account:
         account_type=AccountType.CHECKING,
         currency="NZD",
         initial_balance=Decimal("0.00"),
-        current_balance=Decimal("0.00"),
         institution=None,
         term=AccountTerm.SHORT,
     )

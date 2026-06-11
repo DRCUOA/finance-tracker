@@ -14,6 +14,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
+from app.services.balances import balances_for
 from app.services.akahu import (
     AKAHU_SOURCE,
     AkahuAPIError,
@@ -64,6 +65,9 @@ async def bank_feeds_page(
             akahu_error = "Unexpected error connecting to Akahu"
 
     local_accounts = await acct_svc.get_accounts(db, user.id, active_only=False)
+    balances = await balances_for(
+        db, user.id, account_ids=[a.id for a in local_accounts]
+    )
 
     linked_akahu_ids = {a.akahu_id for a in local_accounts if a.akahu_id}
     unlinked_local = [
@@ -106,6 +110,7 @@ async def bank_feeds_page(
         "link_map": link_map,
         "unlinked_local": unlinked_local,
         "feed_stats": feed_stats,
+        "balances": balances,
     })
 
 

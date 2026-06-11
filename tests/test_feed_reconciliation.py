@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 from app.models.account import Account, AccountTerm, AccountType
 from app.models.transaction import Transaction
-from app.services.accounts import recalculate_balance
+from app.services.balances import BalanceBasis, balance
 from app.services.akahu import (
     AKAHU_SOURCE,
     sync_account_balances,
@@ -175,33 +175,29 @@ class TestUserFeedStatus:
 
 
 # ---------------------------------------------------------------------------
-# Balance recalc — pending must not count
+# Derived balance — pending must not count
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-class TestRecalculateBalanceExcludesPending:
-    async def test_pending_does_not_affect_current_balance(self, db, user, account):
+class TestDerivedBalanceExcludesPending:
+    async def test_pending_does_not_affect_posted_balance(self, db, user, account):
         await _mk_tx(db, user.id, account.id, -100)
         await _mk_tx(db, user.id, account.id, -30, is_pending=True)
 
-        bal = await recalculate_balance(db, account.id)
+        bal = await balance(db, account.id, basis=BalanceBasis.POSTED)
         # Only the posted -100 counts; pending -30 stays in its own lane.
         assert bal == account.initial_balance + Decimal("-100.00")
-        await db.refresh(account)
-        assert account.current_balance == account.initial_balance + Decimal("-100.00")
 
 
 # ---------------------------------------------------------------------------
-# Balance sync — writes reported_balance, never current_balance
+# Balance sync — writes reported_balance, never the derived balance
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 class TestSyncAccountBalancesFeedFields:
     @patch("app.services.akahu.fetch_accounts")
-    async def test_writes_reported_balance_not_current(self, mock_fetch, db, user, account):
-        # Seed current_balance separately so we can verify it's untouched.
-        account.current_balance = Decimal("999.99")
-        await db.flush()
+    async def test_writes_reported_balance_not_derived(self, mock_fetch, db, user, account):
+        derived_before = await balance(db, account.id, basis=BalanceBasis.POSTED)
 
         mock_fetch.return_value = [
             make_akahu_account(akahu_id="acc_test_123", balance_current=2500.00)
@@ -211,9 +207,8 @@ class TestSyncAccountBalancesFeedFields:
 
         assert account.reported_balance == Decimal("2500.00")
         assert account.reported_balance_as_of is not None
-        # current_balance is transaction-derived and should not be touched
-        # by the balance sync.
-        assert account.current_balance == Decimal("999.99")
+        # The transaction-derived balance must not be touched by the sync.
+        assert await balance(db, account.id, basis=BalanceBasis.POSTED) == derived_before
 
     @patch("app.services.akahu.fetch_accounts")
     async def test_captures_refreshed_balance_timestamp(self, mock_fetch, db, user, account):

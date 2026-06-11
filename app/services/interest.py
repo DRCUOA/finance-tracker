@@ -24,7 +24,7 @@ We apply interest in the direction of the account's group:
   debt grow, which in this ledger means the balance becomes more negative.
   So we post a negative transaction.
 
-Principal is ``abs(current_balance)`` in both cases so the math is always done
+Principal is ``abs(posted balance)`` in both cases so the math is always done
 on a positive number; the group supplies the sign.
 
 Cadence
@@ -54,6 +54,7 @@ from app.models.account import (
     PERIODS_PER_YEAR,
 )
 from app.models.transaction import Transaction
+from app.services.balances import BalanceBasis, balance
 
 
 INTEREST_SOURCE = "interest"
@@ -152,7 +153,7 @@ def compute_interest(
     return interest.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
-def _account_is_accrual_eligible(acct: Account) -> bool:
+def _account_is_accrual_eligible(acct: Account, posted_balance: Decimal) -> bool:
     """Return True if ``acct`` has interest configured AND a non-zero balance.
 
     A rate of 0 or a rate that is NULL means the user hasn't opted this
@@ -161,7 +162,7 @@ def _account_is_accrual_eligible(acct: Account) -> bool:
     """
     if acct.interest_rate is None or acct.interest_rate == 0:
         return False
-    if acct.current_balance == 0:
+    if posted_balance == 0:
         return False
     return True
 
@@ -189,11 +190,18 @@ async def accrue_interest_for_account(
     The caller owns committing the session; this function only ``flush``-es
     so the transaction is visible for balance recalculation.
     """
-    if not _account_is_accrual_eligible(account):
+    now = now or datetime.now(timezone.utc)
+    # Capture the baseline before computing the balance: the balance query can
+    # autoflush a freshly-added account, which would populate its server-default
+    # ``created_at`` and hide the first-run state we need to detect here.
+    start = account.interest_last_accrued_at or account.created_at
+
+    # Derived on read, before any interest row is added to the session — the
+    # posted balance is the accrual principal and the eligibility check.
+    posted_balance = await balance(db, account.id, basis=BalanceBasis.POSTED)
+    if not _account_is_accrual_eligible(account, posted_balance):
         return None
 
-    now = now or datetime.now(timezone.utc)
-    start = account.interest_last_accrued_at or account.created_at
     if start is None:
         # Fallback for freshly created accounts with no ``created_at`` yet;
         # treat "now" as the baseline so the next run has a reference.
@@ -210,7 +218,7 @@ async def accrue_interest_for_account(
     if elapsed_days <= 0:
         return None
 
-    principal = abs(account.current_balance)
+    principal = abs(posted_balance)
     interest = compute_interest(
         principal,
         account.interest_rate,
@@ -241,7 +249,6 @@ async def accrue_interest_for_account(
         is_cleared=True,
     )
     db.add(tx)
-    account.current_balance = account.current_balance + amount
     account.interest_last_accrued_at = now
     await db.flush()
     return tx
@@ -285,8 +292,8 @@ async def retro_reevaluate_interest(
       by account group. Growth feeds back into ``sim_bal``.
     * **Simple**: daily accrual is ``|sim_bal| * r / 365``, signed by
       group. Does *not* feed back into ``sim_bal``.
-    * Pending transactions (``is_pending=True``) are excluded, matching
-      :func:`app.services.accounts.recalculate_balance` semantics.
+    * Pending transactions (``is_pending=True``) are excluded, matching the
+      POSTED balance basis.
 
     The retro run does *not* touch ``interest_last_accrued_at``. That
     timestamp belongs to the scheduler's incremental-accrual loop; keeping
@@ -420,7 +427,6 @@ async def retro_reevaluate_interest(
             is_cleared=True,
         )
         db.add(tx)
-        account.current_balance = account.current_balance + true_up
         await db.flush()
         new_view = RetroTxView(
             id=str(tx.id),

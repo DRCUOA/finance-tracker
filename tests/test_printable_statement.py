@@ -64,7 +64,6 @@ async def account_with_history(db, user):
         account_type=AccountType.CHECKING,
         currency="NZD",
         initial_balance=Decimal("100.00"),
-        current_balance=Decimal("100.00"),
         institution="ANZ",
         term=AccountTerm.SHORT,
     )
@@ -103,7 +102,6 @@ class TestOpeningBalance:
             account_type=AccountType.SAVINGS,
             currency="NZD",
             initial_balance=Decimal("500.00"),
-            current_balance=Decimal("500.00"),
             term=AccountTerm.SHORT,
         )
         db.add(acct)
@@ -279,13 +277,13 @@ class TestSummary:
         a1 = Account(
             id=uuid.uuid4(), user_id=user.id, name="A1",
             account_type=AccountType.CHECKING, currency="NZD",
-            initial_balance=Decimal("100.00"), current_balance=Decimal("100.00"),
+            initial_balance=Decimal("100.00"),
             term=AccountTerm.SHORT,
         )
         a2 = Account(
             id=uuid.uuid4(), user_id=user.id, name="A2",
             account_type=AccountType.SAVINGS, currency="NZD",
-            initial_balance=Decimal("50.00"), current_balance=Decimal("50.00"),
+            initial_balance=Decimal("50.00"),
             term=AccountTerm.SHORT,
         )
         db.add_all([a1, a2])
@@ -311,13 +309,13 @@ class TestSummary:
         nzd_acct = Account(
             id=uuid.uuid4(), user_id=user.id, name="NZ",
             account_type=AccountType.CHECKING, currency="NZD",
-            initial_balance=Decimal("100.00"), current_balance=Decimal("100.00"),
+            initial_balance=Decimal("100.00"),
             term=AccountTerm.SHORT,
         )
         aud_acct = Account(
             id=uuid.uuid4(), user_id=user.id, name="AU",
             account_type=AccountType.CHECKING, currency="AUD",
-            initial_balance=Decimal("200.00"), current_balance=Decimal("200.00"),
+            initial_balance=Decimal("200.00"),
             term=AccountTerm.SHORT,
         )
         db.add_all([nzd_acct, aud_acct])
@@ -368,7 +366,7 @@ class TestGuards:
         other_acct = Account(
             id=uuid.uuid4(), user_id=other.id, name="Other",
             account_type=AccountType.CHECKING, currency="NZD",
-            initial_balance=Decimal("0"), current_balance=Decimal("0"),
+            initial_balance=Decimal("0"),
             term=AccountTerm.SHORT,
         )
         db.add(other_acct)

@@ -125,7 +125,6 @@ async def restore_backup(db: AsyncSession, user_id: uuid.UUID, data: dict) -> di
             user_id=user_id, name=a["name"],
             account_type=a["account_type"], currency=a.get("currency", "USD"),
             initial_balance=Decimal(str(a.get("initial_balance", 0))),
-            current_balance=Decimal(str(a.get("initial_balance", 0))),
             institution=a.get("institution"), is_cashflow=a.get("is_cashflow", True),
             is_active=a.get("is_active", True),
             sort_order=a.get("sort_order", 0),
@@ -261,7 +260,6 @@ async def export_account_bundle(
             "account_type": a.account_type.value,
             "currency": a.currency,
             "initial_balance": float(a.initial_balance),
-            "current_balance": float(a.current_balance),
             "institution": a.institution,
             "term": a.term.value,
             "is_cashflow": a.is_cashflow,
@@ -301,8 +299,6 @@ async def import_account_bundle(
 ) -> dict:
     """Import accounts from an exported bundle. Skips accounts whose name
     already exists for this user."""
-    from app.services.accounts import recalculate_balance
-
     existing = (await db.execute(
         select(Account.name).where(Account.user_id == user_id)
     )).scalars().all()
@@ -325,8 +321,6 @@ async def import_account_bundle(
             account_type=entry["account_type"],
             currency=entry.get("currency", "NZD"),
             initial_balance=Decimal(str(entry.get("initial_balance", 0))),
-            current_balance=Decimal(str(entry.get("current_balance",
-                                                   entry.get("initial_balance", 0)))),
             institution=entry.get("institution"),
             term=entry.get("term", "short"),
             is_cashflow=entry.get("is_cashflow", True),
@@ -368,7 +362,6 @@ async def import_account_bundle(
                 stats["transactions"] += 1
 
             await db.flush()
-            await recalculate_balance(db, acct.id)
 
     return stats
 

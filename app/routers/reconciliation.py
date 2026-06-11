@@ -10,6 +10,7 @@ from app.dates import parse_iso_date
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
+from app.services.balances import balances_for
 from app.services import reconciliation as recon_svc
 from app.templating import templates
 
@@ -23,6 +24,7 @@ async def reconciliation_index(
     db: AsyncSession = Depends(get_db),
 ):
     accounts = await acct_svc.get_accounts(db, user.id)
+    balances = await balances_for(db, user.id, account_ids=[a.id for a in accounts])
     account_info = []
     for acct in accounts:
         last = await recon_svc.get_last_reconciliation(db, acct.id)
@@ -30,6 +32,7 @@ async def reconciliation_index(
         cleared_bal = await recon_svc.get_cleared_balance(db, acct.id)
         account_info.append({
             "account": acct,
+            "posted_balance": balances.get(acct.id),
             "last_reconciliation": last,
             "draft": draft,
             "cleared_balance": cleared_bal,
@@ -121,7 +124,6 @@ async def finish_reconciliation(
     await recon_svc.finish_reconciliation(
         db, user.id, account_id, s_date, s_balance, cleared_ids,
     )
-    await acct_svc.recalculate_balance(db, account_id)
     return RedirectResponse(url="/reconciliation", status_code=302)
 
 
