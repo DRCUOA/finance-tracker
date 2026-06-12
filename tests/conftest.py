@@ -26,6 +26,7 @@ from app.models.account import Account, AccountType, AccountTerm
 from app.models.budget import Budget  # noqa: F401
 from app.models.category import Category
 from app.models.commitment import Commitment  # noqa: F401
+from app.models.login_attempt import LoginAttempt  # noqa: F401
 from app.models.reconciliation import Reconciliation  # noqa: F401
 from app.models.statement import Statement, StatementLine  # noqa: F401
 from app.models.transaction import Transaction

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.templating import templates
@@ -46,8 +47,15 @@ async def require_user(
 
 
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
-    response.set_cookie("access_token", access_token, httponly=True, samesite="lax", max_age=3600)
-    response.set_cookie("refresh_token", refresh_token, httponly=True, samesite="lax", max_age=7 * 86400)
+    secure = settings.COOKIE_SECURE
+    response.set_cookie(
+        "access_token", access_token,
+        httponly=True, samesite="lax", secure=secure, max_age=3600,
+    )
+    response.set_cookie(
+        "refresh_token", refresh_token,
+        httponly=True, samesite="lax", secure=secure, max_age=7 * 86400,
+    )
 
 
 def _clear_auth_cookies(response: Response) -> None:
@@ -67,10 +75,21 @@ async def login(
     password: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
+    ip = request.client.host if request.client else "unknown"
+
+    if await auth_service.is_login_locked(db, email, ip):
+        return templates.TemplateResponse(
+            request, "auth/login.html",
+            {"error": "Too many failed attempts. Please try again later."},
+            status_code=429,
+        )
+
     user = await auth_service.authenticate_user(db, email, password)
     if not user:
+        await auth_service.record_failed_login(db, email, ip)
         return templates.TemplateResponse(request, "auth/login.html", {"error": "Invalid email or password"}, status_code=401)
 
+    await auth_service.reset_login_attempts(db, email, ip)
     access = auth_service.create_access_token(str(user.id))
     refresh = await auth_service.create_refresh_token(db, user.id)
     response = RedirectResponse(url="/dashboard", status_code=302)

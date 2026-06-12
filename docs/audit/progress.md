@@ -10,7 +10,7 @@ entry first. Update this at the end of every working session.
 
 | Compartment | State | Notes |
 |---|---|---|
-| #0 Security | **In progress (partial)** | `/sql` route disabled only. IDORs, login rate-limit, cookie `secure`, secret rotation still **not started**. |
+| #0 Security | **In progress** | PR A (tenant isolation) + PR B (auth hardening) built on branches. Remaining: merge both PRs; rotate the live `.env` secrets (operational). |
 | #1 Balance authority | **Done — merged** | [PR #11](https://github.com/DRCUOA/finance-tracker/pull/11), merged to `main`. |
 | #2 Ingestion integrity | Not started | Spec not yet written. |
 | #3 External reconciliation | Not started | One pre-existing test failure already lives here (see below). |
@@ -19,6 +19,35 @@ entry first. Update this at the end of every working session.
 ---
 
 ## Session log
+
+### 2026-06-12 — Compartment #0 PR B (auth hardening) built
+
+Branch `spec-00-auth-hardening` (off `main`; does **not** include PR A's tenant
+code). Implements the three §8 auth launch-blockers:
+
+- **Refuse-default-SECRET_KEY boot check** — `app/config.py` gains
+  `DEFAULT_SECRET_KEY`, `MIN_SECRET_KEY_LENGTH` (32) and
+  `validate_security_config()`, called at the **top of the app lifespan** (boot,
+  not import — so tooling/tests that merely import settings aren't forced to
+  supply a key). Refuses to start on the shipped placeholder or any <32-char key.
+- **Cookie `Secure` flag** — new `COOKIE_SECURE` setting (default **True**;
+  set `COOKIE_SECURE=false` for local http dev). `_set_auth_cookies` now passes
+  `secure=settings.COOKIE_SECURE` on both the access and refresh cookies.
+- **Login rate-limiting** — DB-backed, **5 failures / 15-min window, keyed by the
+  (email, ip) pair**. New `LoginAttempt` model + hand-written migration `021`
+  (additive `login_attempts` table; **applied live to the dev DB**, 020→021).
+  `app/services/auth.py` gains `is_login_locked` / `record_failed_login` /
+  `reset_login_attempts`; `POST /login` returns a **generic 429** when locked (no
+  user enumeration), records each failure, and clears the counter on success.
+  Lock is IP-scoped so an attacker on one host can't lock out the real user.
+
+Tests: `tests/test_auth_hardening.py` (13 — SECRET_KEY validation, cookie flag,
+rate-limit service incl. window-expiry + IP-scoping, and two ASGI login-endpoint
+lockout/reset tests). All pass. Full suite **160 passed, 1 known pre-existing
+fail** (`test_feed_reconciliation` tz-naive/aware — compartment-#3 debt, fails on
+`main` independently; not a regression).
+
+Next: open PR B; then merge PR A + PR B; then rotate live `.env` secrets.
 
 ### 2026-06-12 — Compartment #0 /sql disable committed; migration confirmed applied
 

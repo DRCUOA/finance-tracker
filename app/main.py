@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.config import validate_security_config
 from app.jobs.balance_sync_job import run_daily_balance_sync
 from app.jobs.interest_job import run_daily_interest_accrual
 from app.templating import BASE_DIR
@@ -46,6 +47,9 @@ async def lifespan(app: FastAPI):
     """
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.cron import CronTrigger
+
+    # Refuse to boot with an insecure SECRET_KEY before anything else starts.
+    validate_security_config()
 
     scheduler = AsyncIOScheduler(timezone="UTC")
     # 00:15 UTC daily — offset slightly from midnight so overnight batch
