@@ -33,9 +33,17 @@ entry first. Update this at the end of every working session.
   reports `020 (head)`; a direct `information_schema` check confirms
   `accounts.current_balance` no longer exists. No `alembic upgrade` was needed.
 
-Progress-doc steps 1 (commit) and 2 (migration) are now both complete. Next work
-(compartment #0 IDOR sweeps / rate-limit / cookie / secrets, then compartment #2)
-is fresh scoped work awaiting a spec + sign-off.
+Progress-doc steps 1 (commit) and 2 (migration) are now both complete.
+
+**Compartment #0 spec drafted** —
+[spec-00-security.md](spec-00-security.md). Scopes the remaining launch-blockers:
+imports & reconciliation IDOR fixes (grounded in the actual unscoped `db.get` /
+form-`account_id` sites), a `require_owned_account` ownership dependency, cookie
+`secure` toggle, refuse-default-`SECRET_KEY` boot check, and login rate-limiting.
+Notes that `.env` is **already gitignored & untracked** (so only token *rotation*
+remains, an operational step). Six decisions parked for sign-off (§8: sql_tool
+delete-vs-redesign, 403-vs-404, rate-limit policy, cookie toggle, signup
+validation, PR shape). **Not yet built — awaiting decisions.**
 
 ### 2026-06-11 — Compartment #1 built & merged; #0 /sql disable started
 
@@ -85,12 +93,11 @@ baseline timestamp **before** the balance query
 
 ## Where the next session should start
 
-1. **Continue compartment #0 (the launch-blocker):** remaining items are IDOR
-   sweeps (imports.py:171, reconciliation.py:79,103), login rate-limiting,
-   cookie `secure` flag, and rotating `.env` secrets (live Akahu tokens are in
-   the working tree). None started. Per the working style, scope these into a
-   compartment-#0 spec (`spec-00-*.md`) before building, or pick off the
-   smallest self-contained item (e.g. cookie `secure`) first.
+1. **Build compartment #0 from [spec-00-security.md](spec-00-security.md).** Spec
+   is drafted; confirm the §8 decisions first, then build smallest-first
+   (SECRET_KEY boot check → cookie `secure` → reconciliation IDOR → imports IDOR
+   → rate-limit → sql_tool permanent disposition). Rotate Akahu/`SECRET_KEY`
+   secrets (operational).
 2. **Then compartment #2 (ingestion integrity):** needs a spec first
    (`spec-02-*.md`), mirroring the structure of
    [spec-01-balance-authority.md](spec-01-balance-authority.md).

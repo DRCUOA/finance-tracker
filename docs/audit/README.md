@@ -8,9 +8,11 @@ finance platform with strong technical + financial integrity. Read these in orde
 1. [finla-audit-2026-06.md](finla-audit-2026-06.md) — the full audit: current/target
    state, gap analysis, financial control model, revised data model, ranked backlog,
    acceptance criteria, phased roadmap.
-2. [spec-01-balance-authority.md](spec-01-balance-authority.md) — build-ready spec for
-   compartment #1 (single balance authority, derive-on-read).
-3. [progress.md](progress.md) — running build log: what's done, what's next, known debt.
+2. [spec-00-security.md](spec-00-security.md) — build-ready spec for compartment #0
+   (tenant-isolation IDOR fixes + auth hardening). A few decisions to confirm (§8).
+3. [spec-01-balance-authority.md](spec-01-balance-authority.md) — build-ready spec for
+   compartment #1 (single balance authority, derive-on-read). **Done — merged.**
+4. [progress.md](progress.md) — running build log: what's done, what's next, known debt.
    **New session? Read this first to see where to start.**
 
 ## Build order (locked)
@@ -31,5 +33,7 @@ finance platform with strong technical + financial integrity. Read these in orde
 
 ## Status
 Compartment **#1 built and merged** ([PR #11](https://github.com/DRCUOA/finance-tracker/pull/11)).
-Compartment **#0** started (`/sql` route disabled, uncommitted). #2–#4 not started.
+Compartment **#0** in progress — `/sql` route disabled & committed (`1f99b93`); spec
+drafted ([spec-00-security.md](spec-00-security.md)); IDOR fixes + auth hardening not yet
+built. #2–#4 not started.
 See [progress.md](progress.md) for the full log and the next-session starting point.
