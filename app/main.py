@@ -25,7 +25,6 @@ from app.routers import (
     reconciliation,
     reports,
     spending,
-    sql_tool,
     transactions,
 )
 
@@ -100,6 +99,5 @@ app.include_router(bank_feeds.router)
 app.include_router(reconciliation.router)
 app.include_router(reports.router)
 app.include_router(printable_statement.router)
-app.include_router(sql_tool.router)
 app.include_router(backup.router)
 app.include_router(help.router)

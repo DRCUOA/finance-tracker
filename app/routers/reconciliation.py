@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dates import parse_iso_date
+from app.dependencies import require_owned_account
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import accounts as acct_svc
@@ -86,6 +87,7 @@ async def save_draft(
     statement_date: str = Form(...),
     statement_balance: str = Form(...),
     user: User = Depends(require_user),
+    _account=Depends(require_owned_account),
     db: AsyncSession = Depends(get_db),
 ):
     form = await request.form()
@@ -110,6 +112,7 @@ async def finish_reconciliation(
     statement_date: str = Form(...),
     statement_balance: str = Form(...),
     user: User = Depends(require_user),
+    _account=Depends(require_owned_account),
     db: AsyncSession = Depends(get_db),
 ):
     form = await request.form()
@@ -131,6 +134,7 @@ async def finish_reconciliation(
 async def discard_draft(
     account_id: uuid.UUID,
     user: User = Depends(require_user),
+    _account=Depends(require_owned_account),
     db: AsyncSession = Depends(get_db),
 ):
     await recon_svc.discard_draft(db, account_id, user.id)

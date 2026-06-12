@@ -3,11 +3,12 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dependencies import get_owned_account_or_404
 from app.models.statement import FileType
 from app.models.user import User
 from app.routers.auth import require_user
@@ -15,6 +16,13 @@ from app.services import accounts as acct_svc
 from app.services import import_service as import_svc
 from app.services import migration as migration_svc
 from app.templating import templates
+
+
+def _parse_uuid_or_404(value: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(value)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=404)
 
 _MIGRATE_DIR = Path(tempfile.gettempdir()) / "finance_tracker_migrate"
 _STASH_DIR = Path(tempfile.gettempdir()) / "finance_tracker_import"
@@ -42,6 +50,7 @@ async def upload_file(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await get_owned_account_or_404(db, _parse_uuid_or_404(account_id), user.id)
     content_bytes = await file.read()
     filename = file.filename or "upload"
     is_ofx = filename.lower().endswith((".ofx", ".qfx"))
@@ -116,6 +125,9 @@ async def map_csv_fields(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    account_uuid = _parse_uuid_or_404(account_id)
+    await get_owned_account_or_404(db, account_uuid, user.id)
+
     stashed = _STASH_DIR / f"{token}.csv"
     if not stashed.exists():
         return RedirectResponse(url="/imports", status_code=302)
@@ -125,9 +137,9 @@ async def map_csv_fields(
 
     mapping = json.loads(mapping_json)
     parsed = import_svc.apply_csv_mapping(content, mapping, date_format)
-    parsed = await import_svc.find_duplicates(db, user.id, uuid.UUID(account_id), parsed)
+    parsed = await import_svc.find_duplicates(db, user.id, account_uuid, parsed)
     statement = await import_svc.create_statement(
-        db, user.id, uuid.UUID(account_id), filename, FileType.CSV, parsed,
+        db, user.id, account_uuid, filename, FileType.CSV, parsed,
     )
     return templates.TemplateResponse(request, "imports/review.html", {
         "user": user,
@@ -146,6 +158,9 @@ async def map_ofx_fields(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    account_uuid = _parse_uuid_or_404(account_id)
+    await get_owned_account_or_404(db, account_uuid, user.id)
+
     stashed = _STASH_DIR / f"{token}.json"
     if not stashed.exists():
         return RedirectResponse(url="/imports", status_code=302)
@@ -155,10 +170,10 @@ async def map_ofx_fields(
 
     mapping = json.loads(mapping_json)
     parsed = import_svc.apply_ofx_mapping(data["transactions"], mapping)
-    parsed = await import_svc.find_duplicates(db, user.id, uuid.UUID(account_id), parsed)
+    parsed = await import_svc.find_duplicates(db, user.id, account_uuid, parsed)
 
     statement = await import_svc.create_statement(
-        db, user.id, uuid.UUID(account_id), filename, FileType.OFX, parsed,
+        db, user.id, account_uuid, filename, FileType.OFX, parsed,
     )
 
     return templates.TemplateResponse(request, "imports/review.html", {
@@ -176,10 +191,16 @@ async def confirm_import(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    account_uuid = _parse_uuid_or_404(account_id)
+    statement_uuid = _parse_uuid_or_404(statement_id)
+    await get_owned_account_or_404(db, account_uuid, user.id)
+    if await import_svc.get_owned_statement(db, statement_uuid, user.id) is None:
+        raise HTTPException(status_code=404)
+
     form = await request.form()
     line_ids = [uuid.UUID(lid) for lid in form.getlist("line_ids")]
     result = await import_svc.import_statement_lines(
-        db, user.id, uuid.UUID(statement_id), line_ids, uuid.UUID(account_id),
+        db, user.id, statement_uuid, line_ids, account_uuid,
     )
     return templates.TemplateResponse(request, "imports/done.html", {
         "user": user,
