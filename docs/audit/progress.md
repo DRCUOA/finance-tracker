@@ -49,6 +49,37 @@ fail** (`test_feed_reconciliation` tz-naive/aware — compartment-#3 debt, fails
 
 Next: open PR B; then merge PR A + PR B; then rotate live `.env` secrets.
 
+### 2026-06-12 — Compartment #0 PR A built (tenant isolation)
+
+Branch `spec-00-tenant-isolation` (from [spec-00-security.md](spec-00-security.md) PR A).
+
+- **sql_tool deleted entirely** — `app/routers/sql_tool.py`, `app/services/sql_tool.py`,
+  `app/templates/sql_tool/` removed; the commented-out include + import cleaned out of
+  `app/main.py`. `grep -r sql_tool app/` is empty.
+- **`app/dependencies.py` added** — `require_owned_account` (path-param dependency,
+  404 on foreign) + `get_owned_account_or_404` (imperative helper for form-sourced
+  account ids). **404, not 403** (locked §8.2).
+- **Reconciliation IDOR closed** — `save_draft`, `finish_reconciliation`,
+  `discard_draft` now depend on `require_owned_account`, so a forged `account_id`
+  404s before any `Reconciliation` row is created/overwritten. (The service
+  previously created/overwrote rows with a foreign `account_id` — verified.)
+- **Imports IDOR closed** — `upload_file`, `map_csv_fields`, `map_ofx_fields`,
+  `confirm_import` validate account ownership; `confirm_import` also validates
+  statement ownership. Service `import_statement_lines` hardened as defence-in-depth:
+  loads the statement scoped to `user_id` and skips any line whose `statement_id`
+  doesn't match (stops cross-tenant line-content exfiltration into the caller's ledger
+  and the foreign `Statement.status` flip).
+- **`tests/test_tenant_isolation.py`** — 10 tests: sql_tool routes 404; reconciliation
+  save_draft/finish foreign → 404 + no write, owner allowed; confirm_import foreign
+  account/statement → 404 + no write; upload foreign → 404; service-level statement +
+  line scoping and owner happy-path. Endpoint tests drive the real app via
+  `httpx.ASGITransport` with `get_db`/`require_user` overridden (no lifespan/scheduler).
+- **Suite:** 157 passed, 1 failed — the failure is the **known pre-existing**
+  compartment-#3 `feed_reconciliation` tz-naive/aware test (unrelated).
+
+**Next:** open PR A, then build PR B (auth hardening: SECRET_KEY boot check, cookie
+`COOKIE_SECURE`, login rate-limit).
+
 ### 2026-06-12 — Compartment #0 /sql disable committed; migration confirmed applied
 
 - **`/sql` disable committed** (`1f99b93`): the uncommitted `app/main.py` +

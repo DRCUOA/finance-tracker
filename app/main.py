@@ -28,7 +28,6 @@ from app.routers import (
     spending,
     transactions,
 )
-# sql_tool import intentionally omitted — route disabled below (see audit §1.6)
 
 log = logging.getLogger(__name__)
 
@@ -104,10 +103,5 @@ app.include_router(bank_feeds.router)
 app.include_router(reconciliation.router)
 app.include_router(reports.router)
 app.include_router(printable_statement.router)
-# DISABLED 2026-06-11: sql_tool route has a critical cross-tenant isolation hole
-# (AND/OR precedence in _inject_user_filter lets any user read/delete all tenants'
-# transactions). See docs/audit/finla-audit-2026-06.md §1.6. Re-enable only after
-# security compartment #0 redesigns the query scoping.
-# app.include_router(sql_tool.router)
 app.include_router(backup.router)
 app.include_router(help.router)
