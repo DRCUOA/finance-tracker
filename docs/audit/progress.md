@@ -10,7 +10,7 @@ entry first. Update this at the end of every working session.
 
 | Compartment | State | Notes |
 |---|---|---|
-| #0 Security | **In progress** | PR A (tenant isolation) + PR B (auth hardening) built on branches. Remaining: merge both PRs; rotate the live `.env` secrets (operational). |
+| #0 Security | **Code complete — merged** | PR A (tenant isolation) [#12](https://github.com/DRCUOA/finance-tracker/pull/12) **merged**; PR B (auth hardening) [#13](https://github.com/DRCUOA/finance-tracker/pull/13) **merged**. Remaining: rotate the live `.env` secrets (operational) — `.env` is already gitignored & untracked. |
 | #1 Balance authority | **Done — merged** | [PR #11](https://github.com/DRCUOA/finance-tracker/pull/11), merged to `main`. |
 | #2 Ingestion integrity | Not started | Spec not yet written. |
 | #3 External reconciliation | Not started | One pre-existing test failure already lives here (see below). |
@@ -22,8 +22,9 @@ entry first. Update this at the end of every working session.
 
 ### 2026-06-12 — Compartment #0 PR B (auth hardening) built
 
-Branch `spec-00-auth-hardening` (off `main`; does **not** include PR A's tenant
-code). Implements the three §8 auth launch-blockers:
+Branch `spec-00-auth-hardening` (cut from `main` before PR A merged; PR A's
+tenant code was later merged in — see the merge note at the end of this entry).
+Implements the three §8 auth launch-blockers:
 
 - **Refuse-default-SECRET_KEY boot check** — `app/config.py` gains
   `DEFAULT_SECRET_KEY`, `MIN_SECRET_KEY_LENGTH` (32) and
@@ -47,7 +48,15 @@ lockout/reset tests). All pass. Full suite **160 passed, 1 known pre-existing
 fail** (`test_feed_reconciliation` tz-naive/aware — compartment-#3 debt, fails on
 `main` independently; not a regression).
 
-Next: open PR B; then merge PR A + PR B; then rotate live `.env` secrets.
+Merged as [PR #13](https://github.com/DRCUOA/finance-tracker/pull/13). PR A
+([#12](https://github.com/DRCUOA/finance-tracker/pull/12)) merged to `main` first,
+so `main` was merged back into this branch before merge — only `progress.md`
+conflicted (both PRs prepended a log entry; kept both). `app/main.py` auto-merged
+(PR A's sql_tool removal + PR B's `validate_security_config()` boot check coexist).
+Post-merge suite: **170 passed, 1 known pre-existing fail**.
+
+With PR A + PR B merged, **compartment #0 is code-complete**. Next: rotate live
+`.env` secrets (operational); then spec compartment #2 (ingestion integrity).
 
 ### 2026-06-12 — Compartment #0 PR A built (tenant isolation)
 
