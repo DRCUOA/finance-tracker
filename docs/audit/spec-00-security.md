@@ -1,6 +1,6 @@
 # Spec — Compartment #0: Security Hardening (launch-blocker)
 
-**Status:** Drafted — a few decisions to confirm at review (see §8). **Depends on:** nothing (independent of the architecture work; gates stranger signup).
+**Status:** Ready to build — key decisions locked 2026-06-12 (see §8). **Depends on:** nothing (independent of the architecture work; gates stranger signup).
 **Goal:** Close the multi-tenant isolation holes and harden authentication so the app is safe to expose to strangers. This is the launch-blocker track from the audit (§1.6, §8 "#0 Security").
 
 **Definition of "correct" (the invariant this compartment guarantees):**
@@ -12,7 +12,7 @@ A logged-in user can **only ever** read or modify rows belonging to their own `u
 
 | # | Item | Sev | State entering this compartment |
 |---|---|---|---|
-| 0.1 | `/sql` raw-query tool cross-tenant hole | CRITICAL | **Route disabled** (`1f99b93`). Permanent fix = delete or redesign (decision §8). |
+| 0.1 | `/sql` raw-query tool cross-tenant hole | CRITICAL | **Route disabled** (`1f99b93`). Permanent fix = **delete** router/template/service (locked §8). |
 | 0.2 | `imports` IDOR — unscoped `account_id`/`statement_id` | HIGH | Not started |
 | 0.3 | `reconciliation` IDOR — `save_draft`/`finish` no ownership check | MEDIUM | Not started |
 | 0.4 | Cookie `secure` flag unset | HIGH | Not started |
@@ -21,8 +21,10 @@ A logged-in user can **only ever** read or modify rows belonging to their own `u
 | 0.7 | `.env` secrets — gitignore + rotate Akahu/SECRET_KEY | HIGH | `.env` **already gitignored & untracked**; rotation outstanding (operational) |
 | 0.8 | Signup: password-strength / email validation | LOW | Not started (optional this pass) |
 
-**Suggested build order — smallest self-contained first:**
-0.5 → 0.4 → 0.3 → 0.2 → 0.6 → 0.1 (permanent decision) → 0.7 (operational) → 0.8 (optional).
+**Build order (two PRs, locked §8):**
+- **PR A — tenant isolation:** 0.1 (delete sql_tool) + 0.3 (reconciliation IDOR) + 0.2 (imports IDOR, via `require_owned_account`).
+- **PR B — auth hardening:** 0.5 (SECRET_KEY boot check) → 0.4 (cookie `secure`) → 0.6 (rate-limit).
+- 0.7 (secret rotation) operational; 0.8 (signup validation) deferred to a follow-up.
 
 ---
 
@@ -41,7 +43,7 @@ async def require_owned_account(
 ) -> Account:
     acct = await accounts.get_account(db, account_id, user.id)
     if acct is None:
-        raise HTTPException(status_code=404)   # 404 (not 403) — don't leak existence
+        raise HTTPException(status_code=404)   # 404 (not 403) — don't leak existence (locked §8.2)
     return acct
 ```
 
@@ -55,8 +57,8 @@ For form-sourced `account_id`/`statement_id` (imports), the value isn't a path p
 ### 0.3 reconciliation IDOR (`routers/reconciliation.py`)
 - `save_draft` (`/{account_id}/save-draft`) and `finish_reconciliation` (`/{account_id}/finish`) mutate without verifying ownership. Add `account: Account = Depends(require_owned_account)` (or an inline `get_account` guard) so a foreign `account_id` 404s before any recon row is written or `finish` runs.
 
-### 0.1 sql_tool (CRITICAL — already mitigated)
-- Route is **disabled** (import + `include_router` removed; nav item dropped). That satisfies the audit acceptance criterion ("user provably cannot read/modify another user's data via the SQL tool"). **Permanent disposition is a decision (§8):** delete the router/template/service outright, **or** redesign with a parameterised, `user_id`-scoped query layer (no string-spliced filter). Recommendation: **delete** — a raw-SQL tool is a large attack surface for little product value at "small but real" scale; reintroduce later behind a proper read-only scoped API if a real need appears.
+### 0.1 sql_tool (CRITICAL — DELETE, locked §8.1)
+- Route is already **disabled** (import + `include_router` removed; nav item dropped). PR A completes the disposition by **deleting** `app/routers/sql_tool.py`, `app/services/sql_tool.py`, the `app/templates/sql_tool/` templates, and the now-dead commented-out lines in `app/main.py`. Confirm nothing else imports them (`grep -r sql_tool app/`). Reintroduce later behind a proper read-only scoped API only if a real need appears.
 
 ---
 
@@ -68,11 +70,11 @@ For form-sourced `account_id`/`statement_id` (imports), the value isn't a path p
 ### 0.4 Cookie `secure` flag
 - `routers/auth.py:49-50` set `access_token`/`refresh_token` with `httponly=True, samesite="lax"` but **no `secure`**. Add `secure=...` driven by a new `COOKIE_SECURE: bool` setting (default `True`; dev over http://localhost sets it `False` in `.env`). Avoids hard-coding `True` (would break local http) while defaulting safe.
 
-### 0.6 Login rate-limiting / lockout
-- No throttling today → credential stuffing. Add a failed-attempt counter keyed by (email or IP), locking out after **N** failures within a **window** (proposed N=5 / 15 min — confirm §8). Storage: a small table or counter (single Postgres, "small but real" — DB-backed is fine and survives restarts; in-memory is simpler but resets on deploy). Return a generic error (no user-enumeration). Reset on success.
+### 0.6 Login rate-limiting / lockout (locked §8.3)
+- No throttling today → credential stuffing. Add a **DB-backed** failed-attempt counter keyed by **email + IP**, locking out after **5** failures within a **15-minute** window. New table (e.g. `login_attempts`) via alembic. Return a **generic** error (no user-enumeration) while locked. **Reset on successful login.**
 
-### 0.8 Signup validation (optional this pass)
-- Add minimal password-strength (length ≥ N) and email-format validation on signup. Low severity; can defer to a follow-up if it widens the PR too much.
+### 0.8 Signup validation — DEFERRED (locked §8.5)
+- Minimal password-strength + email-format validation on signup is **out of the compartment-#0 PRs**; tracked as a follow-up to keep scope tight.
 
 ---
 
@@ -85,7 +87,7 @@ For form-sourced `account_id`/`statement_id` (imports), the value isn't a path p
 
 ## 4. Risks & mitigations
 
-- **404 vs 403:** prefer **404** for foreign resources so we don't leak existence of other tenants' accounts/statements. (Audit §8 says "403"; flagged as a decision §8 — recommendation 404.)
+- **404 vs 403:** **404** for foreign resources so we don't leak existence of other tenants' accounts/statements (locked §8.2; supersedes audit §8 "403").
 - **Cookie `secure` breaks local dev:** mitigated by the `COOKIE_SECURE` env toggle (default True, dev False).
 - **Lockout as a DoS vector:** an attacker could lock a victim by spamming their email. Mitigate by also/instead keying on IP, and keeping the window short. Confirm strategy at §8.
 - **Boot-time secret check breaking CI/tests:** ensure the test config and `.env.example` provide a valid non-default secret.
@@ -95,7 +97,7 @@ For form-sourced `account_id`/`statement_id` (imports), the value isn't a path p
 
 ## 5. Test plan (ships with the PR)
 
-- **sql_tool:** route returns 404 (disabled) — regression that `/sql` and `/sql/execute` are unreachable. (If redesigned instead of deleted: an `OR 1=1` payload returns only own rows.)
+- **sql_tool:** code deleted — `/sql` and `/sql/execute` return 404 (unreachable) and `grep -r sql_tool app/` is empty.
 - **imports IDOR:** `confirm_import` / `map_ofx_fields` with a foreign `account_id` or `statement_id` → 404, no rows written into the foreign account.
 - **reconciliation IDOR:** `save_draft` / `finish` with a foreign `account_id` → 404, no recon rows created.
 - **Cookie:** login response sets `Secure` on both cookies when `COOKIE_SECURE=True`.
@@ -124,11 +126,14 @@ For form-sourced `account_id`/`statement_id` (imports), the value isn't a path p
 
 ---
 
-## 8. Decisions to confirm at review
+## 8. Decisions — LOCKED 2026-06-12
 
-1. **sql_tool disposition:** **delete** the router/template/service entirely (recommended), or keep the code and **redesign** with a parameterised user-scoped query layer? (Currently just disabled.)
-2. **403 vs 404** for foreign-resource access — recommendation **404** (don't leak existence); audit text said 403.
-3. **Rate-limit policy:** threshold **N=5** failures / **15-min** window, keyed by **email + IP**, **DB-backed** counter? Confirm N, window, key, and storage.
-4. **Cookie toggle:** introduce `COOKIE_SECURE` env (default `True`, dev `False`) — OK?
-5. **Signup validation (0.8):** include minimal password/email validation in this PR, or split to a follow-up?
-6. **PR shape:** one compartment-#0 PR for all of 0.1–0.6, or split (e.g. isolation IDORs as one PR, auth hardening as another)? Working style leans small/compartmentalised.
+1. **sql_tool disposition:** **DELETE entirely** — remove the router, template(s), and `services/sql_tool.py`. (Route is already unwired; this removes the dead code.) Reintroduce later behind a safe scoped API only if a real need appears.
+2. **Foreign-resource access → `404`** (not 403): treat another tenant's account/statement as non-existent so we don't leak existence. Supersedes the audit §8 "403" wording.
+3. **Rate-limit policy:** lock out after **5** failed logins within a **15-minute** window, keyed by **email + IP**, counter **DB-backed** (survives restarts). Generic error (no user enumeration); reset on success.
+4. **Cookie toggle:** introduce `COOKIE_SECURE` env setting, default **`True`**, dev sets **`False`** in `.env`.
+5. **Signup validation (0.8):** **deferred to a follow-up** — keep it out of the compartment-#0 PRs to avoid widening scope.
+6. **PR shape — TWO PRs:**
+   - **PR A — tenant isolation:** delete sql_tool (0.1), `require_owned_account` dependency + imports IDOR (0.2) + reconciliation IDOR (0.3).
+   - **PR B — auth hardening:** SECRET_KEY boot check (0.5), cookie `secure` toggle (0.4), login rate-limiting (0.6).
+   - Secret rotation (0.7) is operational, tracked separately.

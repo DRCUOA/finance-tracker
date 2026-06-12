@@ -9,7 +9,7 @@ finance platform with strong technical + financial integrity. Read these in orde
    state, gap analysis, financial control model, revised data model, ranked backlog,
    acceptance criteria, phased roadmap.
 2. [spec-00-security.md](spec-00-security.md) — build-ready spec for compartment #0
-   (tenant-isolation IDOR fixes + auth hardening). A few decisions to confirm (§8).
+   (tenant-isolation IDOR fixes + auth hardening). Decisions locked (§8); two PRs.
 3. [spec-01-balance-authority.md](spec-01-balance-authority.md) — build-ready spec for
    compartment #1 (single balance authority, derive-on-read). **Done — merged.**
 4. [progress.md](progress.md) — running build log: what's done, what's next, known debt.

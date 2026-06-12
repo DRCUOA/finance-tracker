@@ -41,9 +41,14 @@ imports & reconciliation IDOR fixes (grounded in the actual unscoped `db.get` /
 form-`account_id` sites), a `require_owned_account` ownership dependency, cookie
 `secure` toggle, refuse-default-`SECRET_KEY` boot check, and login rate-limiting.
 Notes that `.env` is **already gitignored & untracked** (so only token *rotation*
-remains, an operational step). Six decisions parked for sign-off (§8: sql_tool
-delete-vs-redesign, 403-vs-404, rate-limit policy, cookie toggle, signup
-validation, PR shape). **Not yet built — awaiting decisions.**
+remains, an operational step).
+
+**§8 decisions LOCKED 2026-06-12:** sql_tool → **delete entirely**; foreign access
+→ **404** (not 403); rate-limit → **5 failures / 15-min window, email+IP, DB-backed**;
+cookie → **`COOKIE_SECURE` env, default True / dev False**; signup validation →
+**deferred** to a follow-up; **two PRs** — PR A tenant isolation (delete sql_tool +
+imports & reconciliation IDORs + `require_owned_account`), PR B auth hardening
+(SECRET_KEY boot check + cookie + rate-limit). **Spec is ready to build.**
 
 ### 2026-06-11 — Compartment #1 built & merged; #0 /sql disable started
 
@@ -93,17 +98,21 @@ baseline timestamp **before** the balance query
 
 ## Where the next session should start
 
-1. **Build compartment #0 from [spec-00-security.md](spec-00-security.md).** Spec
-   is drafted; confirm the §8 decisions first, then build smallest-first
-   (SECRET_KEY boot check → cookie `secure` → reconciliation IDOR → imports IDOR
-   → rate-limit → sql_tool permanent disposition). Rotate Akahu/`SECRET_KEY`
-   secrets (operational).
-2. **Then compartment #2 (ingestion integrity):** needs a spec first
-   (`spec-02-*.md`), mirroring the structure of
-   [spec-01-balance-authority.md](spec-01-balance-authority.md).
+1. **Build compartment #0 PR A (tenant isolation)** from
+   [spec-00-security.md](spec-00-security.md): delete sql_tool entirely, add the
+   `require_owned_account` dependency, close the reconciliation IDOR
+   (`save_draft`/`finish`) and the imports IDOR (`confirm_import`/`map_ofx_fields`
+   + scope `import_statement_lines`'s `db.get`). Foreign access → 404. Two-user
+   regression test.
+2. **Then PR B (auth hardening):** SECRET_KEY boot check → cookie `COOKIE_SECURE`
+   toggle → login rate-limit (5/15-min, email+IP, DB table + alembic).
+3. **Operational:** rotate Akahu tokens + `SECRET_KEY`.
+4. **Then compartment #2 (ingestion integrity):** needs a spec first
+   (`spec-02-*.md`), mirroring [spec-01-balance-authority.md](spec-01-balance-authority.md).
 
 _Done 2026-06-12: /sql disable committed (`1f99b93`), docs tracked (`dcfe335`),
-migration `020` confirmed applied._
+migration `020` confirmed applied, [spec-00-security.md](spec-00-security.md)
+drafted + decisions locked._
 
 ## Known issues / debt
 
