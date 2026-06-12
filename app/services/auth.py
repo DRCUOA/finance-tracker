@@ -5,11 +5,16 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from jose import JWTError, jwt
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.models.login_attempt import LoginAttempt
 from app.models.user import RefreshToken, User
+
+# Lock the (email, ip) pair after this many failed attempts inside the window.
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_WINDOW = timedelta(minutes=15)
 
 
 def hash_password(password: str) -> str:
@@ -99,3 +104,35 @@ async def get_user_by_id(db: AsyncSession, user_id: str) -> User | None:
     except ValueError:
         return None
     return await db.get(User, uid)
+
+
+async def is_login_locked(db: AsyncSession, email: str, ip: str) -> bool:
+    """True once the (email, ip) pair has too many recent failures.
+
+    A successful login clears the counter (see ``reset_login_attempts``), so the
+    count only ever reflects an unbroken run of failures inside the window.
+    """
+    since = datetime.now(timezone.utc) - LOGIN_WINDOW
+    stmt = select(func.count()).select_from(LoginAttempt).where(
+        LoginAttempt.email == email,
+        LoginAttempt.ip == ip,
+        LoginAttempt.successful.is_(False),
+        LoginAttempt.created_at >= since,
+    )
+    result = await db.execute(stmt)
+    return (result.scalar_one() or 0) >= LOGIN_MAX_ATTEMPTS
+
+
+async def record_failed_login(db: AsyncSession, email: str, ip: str) -> None:
+    db.add(LoginAttempt(email=email, ip=ip, successful=False))
+    await db.flush()
+
+
+async def reset_login_attempts(db: AsyncSession, email: str, ip: str) -> None:
+    """Clear the failure counter for the pair after a successful login."""
+    await db.execute(
+        delete(LoginAttempt).where(
+            LoginAttempt.email == email,
+            LoginAttempt.ip == ip,
+        )
+    )
