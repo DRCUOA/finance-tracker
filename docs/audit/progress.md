@@ -6,7 +6,7 @@ entry first. Update this at the end of every working session.
 
 ---
 
-## Snapshot (as of 2026-06-11)
+## Snapshot (as of 2026-06-12)
 
 | Compartment | State | Notes |
 |---|---|---|
@@ -19,6 +19,23 @@ entry first. Update this at the end of every working session.
 ---
 
 ## Session log
+
+### 2026-06-12 — Compartment #0 /sql disable committed; migration confirmed applied
+
+- **`/sql` disable committed** (`1f99b93`): the uncommitted `app/main.py` +
+  `app/templates/base.html` edits from the prior session are now on `main` as a
+  self-contained compartment-#0 security commit. Verified the only remaining
+  `sql_tool` references are inside the now-orphaned router/template (no longer
+  reachable — both the import and `include_router` are removed).
+- **`docs/audit/` brought under version control** (`dcfe335`) — the folder was
+  previously untracked.
+- **Migration `020` confirmed already applied** to the dev DB. `alembic current`
+  reports `020 (head)`; a direct `information_schema` check confirms
+  `accounts.current_balance` no longer exists. No `alembic upgrade` was needed.
+
+Progress-doc steps 1 (commit) and 2 (migration) are now both complete. Next work
+(compartment #0 IDOR sweeps / rate-limit / cookie / secrets, then compartment #2)
+is fresh scoped work awaiting a spec + sign-off.
 
 ### 2026-06-11 — Compartment #1 built & merged; #0 /sql disable started
 
@@ -68,20 +85,18 @@ baseline timestamp **before** the balance query
 
 ## Where the next session should start
 
-1. **Commit the compartment-#0 /sql disable.** `app/main.py` +
-   `app/templates/base.html` are uncommitted on `main`. Either commit them
-   directly (small, self-contained security hardening) or open a compartment-#0
-   PR. Also commit/track the `docs/audit/` folder itself (currently untracked).
-2. **Run the migration on the dev DB:** `alembic upgrade head` (brings the
-   Postgres dev schema to `020`, dropping `current_balance`). Tests use SQLite
-   built from the models, so they don't exercise the Alembic path — verify it
-   manually.
-3. **Continue compartment #0 (the launch-blocker):** remaining items are IDOR
-   sweeps, login rate-limiting, cookie `secure` flag, and rotating `.env`
-   secrets. None started.
-4. **Then compartment #2 (ingestion integrity):** needs a spec first
+1. **Continue compartment #0 (the launch-blocker):** remaining items are IDOR
+   sweeps (imports.py:171, reconciliation.py:79,103), login rate-limiting,
+   cookie `secure` flag, and rotating `.env` secrets (live Akahu tokens are in
+   the working tree). None started. Per the working style, scope these into a
+   compartment-#0 spec (`spec-00-*.md`) before building, or pick off the
+   smallest self-contained item (e.g. cookie `secure`) first.
+2. **Then compartment #2 (ingestion integrity):** needs a spec first
    (`spec-02-*.md`), mirroring the structure of
    [spec-01-balance-authority.md](spec-01-balance-authority.md).
+
+_Done 2026-06-12: /sql disable committed (`1f99b93`), docs tracked (`dcfe335`),
+migration `020` confirmed applied._
 
 ## Known issues / debt
 
