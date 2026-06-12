@@ -407,15 +407,34 @@ async def create_statement(
     return result.scalar_one()
 
 
+async def get_owned_statement(
+    db: AsyncSession, statement_id: uuid.UUID, user_id: uuid.UUID,
+) -> Statement | None:
+    """Return the statement iff it belongs to user_id, else None."""
+    stmt = await db.get(Statement, statement_id)
+    if not stmt or stmt.user_id != user_id:
+        return None
+    return stmt
+
+
 async def import_statement_lines(
     db: AsyncSession, user_id: uuid.UUID, statement_id: uuid.UUID,
     line_ids: list[uuid.UUID], account_id: uuid.UUID,
 ) -> ImportResult:
-    """Import selected statement lines, skipping duplicates."""
+    """Import selected statement lines, skipping duplicates.
+
+    Defence-in-depth: the statement must belong to user_id and every line must
+    belong to that statement, so a forged statement_id / cross-tenant line_id
+    can't seed the caller's ledger with another tenant's data.
+    """
     result = ImportResult()
+    stmt = await get_owned_statement(db, statement_id, user_id)
+    if stmt is None:
+        return result
+
     for lid in line_ids:
         line = await db.get(StatementLine, lid)
-        if not line:
+        if not line or line.statement_id != statement_id:
             continue
 
         if await _is_duplicate(
@@ -438,8 +457,6 @@ async def import_statement_lines(
 
         result.imported += 1
 
-    stmt = await db.get(Statement, statement_id)
-    if stmt:
-        stmt.status = StatementStatus.IMPORTED
+    stmt.status = StatementStatus.IMPORTED
     await db.flush()
     return result
