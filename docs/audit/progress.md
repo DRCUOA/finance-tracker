@@ -12,13 +12,35 @@ entry first. Update this at the end of every working session.
 |---|---|---|
 | #0 Security | **Code complete — merged** | PR A (tenant isolation) [#12](https://github.com/DRCUOA/finance-tracker/pull/12) **merged**; PR B (auth hardening) [#13](https://github.com/DRCUOA/finance-tracker/pull/13) **merged**. Remaining: rotate the live `.env` secrets (operational) — `.env` is already gitignored & untracked. |
 | #1 Balance authority | **Done — merged** | [PR #11](https://github.com/DRCUOA/finance-tracker/pull/11), merged to `main`. |
-| #2 Ingestion integrity | Not started | Spec not yet written. |
+| #2 Ingestion integrity | **Spec ready** | [spec-02-ingestion-integrity.md](spec-02-ingestion-integrity.md); decisions locked (§8). Not yet built. |
 | #3 External reconciliation | Not started | One pre-existing test failure already lives here (see below). |
 | #4 Net worth + reporting | Partially absorbed by #1 | Net-worth roll-up already unified behind `aggregate_net_worth()`; full consolidation still pending. |
 
 ---
 
 ## Session log
+
+### 2026-06-13 — Compartment #2 spec drafted (ingestion integrity)
+
+[spec-02-ingestion-integrity.md](spec-02-ingestion-integrity.md) — build-ready,
+grounded in the actual code (the 3 copy-pasted dedup rules, the source-dependent
+DB indexes, the Akahu upsert, the CSV reused-reference drop). Scopes: a single
+`app/services/dedup.py`, a cross-source **content identity** (`content_hash` =
+account+date+amount+normalised description), DB uniqueness across **all** sources
+incl. manual (`unique(account_id, content_hash, occurrence)`), the CSV/OFX
+reference-drop fix, and an audited override path for genuine repeats.
+
+**§8 decisions LOCKED 2026-06-13:** (1) **content key, all sources** — identity is
+content, not `reference`; Akahu keeps its `(source, akahu_transaction_id)`
+constraint and gets an adoption rule for exact cross-source matches; (2) backfill
+**auto-discriminates & keeps all** existing duplicates (ascending `occurrence`,
+flagged `dedup_override`; nothing deleted); (3) override = **occurrence
+discriminator + `dedup_override` marker** (the existing manual `force=True`
+generalises in); (4) ships as **one PR** (module + call-site unification +
+migration `022`/backfill/constraints).
+
+Next: build compartment #2 per the spec; then rotate the live `.env` secrets
+(the one remaining compartment-#0 item).
 
 ### 2026-06-12 — Compartment #0 PR B (auth hardening) built
 

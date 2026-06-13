@@ -12,7 +12,10 @@ finance platform with strong technical + financial integrity. Read these in orde
    (tenant-isolation IDOR fixes + auth hardening). Decisions locked (§8); two PRs.
 3. [spec-01-balance-authority.md](spec-01-balance-authority.md) — build-ready spec for
    compartment #1 (single balance authority, derive-on-read). **Done — merged.**
-4. [progress.md](progress.md) — running build log: what's done, what's next, known debt.
+4. [spec-02-ingestion-integrity.md](spec-02-ingestion-integrity.md) — build-ready spec for
+   compartment #2 (one dedup rule + cross-source content identity + DB uniqueness across
+   all sources + audited override path). Decisions locked (§8); one PR.
+5. [progress.md](progress.md) — running build log: what's done, what's next, known debt.
    **New session? Read this first to see where to start.**
 
 ## Build order (locked)
@@ -32,8 +35,10 @@ finance platform with strong technical + financial integrity. Read these in orde
 - **Dedup-override path** admits intentional repeats (auditable); accidental re-imports rejected.
 
 ## Status
+Compartment **#0 code-complete** — PR A tenant isolation ([#12](https://github.com/DRCUOA/finance-tracker/pull/12))
++ PR B auth hardening ([#13](https://github.com/DRCUOA/finance-tracker/pull/13)) merged; only
+the operational `.env` secret rotation remains.
 Compartment **#1 built and merged** ([PR #11](https://github.com/DRCUOA/finance-tracker/pull/11)).
-Compartment **#0** in progress — `/sql` route disabled & committed (`1f99b93`); spec
-drafted ([spec-00-security.md](spec-00-security.md)); IDOR fixes + auth hardening not yet
-built. #2–#4 not started.
+Compartment **#2** spec ready ([spec-02-ingestion-integrity.md](spec-02-ingestion-integrity.md),
+decisions locked §8) — not yet built. #3–#4 not started.
 See [progress.md](progress.md) for the full log and the next-session starting point.
