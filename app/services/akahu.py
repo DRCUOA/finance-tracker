@@ -163,6 +163,26 @@ def is_configured() -> bool:
     return bool(settings.AKAHU_APP_TOKEN and settings.AKAHU_USER_TOKEN)
 
 
+def owner_email() -> str | None:
+    """Normalised email of the single Akahu-connection owner, or None if unset.
+
+    The Akahu integration is single-tenant (one global token). Ownership of that
+    connection is config-driven via AKAHU_OWNER_EMAIL. Unset => no owner.
+    """
+    e = (settings.AKAHU_OWNER_EMAIL or "").strip().lower()
+    return e or None
+
+
+def is_owner(user) -> bool:
+    """True iff an owner is configured AND this user's email matches it.
+
+    Fail closed: with no owner configured, no user owns the connection, so the
+    external bank-feed surface is exposed to no one.
+    """
+    owner = owner_email()
+    return bool(owner) and (getattr(user, "email", "") or "").strip().lower() == owner
+
+
 # ---------------------------------------------------------------------------
 # Fetch functions
 # ---------------------------------------------------------------------------

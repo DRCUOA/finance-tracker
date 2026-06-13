@@ -3,7 +3,7 @@
 {% block page_title %}Bank Feeds{% endblock %}
 
 {% block header_actions %}
-{% if configured and not akahu_error %}
+{% if configured and feed_owner and not akahu_error %}
 <form method="post" action="/bank-feeds/sync" class="inline">
     <button type="submit" class="inline-flex items-center px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors shadow-sm">
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -36,6 +36,27 @@
             </div>
             <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
                 Get your tokens from <a href="https://my.akahu.nz" target="_blank" class="text-brand-600 hover:text-brand-500 dark:text-brand-400 underline">my.akahu.nz</a> under Developers.
+            </p>
+        </div>
+    </div>
+</div>
+
+{% elif not feed_owner %}
+<!-- Restricted: bank feeds are managed by the connection owner -->
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 max-w-2xl">
+    <div class="flex items-start gap-4">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+        </div>
+        <div>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Bank feeds are managed by the connection owner</h3>
+            <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                This instance has a single shared bank connection. Its external accounts and balances are only visible to the account that owns the connection, so they are not shown here.
+            </p>
+            <p class="mt-3 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                If you are the owner, set <code class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">AKAHU_OWNER_EMAIL</code> in the <code class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">.env</code> file to your login email to manage bank feeds.
             </p>
         </div>
     </div>

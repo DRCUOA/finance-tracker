@@ -2,7 +2,7 @@ import logging
 import uuid
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func as sa_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,7 @@ from app.services.akahu import (
     AkahuConfigError,
     fetch_accounts as akahu_fetch_accounts,
     is_configured as akahu_is_configured,
+    is_owner as akahu_is_owner,
     nz_date_to_utc_range,
     sync_account_balances,
     sync_account_transactions,
@@ -30,6 +31,15 @@ from app.templating import templates
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/bank-feeds", tags=["bank_feeds"])
+
+
+async def require_owner(user: User = Depends(require_user)) -> User:
+    """Guard feed-mutating routes: only the configured Akahu-connection owner may
+    link/sync external accounts. Non-owners get 404 (no enumeration), matching the
+    foreign-resource convention from compartment #0. Fail closed when unset."""
+    if not akahu_is_owner(user):
+        raise HTTPException(status_code=404)
+    return user
 
 
 def _toast_redirect(url: str, message: str, toast_type: str = "success") -> RedirectResponse:
@@ -49,10 +59,14 @@ async def bank_feeds_page(
     db: AsyncSession = Depends(get_db),
 ):
     configured = akahu_is_configured()
+    feed_owner = akahu_is_owner(user)
     akahu_accounts: list[dict] = []
     akahu_error: str | None = None
 
-    if configured:
+    # Only the connection owner ever triggers an external fetch or sees external
+    # accounts/balances. Non-owners (and the fail-closed unset-owner case) get a
+    # restricted page with no external bank data.
+    if configured and feed_owner:
         try:
             akahu_accounts = await akahu_fetch_accounts()
         except AkahuConfigError as exc:
@@ -105,6 +119,7 @@ async def bank_feeds_page(
     return templates.TemplateResponse(request, "bank_feeds/index.html", {
         "user": user,
         "configured": configured,
+        "feed_owner": feed_owner,
         "akahu_error": akahu_error,
         "akahu_accounts": akahu_accounts,
         "link_map": link_map,
@@ -119,7 +134,7 @@ async def link_account(
     request: Request,
     akahu_id: str = Form(...),
     account_id: str = Form(...),
-    user: User = Depends(require_user),
+    user: User = Depends(require_owner),
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -157,7 +172,7 @@ async def link_account(
 @router.post("/unlink/{account_id}")
 async def unlink_account(
     account_id: uuid.UUID,
-    user: User = Depends(require_user),
+    user: User = Depends(require_owner),
     db: AsyncSession = Depends(get_db),
 ):
     acct = await acct_svc.get_account(db, account_id, user.id)
@@ -172,7 +187,7 @@ async def unlink_account(
 
 @router.post("/sync")
 async def sync_balances(
-    user: User = Depends(require_user),
+    user: User = Depends(require_owner),
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -216,7 +231,7 @@ async def sync_transactions(
     account_id: uuid.UUID,
     start_date: str = Form(...),
     end_date: str = Form(...),
-    user: User = Depends(require_user),
+    user: User = Depends(require_owner),
     db: AsyncSession = Depends(get_db),
 ):
     try:
