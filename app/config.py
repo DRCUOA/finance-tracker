@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     AKAHU_BASE_URL: str = "https://api.akahu.io/v1"
     AKAHU_APP_TOKEN: str = ""
     AKAHU_USER_TOKEN: str = ""
+    # The single user who owns the (global, single-tenant) Akahu connection.
+    # Only this user may see external accounts/balances or link/sync them.
+    # Unset => the external bank-feed surface is exposed to no one (fail closed).
+    AKAHU_OWNER_EMAIL: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

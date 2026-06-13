@@ -12,13 +12,52 @@ entry first. Update this at the end of every working session.
 |---|---|---|
 | #0 Security | **Code complete — merged** | PR A (tenant isolation) [#12](https://github.com/DRCUOA/finance-tracker/pull/12) **merged**; PR B (auth hardening) [#13](https://github.com/DRCUOA/finance-tracker/pull/13) **merged**. Remaining: rotate the live `.env` secrets (operational) — `.env` is already gitignored & untracked. |
 | #1 Balance authority | **Done — merged** | [PR #11](https://github.com/DRCUOA/finance-tracker/pull/11), merged to `main`. |
-| #2 Ingestion integrity | **Built — awaiting PR/merge** | One `dedup` module + cross-source `content_hash` identity, migration `022` (applied live), all call sites unified. Branch `spec-02-ingestion-integrity`. |
+| #2 Ingestion integrity | **Done — merged** | One `dedup` module + cross-source `content_hash` identity, migration `022` (applied live), all call sites unified. [PR #16](https://github.com/DRCUOA/finance-tracker/pull/16), merged to `main`. |
+| #2b Bank-feed isolation | **Built — awaiting PR/merge** | Stops the live cross-user bank-feed disclosure: the single global Akahu connection is now gated to a configured owner (`AKAHU_OWNER_EMAIL`), fail-closed when unset. Branch `spec-02b-bank-feed-isolation`. |
 | #3 External reconciliation | Not started | One pre-existing test failure already lives here (see below). |
 | #4 Net worth + reporting | Partially absorbed by #1 | Net-worth roll-up already unified behind `aggregate_net_worth()`; full consolidation still pending. |
 
 ---
 
 ## Session log
+
+### 2026-06-13 — Compartment #2b built (bank-feed tenancy isolation)
+
+Branch `spec-02b-bank-feed-isolation` (off `main`, after #2 merged). Spec:
+[spec-02b-bank-feed-isolation.md](spec-02b-bank-feed-isolation.md).
+
+**The leak (confirmed + reproduced by the user):** the Akahu integration is
+single-tenant — one global app/user token in `.env` connecting one real person's
+bank. `GET /bank-feeds` (`bank_feeds_page`) called `fetch_accounts()` with **no
+user scope** and rendered the external accounts **and bank-reported balances to
+every logged-in user**; `link`/`sync`/`sync-transactions` were reachable by any
+user. Compartments #0/#1 isolated per-user **local DB** data (verified intact:
+`get_accounts`/`balances_for`/auth all `user_id`-scoped) but never touched the
+**shared external credential** — a different class of problem.
+
+**Containment (config-gated owner, fail closed):**
+- `app/config.py` gains `AKAHU_OWNER_EMAIL`; `app/services/akahu.py` gains
+  `owner_email()` + `is_owner(user)` (normalised email match; **unset ⇒ no owner**).
+- `bank_feeds_page` keeps `require_user` but only fetches/renders external accounts
+  when `configured and is_owner(user)`; non-owners get a restricted card and **no
+  external fetch ever fires**.
+- `link` / `unlink` / `sync` / `sync-transactions` now depend on a new
+  `require_owner` → **404 for non-owners** (no enumeration, per #0 convention).
+- Template: new `not feed_owner` branch; header Sync button gated on `feed_owner`.
+
+Tests: `tests/test_bank_feed_isolation.py` (10) — non-owner page hides external
+data + `fetch_accounts` never awaited; owner page shows it; the four mutating
+routes 404 for non-owners; **fail-closed** when `AKAHU_OWNER_EMAIL` unset (even the
+would-be owner sees nothing, link 404s); `is_owner` normalisation unit tests. Full
+suite **187 passed, 1 known pre-existing fail** (`test_feed_reconciliation`
+tz-naive/aware — compartment-#3 debt, not a regression).
+
+**No schema change / no migration.** This is containment, not multi-tenancy:
+per-user Akahu credentials (so several users each see only their own bank) remain
+a deferred follow-up (spec §7). Live `AKAHU_USER_TOKEN` already rotated by the user.
+
+Next: spec compartment #3 (external reconciliation) — and the deferred per-user
+Akahu multi-tenancy follow-up.
 
 ### 2026-06-13 — Compartment #2 built (ingestion integrity)
 
