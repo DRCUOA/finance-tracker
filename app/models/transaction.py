@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, SmallInteger, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,6 +11,15 @@ from app.database import Base
 
 class Transaction(Base):
     __tablename__ = "transactions"
+    __table_args__ = (
+        # Compartment #2: the cross-source dedup backstop, covering every source
+        # including manual. A deliberate repeat is admitted with a distinct
+        # occurrence; an accidental re-import collides at occurrence 0.
+        UniqueConstraint(
+            "account_id", "content_hash", "occurrence",
+            name="uq_transactions_account_content_occurrence",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -31,6 +40,14 @@ class Transaction(Base):
     is_pending: Mapped[bool] = mapped_column(default=False, server_default="false")
     is_source_stale: Mapped[bool] = mapped_column(default=False, server_default="false")
     source_stale_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Compartment #2 (ingestion integrity). content_hash is the cross-source
+    # content identity; occurrence discriminates deliberately-admitted repeats;
+    # dedup_override marks a repeat that was admitted via the override path.
+    # Backstopped by unique(account_id, content_hash, occurrence) — see migration 022.
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    occurrence: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
+    dedup_override: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

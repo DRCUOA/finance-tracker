@@ -3,7 +3,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select, func as sa_func, or_, and_
+from sqlalchemy import select, func as sa_func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,6 +11,7 @@ from app.models.transaction import Transaction
 from app.models.account import Account
 from app.models.category import Category
 from app.models.reconciliation import Reconciliation, ReconciliationStatus
+from app.services import dedup
 
 
 MANUAL_SOURCE = "manual"
@@ -108,44 +109,6 @@ async def get_transactions(
     return list(result.scalars().all()), total
 
 
-async def check_duplicate(
-    db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID,
-    dt: date, amount: Decimal, description: str,
-    reference: str | None = None,
-    exclude_id: uuid.UUID | None = None,
-) -> bool:
-    """Return True if a matching transaction already exists."""
-    if reference:
-        stmt = select(Transaction.id).where(
-            and_(
-                Transaction.account_id == account_id,
-                Transaction.reference == reference,
-            )
-        )
-        if exclude_id:
-            stmt = stmt.where(Transaction.id != exclude_id)
-        stmt = stmt.limit(1)
-        result = await db.execute(stmt)
-        if result.first():
-            return True
-
-    stmt = select(Transaction.id).where(
-        and_(
-            Transaction.user_id == user_id,
-            Transaction.account_id == account_id,
-            Transaction.date == dt,
-            Transaction.amount == amount,
-            sa_func.lower(sa_func.trim(Transaction.description))
-            == description.lower().strip(),
-        )
-    )
-    if exclude_id:
-        stmt = stmt.where(Transaction.id != exclude_id)
-    stmt = stmt.limit(1)
-    result = await db.execute(stmt)
-    return result.first() is not None
-
-
 async def create_transaction(
     db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID,
     dt: date, amount: Decimal, description: str,
@@ -153,9 +116,17 @@ async def create_transaction(
     reference: str | None = None, notes: str | None = None,
     force: bool = False,
 ) -> Transaction:
-    if not force and await check_duplicate(
-        db, user_id, account_id, dt, amount, description, reference,
-    ):
+    """Create a manual transaction, routed through the single dedup gate.
+
+    ``force=True`` is the deliberate-repeat override: it admits a colliding row
+    at the next occurrence and flags it ``dedup_override`` (see dedup.admit).
+    Without it, a content collision raises DuplicateTransactionError.
+    """
+    adm = await dedup.admit(
+        db, account_id=account_id, d=dt, amount=amount,
+        description=description, override=force,
+    )
+    if not adm.insert:
         raise DuplicateTransactionError(
             f"A transaction matching '{description}' on {dt} for {amount} already exists."
         )
@@ -166,6 +137,9 @@ async def create_transaction(
         original_description=description,
         category_id=category_id, reference=reference, notes=notes,
         source=MANUAL_SOURCE,
+        content_hash=adm.content_hash,
+        occurrence=adm.occurrence,
+        dedup_override=adm.dedup_override,
     )
     db.add(tx)
     await db.flush()
@@ -186,6 +160,21 @@ async def update_transaction(db: AsyncSession, tx_id: uuid.UUID, user_id: uuid.U
     for k, v in kwargs.items():
         if hasattr(tx, k) and k not in ("id", "user_id", "created_at"):
             setattr(tx, k, v)
+
+    # An edit can move a row's content identity (or its account), so re-derive
+    # content_hash and re-check the occurrence-0 dedup gate. The DB constraint
+    # unique(account_id, content_hash, occurrence) is the concurrency backstop.
+    if any(k in kwargs for k in ("date", "amount", "description", "account_id")):
+        if tx.occurrence == 0 and await dedup.is_duplicate(
+            db, account_id=tx.account_id, d=tx.date, amount=tx.amount,
+            description=tx.description, exclude_id=tx.id,
+        ):
+            raise DuplicateTransactionError(
+                f"A transaction matching '{tx.description}' on {tx.date} "
+                f"for {tx.amount} already exists."
+            )
+        tx.content_hash = dedup.content_hash(tx.date, tx.amount, tx.description)
+
     await db.flush()
     return tx
 

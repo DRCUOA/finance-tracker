@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account, AccountType, AccountTerm
 from app.models.category import Category
 from app.models.transaction import Transaction
+from app.services import dedup
 from app.services.balances import BalanceBasis, balance
 from app.services.akahu import (
     AkahuAPIError,
@@ -286,6 +287,11 @@ class TestSyncAccountTransactions:
             akahu_account_id="acc_test_123",
             akahu_updated_at=datetime(2026, 4, 10, 6, 0, 0, tzinfo=timezone.utc),
             is_pending=False,
+            # Production rows always carry the content identity (migration 022
+            # backfilled every existing row); set it so the sync sees no change.
+            content_hash=dedup.content_hash(
+                date(2026, 4, 10), Decimal("-42.50"), "COUNTDOWN ALBANY"
+            ),
         )
         db.add(tx)
         await db.flush()

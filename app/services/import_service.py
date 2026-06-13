@@ -5,13 +5,14 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import select, and_, func as sa_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.dates import parse_date_with_formats, parse_iso_date
 from app.models.statement import FileType, Statement, StatementLine, StatementStatus
 from app.models.transaction import Transaction
+from app.services import dedup
 
 
 # CSV importer date formats: try the user-specified primary format first, then
@@ -200,14 +201,14 @@ OFX_FIELD_LABELS = {
 
 DB_TARGET_FIELDS = [
     {"key": "description", "label": "Description", "hint": "Used for keyword matching — map multiple fields here"},
-    {"key": "reference", "label": "Reference", "hint": "Used for duplicate detection"},
+    {"key": "reference", "label": "Reference", "hint": "Stored for your records (not used for duplicate detection)"},
 ]
 
 CSV_TARGET_FIELDS = [
     {"key": "date", "label": "Date", "hint": "Transaction date (required)"},
     {"key": "amount", "label": "Amount", "hint": "Transaction amount (required)"},
     {"key": "description", "label": "Description", "hint": "Used for keyword matching — map multiple fields here"},
-    {"key": "reference", "label": "Reference", "hint": "Used for duplicate detection (optional)"},
+    {"key": "reference", "label": "Reference", "hint": "Stored for your records (optional, not used for duplicate detection)"},
 ]
 
 DEFAULT_OFX_MAPPING: dict[str, list[str]] = {
@@ -301,73 +302,22 @@ def apply_ofx_mapping(
     return result
 
 
-async def _is_duplicate(
-    db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID,
-    tx_date: date, amount: Decimal, description: str,
-    reference: str | None,
-) -> bool:
-    """Check whether a transaction already exists in the database."""
-    if reference:
-        stmt = select(Transaction.id).where(
-            and_(
-                Transaction.account_id == account_id,
-                Transaction.reference == reference,
-            )
-        ).limit(1)
-        result = await db.execute(stmt)
-        if result.first():
-            return True
-
-    stmt = select(Transaction.id).where(
-        and_(
-            Transaction.user_id == user_id,
-            Transaction.account_id == account_id,
-            Transaction.date == tx_date,
-            Transaction.amount == amount,
-            sa_func.lower(sa_func.trim(Transaction.description))
-            == description.lower().strip(),
-        )
-    ).limit(1)
-    result = await db.execute(stmt)
-    return result.first() is not None
-
-
 async def find_duplicates(
     db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID,
     transactions: list[dict],
 ) -> list[dict]:
-    """Mark transactions as potential duplicates if matching existing records."""
-    refs = [t["reference"] for t in transactions if t.get("reference")]
-    existing_refs: set[str] = set()
-    if refs:
-        stmt = select(Transaction.reference).where(
-            and_(
-                Transaction.account_id == account_id,
-                Transaction.reference.in_(refs),
-            )
-        )
-        result = await db.execute(stmt)
-        existing_refs = {row[0] for row in result.all()}
+    """Mark each parsed row ``is_duplicate`` against the content dedup gate.
 
+    A row is flagged when an occurrence-0 transaction with the same content
+    (date, amount, normalised description) already exists for the account —
+    the same signal :func:`app.services.dedup.admit` uses to reject an
+    accidental re-import. ``reference`` is deliberately not part of this.
+    """
     for tx in transactions:
-        ref = tx.get("reference")
-        if ref and ref in existing_refs:
-            tx["is_duplicate"] = True
-            continue
-
-        stmt = select(Transaction.id).where(
-            and_(
-                Transaction.user_id == user_id,
-                Transaction.account_id == account_id,
-                Transaction.date == tx["date"],
-                Transaction.amount == tx["amount"],
-                sa_func.lower(sa_func.trim(Transaction.description))
-                == tx["description"].lower().strip(),
-            )
-        ).limit(1)
-        result = await db.execute(stmt)
-        tx["is_duplicate"] = result.first() is not None
-
+        tx["is_duplicate"] = await dedup.is_duplicate(
+            db, account_id=account_id,
+            d=tx["date"], amount=tx["amount"], description=tx["description"],
+        )
     return transactions
 
 
@@ -437,10 +387,11 @@ async def import_statement_lines(
         if not line or line.statement_id != statement_id:
             continue
 
-        if await _is_duplicate(
-            db, user_id, account_id,
-            line.date, line.amount, line.description, line.reference,
-        ):
+        adm = await dedup.admit(
+            db, account_id=account_id,
+            d=line.date, amount=line.amount, description=line.description,
+        )
+        if not adm.insert:
             result.skipped += 1
             result.skipped_descriptions.append(line.description)
             continue
@@ -451,6 +402,9 @@ async def import_statement_lines(
             description=line.description,
             original_description=line.description,
             reference=line.reference,
+            content_hash=adm.content_hash,
+            occurrence=adm.occurrence,
+            dedup_override=adm.dedup_override,
         )
         db.add(tx)
         await db.flush()
