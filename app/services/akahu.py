@@ -22,6 +22,7 @@ from app.config import settings
 from app.dates import parse_iso_datetime_or_none
 from app.models.account import Account
 from app.models.transaction import Transaction
+from app.services import dedup
 from app.services.categoriser import suggest_category
 
 log = logging.getLogger(__name__)
@@ -30,7 +31,8 @@ NZTZ = ZoneInfo("Pacific/Auckland")
 AKAHU_SOURCE = "akahu"
 
 SYNC_MUTABLE_FIELDS = frozenset(
-    {"date", "amount", "description", "reference", "akahu_updated_at", "is_pending"}
+    {"date", "amount", "description", "reference", "akahu_updated_at",
+     "is_pending", "content_hash"}
 )
 
 # Akahu indexes transactions by their *transaction date* (when the transaction
@@ -353,21 +355,51 @@ def _parse_akahu_tx(
         amount = Decimal("0.00")
 
     akahu_updated_at = parse_iso_datetime_or_none(raw.get("updated_at"))
+    description = raw.get("description", "")[:500]
 
     return {
         "user_id": user_id,
         "account_id": account_id,
         "date": tx_date,
         "amount": amount,
-        "description": raw.get("description", "")[:500],
-        "original_description": raw.get("description", "")[:500],
+        "description": description,
+        "original_description": description,
         "reference": meta.get("reference", "")[:100] or None,
         "source": AKAHU_SOURCE,
         "akahu_transaction_id": raw["_id"],
         "akahu_account_id": raw.get("_account", ""),
         "akahu_updated_at": akahu_updated_at,
         "is_pending": is_pending,
+        # Compartment #2: the cross-source content identity. The feed always
+        # inserts at the default occurrence 0 and never overrides; a content
+        # collision with a non-feed row is resolved by adoption (see
+        # _find_adoptable), not a second row.
+        "content_hash": dedup.content_hash(tx_date, amount, description),
     }
+
+
+async def _find_adoptable(
+    db: AsyncSession, account_id: uuid.UUID, ch: str,
+) -> Transaction | None:
+    """A non-feed row in this account with identical content, if one exists.
+
+    When the feed first sees a payment the user already entered by hand or
+    imported from a statement, we adopt that existing row (attach the Akahu
+    identity to it) instead of inserting a duplicate. Only the canonical
+    occurrence-0 row that does not yet carry an Akahu id is adoptable.
+    """
+    result = await db.execute(
+        select(Transaction)
+        .where(
+            Transaction.account_id == account_id,
+            Transaction.content_hash == ch,
+            Transaction.occurrence == 0,
+            Transaction.akahu_transaction_id.is_(None),
+        )
+        .order_by(Transaction.created_at)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
 
 
 async def sync_account_transactions(
@@ -444,9 +476,21 @@ async def sync_account_transactions(
 
                 cleared_stale = False
                 if existing is None:
-                    category_id = await suggest_category(db, user_id, parsed["description"])
-                    db.add(Transaction(**parsed, category_id=category_id))
-                    outcome = "inserted"
+                    adopt = await _find_adoptable(db, account_id, parsed["content_hash"])
+                    if adopt is not None:
+                        # Cross-source adoption: the user already holds this
+                        # payment (manual/CSV). Attach the Akahu identity to it
+                        # rather than inserting a second, double-counting row.
+                        for field in SYNC_MUTABLE_FIELDS:
+                            setattr(adopt, field, parsed.get(field))
+                        adopt.source = AKAHU_SOURCE
+                        adopt.akahu_transaction_id = parsed["akahu_transaction_id"]
+                        adopt.akahu_account_id = parsed["akahu_account_id"]
+                        outcome = "updated"
+                    else:
+                        category_id = await suggest_category(db, user_id, parsed["description"])
+                        db.add(Transaction(**parsed, category_id=category_id))
+                        outcome = "inserted"
                 else:
                     changed = False
                     for field in SYNC_MUTABLE_FIELDS:

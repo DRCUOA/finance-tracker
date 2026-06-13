@@ -12,13 +12,50 @@ entry first. Update this at the end of every working session.
 |---|---|---|
 | #0 Security | **Code complete — merged** | PR A (tenant isolation) [#12](https://github.com/DRCUOA/finance-tracker/pull/12) **merged**; PR B (auth hardening) [#13](https://github.com/DRCUOA/finance-tracker/pull/13) **merged**. Remaining: rotate the live `.env` secrets (operational) — `.env` is already gitignored & untracked. |
 | #1 Balance authority | **Done — merged** | [PR #11](https://github.com/DRCUOA/finance-tracker/pull/11), merged to `main`. |
-| #2 Ingestion integrity | **Spec ready** | [spec-02-ingestion-integrity.md](spec-02-ingestion-integrity.md); decisions locked (§8). Not yet built. |
+| #2 Ingestion integrity | **Built — awaiting PR/merge** | One `dedup` module + cross-source `content_hash` identity, migration `022` (applied live), all call sites unified. Branch `spec-02-ingestion-integrity`. |
 | #3 External reconciliation | Not started | One pre-existing test failure already lives here (see below). |
 | #4 Net worth + reporting | Partially absorbed by #1 | Net-worth roll-up already unified behind `aggregate_net_worth()`; full consolidation still pending. |
 
 ---
 
 ## Session log
+
+### 2026-06-13 — Compartment #2 built (ingestion integrity)
+
+Branch `spec-02-ingestion-integrity` (off `main`). Implements spec-02 as **one PR**.
+
+- **One dedup module** — `app/services/dedup.py` is the single source of identity:
+  `content_hash` = sha256 of `date | amount(signed, 2dp) | normalised description`
+  (account-independent); `normalise_description`; `is_duplicate`; `next_occurrence`;
+  and `admit(...)`, the one entry point every insert path calls. The 3 copy-pasted
+  rules (`import_service._is_duplicate`/`find_duplicates`,
+  `transactions.check_duplicate`) are **deleted** — `grep -rn` for the old names in
+  `app/` now hits only this module's docstring.
+- **Cross-source DB identity** — `Transaction` gains `content_hash` /`occurrence`
+  /`dedup_override` and `unique(account_id, content_hash, occurrence)`. Migration
+  `022` adds the columns, **backfills in Python through `dedup`** (auto-discriminate:
+  ascending `occurrence` per content group, `dedup_override` on repeats, nothing
+  deleted), sets `content_hash NOT NULL`, creates the constraint, and **drops** the
+  old reference-uniqueness index (the cause of the CSV reused-reference silent-drop).
+  Applied live to the dev DB (2876 rows, 0 nulls, 0 pre-existing dupes).
+- **Call sites unified** — `create_transaction` routes through `admit(override=force)`;
+  `update_transaction` recomputes `content_hash` + re-checks on content/account change;
+  `import_statement_lines` + `find_duplicates` go through `dedup`; Akahu sync computes
+  `content_hash`/`occurrence=0`, **never overrides**, and **adopts** a content-matching
+  non-feed row (writes `source`/`akahu_*` onto it) instead of double-counting. Router
+  edit paths catch `DuplicateTransactionError` (409 / `?error=duplicate`) with the
+  constraint as backstop; messages no longer mention "reference".
+
+Tests: `tests/test_transactions_dedupe.py` rewritten (18) for the content model —
+idempotent re-import, reused-ref/distinct-payment both insert, override→`occurrence 1`
++`dedup_override`, concurrency backstop (DB constraint), feed adoption (incl. live
+`sync_account_transactions`), backfill algorithm + hash-drift guard, single-rule grep
+guard, and route 409/redirect handling. Fixed one `test_akahu` fixture that predated
+`content_hash`. Full suite **177 passed, 1 known pre-existing fail**
+(`test_feed_reconciliation` tz-naive/aware — compartment-#3 debt, not a regression).
+
+Next: rotate the live `.env` secrets (remaining compartment-#0 item); then spec
+compartment #3 (external reconciliation).
 
 ### 2026-06-13 — Compartment #2 spec drafted (ingestion integrity)
 

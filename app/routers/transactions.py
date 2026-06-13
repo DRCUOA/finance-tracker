@@ -21,17 +21,18 @@ from app.templating import templates
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
-DEDUPE_INDEX_NAME = "ix_transactions_account_reference_dedupe"
+DEDUPE_CONSTRAINT_NAME = "uq_transactions_account_content_occurrence"
 
 
 def _is_dedupe_violation(exc: IntegrityError) -> bool:
-    """True if the IntegrityError is the per-account reference dedupe index.
+    """True if the IntegrityError is the cross-source content dedupe constraint.
 
     Narrow on purpose: we only want to swallow this one known constraint
-    and surface a friendly message for it. Any other IntegrityError must
-    keep bubbling so we don't silently mask data bugs.
+    and surface a friendly message for it (the concurrency backstop for an
+    edit that collides with another row's content). Any other IntegrityError
+    must keep bubbling so we don't silently mask data bugs.
     """
-    return DEDUPE_INDEX_NAME in str(getattr(exc, "orig", exc))
+    return DEDUPE_CONSTRAINT_NAME in str(getattr(exc, "orig", exc))
 
 
 @router.get("", response_class=HTMLResponse)
@@ -340,12 +341,17 @@ async def edit_transaction_modal(
 
     try:
         tx = await tx_svc.update_transaction(db, tx_id, user.id, **kwargs)
+    except DuplicateTransactionError:
+        return JSONResponse(
+            {"error": "Another transaction in that account already has the same date, amount and description."},
+            status_code=409,
+        )
     except IntegrityError as exc:
         await db.rollback()
         if not _is_dedupe_violation(exc):
             raise
         return JSONResponse(
-            {"error": "Another imported transaction in that account already uses this reference."},
+            {"error": "Another transaction in that account already has the same date, amount and description."},
             status_code=409,
         )
     if not tx:
@@ -370,10 +376,10 @@ async def edit_form(
     accounts = await acct_svc.get_accounts(db, user.id)
     cat_tree = await cat_svc.get_category_tree(db, user.id)
     error_message = ""
-    if error == "duplicate_reference":
+    if error == "duplicate":
         error_message = (
-            "Could not save: another imported transaction in that account "
-            "already uses this reference."
+            "Could not save: another transaction in that account already has "
+            "the same date, amount and description."
         )
     return templates.TemplateResponse(request, "transactions/form.html", {
         "user": user,
@@ -412,12 +418,17 @@ async def update_transaction(
             amount=amt, description=description,
             category_id=cid, reference=reference or None, notes=notes or None,
         )
+    except DuplicateTransactionError:
+        return RedirectResponse(
+            url=f"/transactions/{tx_id}/edit?error=duplicate",
+            status_code=302,
+        )
     except IntegrityError as exc:
         await db.rollback()
         if not _is_dedupe_violation(exc):
             raise
         return RedirectResponse(
-            url=f"/transactions/{tx_id}/edit?error=duplicate_reference",
+            url=f"/transactions/{tx_id}/edit?error=duplicate",
             status_code=302,
         )
     if cid:
