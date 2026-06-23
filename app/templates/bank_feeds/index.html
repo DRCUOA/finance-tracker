@@ -41,8 +41,9 @@
     </div>
 </div>
 
-{% elif not feed_owner %}
-<!-- Restricted: bank feeds are managed by the connection owner -->
+{% elif not feed_owner and owner_configured %}
+<!-- Restricted: an owner is configured, but it's not this user. Ordinary,
+     non-technical message — no deployment internals leaked here. -->
 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-8 max-w-2xl">
     <div class="flex items-start gap-4">
         <div class="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
@@ -51,12 +52,34 @@
             </svg>
         </div>
         <div>
-            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Bank feeds are managed by the connection owner</h3>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Bank feeds are managed by another account</h3>
             <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-                This instance has a single shared bank connection. Its external accounts and balances are only visible to the account that owns the connection, so they are not shown here.
+                This instance has a single shared bank connection that's owned by another account. Its external accounts and balances are only visible to the owner, so they aren't shown here.
             </p>
             <p class="mt-3 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-                If you are the owner, set <code class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">AKAHU_OWNER_EMAIL</code> in the <code class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">.env</code> file to your login email to manage bank feeds.
+                If you believe you should have access, contact your administrator.
+            </p>
+        </div>
+    </div>
+</div>
+
+{% elif not feed_owner %}
+<!-- Fail-closed: Akahu is configured but no owner is set. This hint is for the
+     person who deploys the instance, so the .env guidance is appropriate here. -->
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-amber-200 dark:ring-amber-800 p-8 max-w-2xl">
+    <div class="flex items-start gap-4">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+            <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <div>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">No bank-feed owner configured</h3>
+            <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                This instance has a single shared bank connection, but no owner has been assigned yet, so external accounts and balances are hidden from everyone.
+            </p>
+            <p class="mt-3 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                <span class="font-medium text-gray-700 dark:text-gray-300">Administrator setup:</span> set <code class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">AKAHU_OWNER_EMAIL</code> in the <code class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">.env</code> file to the owner's login email, then restart the app.
             </p>
         </div>
     </div>

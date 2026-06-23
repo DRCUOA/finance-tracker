@@ -120,8 +120,11 @@ async def test_non_owner_page_hides_external_accounts(
     # No external bank data leaks to a non-owner.
     assert "ANZ Everyday" not in body
     assert "1234.56" not in body
-    # Restricted card is shown instead.
-    assert "managed by the connection owner" in body
+    # Restricted card is shown instead, with no deployment internals leaked
+    # to an ordinary non-owner user.
+    assert "managed by another account" in body
+    assert "AKAHU_OWNER_EMAIL" not in body
+    assert ".env" not in body
     # And no external fetch was ever attempted.
     _akahu_env.assert_not_awaited()
 
@@ -152,7 +155,8 @@ async def test_page_fails_closed_when_owner_unset(
         resp = await client.get("/bank-feeds")
     assert resp.status_code == 200
     assert "ANZ Everyday" not in resp.text
-    assert "managed by the connection owner" in resp.text
+    # Fail-closed: the admin-facing "no owner configured" setup card is shown.
+    assert "No bank-feed owner configured" in resp.text
     fetch.assert_not_awaited()
 
 
