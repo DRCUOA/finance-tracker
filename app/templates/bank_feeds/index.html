@@ -104,6 +104,43 @@
 {% else %}
 <!-- Akahu accounts -->
 <div class="space-y-4">
+    {% if orphaned_links %}
+    <!-- Stale links: local accounts whose Akahu feed is no longer in the connection
+         (usually after re-consenting, which changes the feed's account ids). Surface
+         them with an Unlink action so the owner can detach and re-link below. -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-amber-200 dark:ring-amber-800 overflow-hidden">
+        <div class="px-6 py-4 border-b border-amber-100 dark:border-amber-900/40 flex items-start gap-3">
+            <svg class="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/>
+            </svg>
+            <div>
+                <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Stale bank-feed links</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                    These accounts are linked to a bank feed that's no longer in your Akahu connection — this usually happens after re-consenting, which changes the connection's account IDs. Unlink each one, then link the matching feed from the list below.
+                </p>
+            </div>
+        </div>
+        <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+            {% for acct in orphaned_links %}
+            <li class="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="font-medium text-gray-900 dark:text-gray-100">{{ acct.name }}</p>
+                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
+                        Was linked to <span class="font-mono text-xs">{{ acct.akahu_id }}</span> · balance {{ balances[acct.id]|nzd }}
+                    </p>
+                </div>
+                <form method="post" action="/bank-feeds/unlink/{{ acct.id }}" class="flex-shrink-0">
+                    <button type="submit"
+                            class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                        Unlink
+                    </button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
     {% for akahu_acct in akahu_accounts %}
     {% set linked_local = link_map.get(akahu_acct._id or akahu_acct['_id']) %}
     {% set acct_status = akahu_acct.get('status', 'UNKNOWN') %}

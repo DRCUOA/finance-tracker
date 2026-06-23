@@ -95,6 +95,20 @@ async def bank_feeds_page(
         if acct.akahu_id:
             link_map[acct.akahu_id] = acct
 
+    # Local accounts whose stored akahu_id is no longer present in the live feed.
+    # This typically happens when the owner re-consents in Akahu: the connection's
+    # account ids change, leaving the old links dangling. Such accounts render no
+    # feed card (their id is gone) and are excluded from the link dropdown (they
+    # still hold an akahu_id), so without surfacing them here they'd be invisible
+    # and impossible to unlink. Only computed when the feed actually loaded, so a
+    # transient fetch error doesn't mislabel every link as stale.
+    orphaned_links: list[Account] = []
+    if configured and feed_owner and not akahu_error:
+        feed_ids = {a.get("_id") for a in akahu_accounts}
+        orphaned_links = [
+            a for a in local_accounts if a.akahu_id and a.akahu_id not in feed_ids
+        ]
+
     # Query latest transaction date and count for each linked account
     linked_ids = [a.id for a in local_accounts if a.akahu_id]
     feed_stats: dict[uuid.UUID, dict] = {}
@@ -127,6 +141,7 @@ async def bank_feeds_page(
         "akahu_accounts": akahu_accounts,
         "link_map": link_map,
         "unlinked_local": unlinked_local,
+        "orphaned_links": orphaned_links,
         "feed_stats": feed_stats,
         "balances": balances,
     })
