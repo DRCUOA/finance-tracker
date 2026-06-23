@@ -13,6 +13,7 @@ could link/sync them. These tests pin the containment:
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from unittest.mock import AsyncMock
 
 import pytest
@@ -23,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.main import app
+from app.models.account import Account, AccountTerm, AccountType
 from app.models.user import User
 from app.routers import bank_feeds as bf
 from app.routers.auth import require_user
@@ -158,6 +160,82 @@ async def test_page_fails_closed_when_owner_unset(
     # Fail-closed: the admin-facing "no owner configured" setup card is shown.
     assert "No bank-feed owner configured" in resp.text
     fetch.assert_not_awaited()
+
+
+async def _add_local_account(
+    db: AsyncSession, user: User, *, name: str, akahu_id: str | None = None,
+    is_active: bool = True,
+) -> Account:
+    a = Account(
+        id=uuid.uuid4(),
+        user_id=user.id,
+        name=name,
+        account_type=AccountType.CHECKING,
+        currency="NZD",
+        initial_balance=Decimal("0.00"),
+        institution="ANZ",
+        term=AccountTerm.SHORT,
+        akahu_id=akahu_id,
+        is_active=is_active,
+    )
+    db.add(a)
+    await db.flush()
+    return a
+
+
+@pytest.mark.asyncio
+async def test_orphaned_link_surfaced_after_reconsent(
+    db: AsyncSession, owner_user: User, _akahu_env
+):
+    # The live feed exposes acc_test_123 (see _akahu_env). A local account still
+    # points at an id from a previous consent that's no longer in the feed, so it
+    # must be surfaced as a stale link (otherwise it's invisible and un-unlinkable).
+    await _add_local_account(
+        db, owner_user, name="Old Home Loan", akahu_id="acc_OLD_999"
+    )
+    async with _client_as(db, owner_user) as client:
+        resp = await client.get("/bank-feeds")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "Stale bank-feed links" in body
+    assert "Old Home Loan" in body
+    assert "acc_OLD_999" in body
+
+
+@pytest.mark.asyncio
+async def test_live_link_not_flagged_stale(
+    db: AsyncSession, owner_user: User, _akahu_env
+):
+    # A local account linked to the *current* feed id must not be flagged stale.
+    await _add_local_account(
+        db, owner_user, name="Live Everyday", akahu_id="acc_test_123"
+    )
+    async with _client_as(db, owner_user) as client:
+        resp = await client.get("/bank-feeds")
+    assert resp.status_code == 200
+    assert "Stale bank-feed links" not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_orphans_not_computed_on_feed_error(
+    db: AsyncSession, owner_user: User, monkeypatch
+):
+    # When the feed fetch fails, akahu_accounts is empty — but a transient error
+    # must NOT mislabel every existing link as stale.
+    monkeypatch.setattr(settings, "AKAHU_APP_TOKEN", "app_tok")
+    monkeypatch.setattr(settings, "AKAHU_USER_TOKEN", "user_tok")
+    monkeypatch.setattr(settings, "AKAHU_OWNER_EMAIL", OWNER_EMAIL)
+    monkeypatch.setattr(
+        bf, "akahu_fetch_accounts",
+        AsyncMock(side_effect=akahu.AkahuAPIError(500, "boom")),
+    )
+    await _add_local_account(
+        db, owner_user, name="Linked Account", akahu_id="acc_test_123"
+    )
+    async with _client_as(db, owner_user) as client:
+        resp = await client.get("/bank-feeds")
+    assert resp.status_code == 200
+    assert "Stale bank-feed links" not in resp.text
 
 
 # --------------------------------------------------------------------------- #
