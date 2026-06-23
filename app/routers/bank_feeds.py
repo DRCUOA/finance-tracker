@@ -23,6 +23,7 @@ from app.services.akahu import (
     is_configured as akahu_is_configured,
     is_owner as akahu_is_owner,
     nz_date_to_utc_range,
+    owner_email as akahu_owner_email,
     sync_account_balances,
     sync_account_transactions,
 )
@@ -60,6 +61,7 @@ async def bank_feeds_page(
 ):
     configured = akahu_is_configured()
     feed_owner = akahu_is_owner(user)
+    owner_configured = akahu_owner_email() is not None
     akahu_accounts: list[dict] = []
     akahu_error: str | None = None
 
@@ -120,6 +122,7 @@ async def bank_feeds_page(
         "user": user,
         "configured": configured,
         "feed_owner": feed_owner,
+        "owner_configured": owner_configured,
         "akahu_error": akahu_error,
         "akahu_accounts": akahu_accounts,
         "link_map": link_map,
