@@ -13,8 +13,8 @@ entry first. Update this at the end of every working session.
 | #0 Security | **Code complete — merged** | PR A (tenant isolation) [#12](https://github.com/DRCUOA/finance-tracker/pull/12) **merged**; PR B (auth hardening) [#13](https://github.com/DRCUOA/finance-tracker/pull/13) **merged**. Remaining: rotate the live `.env` secrets (operational) — `.env` is already gitignored & untracked. |
 | #1 Balance authority | **Done — merged** | [PR #11](https://github.com/DRCUOA/finance-tracker/pull/11), merged to `main`. |
 | #2 Ingestion integrity | **Done — merged** | One `dedup` module + cross-source `content_hash` identity, migration `022` (applied live), all call sites unified. [PR #16](https://github.com/DRCUOA/finance-tracker/pull/16), merged to `main`. |
-| #2b Bank-feed isolation | **Built — awaiting PR/merge** | Stops the live cross-user bank-feed disclosure: the single global Akahu connection is now gated to a configured owner (`AKAHU_OWNER_EMAIL`), fail-closed when unset. Branch `spec-02b-bank-feed-isolation`. |
-| #3 External reconciliation | Not started | One pre-existing test failure already lives here (see below). |
+| #2b Bank-feed isolation | **Done — merged** | Stops the live cross-user bank-feed disclosure: the single global Akahu connection is now gated to a configured owner (`AKAHU_OWNER_EMAIL`), fail-closed when unset. [PR #17](https://github.com/DRCUOA/finance-tracker/pull/17), merged to `main`. |
+| #3 External reconciliation | **Spec in progress** | One pre-existing test failure already lives here (see below). |
 | #4 Net worth + reporting | Partially absorbed by #1 | Net-worth roll-up already unified behind `aggregate_net_worth()`; full consolidation still pending. |
 
 ---
