@@ -105,18 +105,7 @@
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Uncleared Transactions</h3>
-                    <div class="flex gap-2 items-center">
-                        <select id="sortDirSel" title="Display order — same options as the recon helper"
-                                class="text-xs rounded-lg py-1.5 pl-2 pr-7 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:ring-brand-500">
-                            <option value="asc">Oldest → newest</option>
-                            <option value="desc">Newest → oldest</option>
-                        </select>
-                        <select id="tieBreakSel" title="Same-day order — Natural is entry order here, statement order in the recon helper"
-                                class="text-xs rounded-lg py-1.5 pl-2 pr-7 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:ring-brand-500">
-                            <option value="natural">Natural</option>
-                            <option value="amount">Amount</option>
-                            <option value="payee">Payee</option>
-                        </select>
+                    <div class="flex gap-2">
                         <button type="button" @click="selectAll()"
                                 class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Select All</button>
                         <button type="button" @click="clearAll()"
@@ -131,9 +120,9 @@
                                     <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                 </th>
                                 <th class="px-2 py-3 w-6"></th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                                <th data-sort="date" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200">Date <span class="sort-arrow"></span></th>
+                                <th data-sort="desc" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200">Description <span class="sort-arrow"></span></th>
+                                <th data-sort="amount" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200">Amount <span class="sort-arrow"></span></th>
                                 <th class="px-2 py-3 w-8"></th>
                             </tr>
                         </thead>
@@ -224,42 +213,42 @@
 </div>
 
 <script>
-/* Client-side re-ordering of the server-rendered rows. Mirrors the recon
-   helper's sort semantics exactly: date, then the chosen same-day tie-break,
-   with the whole comparison flipped for desc (as the transactions service
-   does with created_at). Moving <tr> nodes preserves their Alpine bindings. */
+/* Single-column sorting by clicking a header (click again to flip direction),
+   matching the recon helper exactly. Ties keep entry order via the data-idx
+   fallback. Moving <tr> nodes preserves their Alpine bindings. */
 (function () {
     const body = document.getElementById('txBody');
-    const dirSel = document.getElementById('sortDirSel');
-    const tieSel = document.getElementById('tieBreakSel');
-    if (!body || !dirSel || !tieSel) return;
+    if (!body) return;
+    const headers = Array.from(document.querySelectorAll('th[data-sort]'));
+    let key = 'date', dir = 1;
+    try {
+        const saved = JSON.parse(localStorage.getItem('reconcile-sort') || 'null');
+        if (saved && saved.key) { key = saved.key; dir = saved.dir === -1 ? -1 : 1; }
+    } catch (e) {}
 
-    function sortRows() {
-        const rows = Array.from(body.querySelectorAll('tr[data-idx]'));
-        const dir = dirSel.value === 'asc' ? 1 : -1;
-        const tie = tieSel.value;
-        rows.sort(function (a, b) {
-            if (a.dataset.date !== b.dataset.date) return a.dataset.date < b.dataset.date ? -dir : dir;
-            if (tie === 'amount') return (parseFloat(a.dataset.amount) - parseFloat(b.dataset.amount)) * dir;
-            if (tie === 'payee') return a.dataset.desc.localeCompare(b.dataset.desc) * dir;
-            return (Number(a.dataset.idx) - Number(b.dataset.idx)) * dir;
+    function apply() {
+        Array.from(body.querySelectorAll('tr[data-idx]')).sort(function (a, b) {
+            let c = 0;
+            if (key === 'amount') c = parseFloat(a.dataset.amount) - parseFloat(b.dataset.amount);
+            else if (key === 'desc') c = a.dataset.desc.localeCompare(b.dataset.desc);
+            else c = a.dataset.date < b.dataset.date ? -1 : a.dataset.date > b.dataset.date ? 1 : 0;
+            return c * dir || (Number(a.dataset.idx) - Number(b.dataset.idx));
+        }).forEach(function (r) { body.appendChild(r); });
+        headers.forEach(function (h) {
+            h.querySelector('.sort-arrow').textContent =
+                h.dataset.sort === key ? (dir === 1 ? '▲' : '▼') : '';
         });
-        rows.forEach(function (r) { body.appendChild(r); });
     }
 
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem('reconcile-sort') || 'null'); } catch (e) {}
-    if (saved) {
-        dirSel.value = saved.dir || 'asc';
-        tieSel.value = saved.tie || 'natural';
-        sortRows();
-    }
-    function onChange() {
-        localStorage.setItem('reconcile-sort', JSON.stringify({ dir: dirSel.value, tie: tieSel.value }));
-        sortRows();
-    }
-    dirSel.addEventListener('change', onChange);
-    tieSel.addEventListener('change', onChange);
+    headers.forEach(function (h) {
+        h.addEventListener('click', function () {
+            if (key === h.dataset.sort) dir = -dir;
+            else { key = h.dataset.sort; dir = 1; }
+            localStorage.setItem('reconcile-sort', JSON.stringify({ key: key, dir: dir }));
+            apply();
+        });
+    });
+    apply();
 })();
 </script>
 {% endblock %}
