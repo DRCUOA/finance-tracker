@@ -28,6 +28,9 @@
              }
              return sum;
          },
+         nzd(v) {
+             return new Intl.NumberFormat('en-NZ', {style: 'currency', currency: 'NZD'}).format(Math.round(v * 100) / 100);
+         },
          get difference() {
              return Math.round((this.statementBalance - this.clearedBalance - this.checkedTotal) * 100) / 100;
          },
@@ -102,7 +105,18 @@
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Uncleared Transactions</h3>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 items-center">
+                        <select id="sortDirSel" title="Display order — same options as the recon helper"
+                                class="text-xs rounded-lg py-1.5 pl-2 pr-7 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:ring-brand-500">
+                            <option value="asc">Oldest → newest</option>
+                            <option value="desc">Newest → oldest</option>
+                        </select>
+                        <select id="tieBreakSel" title="Same-day order — Natural is entry order here, statement order in the recon helper"
+                                class="text-xs rounded-lg py-1.5 pl-2 pr-7 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:ring-brand-500">
+                            <option value="natural">Natural</option>
+                            <option value="amount">Amount</option>
+                            <option value="payee">Payee</option>
+                        </select>
                         <button type="button" @click="selectAll()"
                                 class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Select All</button>
                         <button type="button" @click="clearAll()"
@@ -123,9 +137,11 @@
                                 <th class="px-2 py-3 w-8"></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+                        <tbody id="txBody" class="divide-y divide-gray-50 dark:divide-gray-700">
                             {% for tx in transactions %}
                             <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group"
+                                data-idx="{{ loop.index0 }}" data-date="{{ tx.date|fiso }}"
+                                data-amount="{{ tx.amount }}" data-desc="{{ tx.description|e }}"
                                 @click="toggle('{{ tx.id }}', {{ tx.amount }})"
                                 :class="checked['{{ tx.id }}'] !== undefined ? 'bg-brand-50/50 dark:bg-brand-900/20' : ''">
                                 <td class="px-4 py-3 text-center">
@@ -179,7 +195,71 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Running ticked total: stays pinned to the viewport bottom while the
+                 transaction list scrolls, so it can be eyeballed against the recon
+                 helper's matching footer at any point during tick-off. -->
+            <div class="sticky bottom-0 z-10 pb-2">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg ring-1 ring-gray-200 dark:ring-gray-700 px-6 py-3 flex items-center gap-8 flex-wrap">
+                    <div>
+                        <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Ticked Total</p>
+                        <p class="text-xl font-bold tabular-nums text-brand-600 dark:text-brand-400">
+                            <span x-text="nzd(checkedTotal)"></span>
+                            <span class="text-sm font-medium text-gray-400 dark:text-gray-500" x-text="'(' + Object.keys(checked).length + ')'"></span>
+                        </p>
+                    </div>
+                    <div class="ml-auto text-right">
+                        <p class="text-xs font-medium uppercase tracking-wider"
+                           :class="isBalanced ? 'text-positive-600 dark:text-positive-400' : 'text-gray-400 dark:text-gray-500'">Difference</p>
+                        <p class="text-lg font-bold tabular-nums"
+                           :class="isBalanced
+                               ? 'text-positive-700 dark:text-positive-400'
+                               : (difference > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400')"
+                           x-text="nzd(difference)"></p>
+                    </div>
+                </div>
+            </div>
         </div>
     </form>
 </div>
+
+<script>
+/* Client-side re-ordering of the server-rendered rows. Mirrors the recon
+   helper's sort semantics exactly: date, then the chosen same-day tie-break,
+   with the whole comparison flipped for desc (as the transactions service
+   does with created_at). Moving <tr> nodes preserves their Alpine bindings. */
+(function () {
+    const body = document.getElementById('txBody');
+    const dirSel = document.getElementById('sortDirSel');
+    const tieSel = document.getElementById('tieBreakSel');
+    if (!body || !dirSel || !tieSel) return;
+
+    function sortRows() {
+        const rows = Array.from(body.querySelectorAll('tr[data-idx]'));
+        const dir = dirSel.value === 'asc' ? 1 : -1;
+        const tie = tieSel.value;
+        rows.sort(function (a, b) {
+            if (a.dataset.date !== b.dataset.date) return a.dataset.date < b.dataset.date ? -dir : dir;
+            if (tie === 'amount') return (parseFloat(a.dataset.amount) - parseFloat(b.dataset.amount)) * dir;
+            if (tie === 'payee') return a.dataset.desc.localeCompare(b.dataset.desc) * dir;
+            return (Number(a.dataset.idx) - Number(b.dataset.idx)) * dir;
+        });
+        rows.forEach(function (r) { body.appendChild(r); });
+    }
+
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('reconcile-sort') || 'null'); } catch (e) {}
+    if (saved) {
+        dirSel.value = saved.dir || 'asc';
+        tieSel.value = saved.tie || 'natural';
+        sortRows();
+    }
+    function onChange() {
+        localStorage.setItem('reconcile-sort', JSON.stringify({ dir: dirSel.value, tie: tieSel.value }));
+        sortRows();
+    }
+    dirSel.addEventListener('change', onChange);
+    tieSel.addEventListener('change', onChange);
+})();
+</script>
 {% endblock %}
