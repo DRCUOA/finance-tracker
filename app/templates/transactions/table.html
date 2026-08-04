@@ -83,7 +83,8 @@
                     <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100">{{ tx.description }}</td>
                     <td class="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{{ tx.account.name if tx.account else '—' }}</td>
                     <td class="px-4 py-2">
-                        <select @change="updateCategory('{{ tx.id }}', $event.target.value)"
+                        <select @focus="$event.target.dataset.prev = $event.target.value"
+                                @change="updateCategory('{{ tx.id }}', $event.target.value, $event.target)"
                                 class="w-full max-w-[11rem] rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-700 text-xs py-1.5 pl-2 pr-7 focus:border-brand-500 focus:ring-brand-500 text-gray-700 dark:text-gray-300 cursor-pointer">
                             <option value="" {% if not tx.category_id %}selected{% endif %}>Uncategorised</option>
                             {{ category_options(category_tree, tx.category_id) }}

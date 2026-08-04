@@ -66,13 +66,28 @@
         if (checked && !this.selected.includes(id)) this.selected.push(id);
         else if (!checked) this.selected = this.selected.filter(i => i !== id);
     },
-    async updateCategory(txId, categoryId) {
+    async updateCategory(txId, categoryId, sel) {
+        const revert = () => { if (sel && sel.dataset.prev !== undefined) sel.value = sel.dataset.prev; };
         const body = new FormData();
         body.append('category_id', categoryId);
-        const r = await fetch('/transactions/' + txId + '/update-category', { method: 'POST', body });
+        let r = await fetch('/transactions/' + txId + '/update-category', { method: 'POST', body });
+        if (r.status === 409) {
+            const d = await r.json().catch(() => ({}));
+            if (d.locked_confirm_required) {
+                if (!window.confirm('This transaction is locked by reconciliation.\nOnly its category can be changed — all other details will stay as they are.\n\nChange the category anyway?')) {
+                    revert();
+                    return;
+                }
+                body.append('confirm_locked', 'true');
+                r = await fetch('/transactions/' + txId + '/update-category', { method: 'POST', body });
+            }
+        }
         if (!r.ok) {
             window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Failed to update category', type: 'error' } }));
+            revert();
+            return;
         }
+        if (sel) sel.dataset.prev = sel.value;
     }
 }" @txchanged.window="clearSelection()">
 

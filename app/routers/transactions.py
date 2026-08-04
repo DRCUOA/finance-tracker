@@ -197,11 +197,18 @@ async def update_category_inline(
     tx_id: uuid.UUID,
     request: Request,
     category_id: str = Form(""),
+    confirm_locked: str = Form(""),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if await tx_svc.is_tx_locked(db, tx_id):
-        return JSONResponse({"error": "Transaction is locked by reconciliation"}, status_code=403)
+    # Category is the one field a locked transaction may change — but only
+    # after the client explicitly confirms (confirm_locked), so the user is
+    # always warned they are touching a reconciled row.
+    if await tx_svc.is_tx_locked(db, tx_id) and confirm_locked != "true":
+        return JSONResponse(
+            {"error": "Transaction is locked by reconciliation", "locked_confirm_required": True},
+            status_code=409,
+        )
     cid = uuid.UUID(category_id) if category_id else None
     tx = await tx_svc.get_transaction(db, tx_id, user.id)
     if not tx:
@@ -222,6 +229,10 @@ async def batch_categorise(
 ):
     form = await request.form()
     tx_ids = [uuid.UUID(tid) for tid in form.getlist("tx_ids")]
+    # Locked rows are excluded from bulk edits; changing a locked row's
+    # category requires the explicit per-transaction confirmation flow.
+    locked = await tx_svc.get_locked_tx_ids(db, tx_ids)
+    tx_ids = [tid for tid in tx_ids if str(tid) not in locked]
     if tx_ids and category_id:
         await tx_svc.batch_categorise(db, tx_ids, user.id, uuid.UUID(category_id))
     resp = RedirectResponse(url="/transactions", status_code=302)
@@ -238,6 +249,9 @@ async def batch_delete(
 ):
     form = await request.form()
     tx_ids = [uuid.UUID(tid) for tid in form.getlist("tx_ids")]
+    # Never delete locked (reconciled) rows, even via batch.
+    locked = await tx_svc.get_locked_tx_ids(db, tx_ids)
+    tx_ids = [tid for tid in tx_ids if str(tid) not in locked]
     if tx_ids:
         await tx_svc.batch_delete(db, tx_ids, user.id)
     resp = RedirectResponse(url="/transactions", status_code=302)
@@ -315,9 +329,6 @@ async def edit_transaction_modal(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if await tx_svc.is_tx_locked(db, tx_id):
-        return JSONResponse({"error": "Transaction is locked by reconciliation"}, status_code=403)
-
     body = await request.json()
     kwargs = {}
     if "date" in body and body["date"]:
@@ -338,6 +349,32 @@ async def edit_transaction_modal(
     existing = await tx_svc.get_transaction(db, tx_id, user.id)
     if not existing:
         return JSONResponse({"error": "Not found"}, status_code=404)
+
+    if await tx_svc.is_tx_locked(db, tx_id):
+        # A locked (reconciled) transaction may ONLY change category, and only
+        # with explicit confirmation. Every other field must stay exactly as-is;
+        # compare against the stored row so an unchanged full-form submit passes.
+        changed_other = (
+            ("date" in kwargs and kwargs["date"] != existing.date)
+            or ("description" in kwargs and kwargs["description"] != existing.description)
+            or ("amount" in kwargs and kwargs["amount"] != existing.amount)
+            or ("account_id" in kwargs and kwargs["account_id"] != existing.account_id)
+            or ("reference" in kwargs and kwargs["reference"] != (existing.reference or None))
+            or ("notes" in kwargs and kwargs["notes"] != (existing.notes or None))
+        )
+        if changed_other:
+            return JSONResponse(
+                {"error": "Transaction is locked by reconciliation — only the category can be changed."},
+                status_code=403,
+            )
+        if "category_id" not in kwargs or kwargs["category_id"] == existing.category_id:
+            return JSONResponse({"ok": True})
+        if not body.get("confirm_locked"):
+            return JSONResponse(
+                {"error": "Transaction is locked by reconciliation", "locked_confirm_required": True},
+                status_code=409,
+            )
+        kwargs = {"category_id": kwargs["category_id"]}
 
     try:
         tx = await tx_svc.update_transaction(db, tx_id, user.id, **kwargs)
