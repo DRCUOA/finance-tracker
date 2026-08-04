@@ -1214,12 +1214,13 @@ function openTxEdit(txId) {
             var saveBtn = document.getElementById('txEditSave');
             var fields = document.querySelectorAll('#txEditForm .txf');
 
+            document.getElementById('txEditForm').dataset.locked = d.is_locked ? '1' : '';
             if (d.is_locked) {
                 badge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-negative-50 dark:bg-negative-900/40 text-negative-700 dark:text-negative-400';
                 icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + _lockPath + '"/>';
-                lockText.textContent = 'Reconciled';
-                saveBtn.disabled = true;
-                fields.forEach(function(f) { f.disabled = true; });
+                lockText.textContent = 'Reconciled · category only';
+                saveBtn.disabled = false;
+                fields.forEach(function(f) { f.disabled = (f.id !== 'txEditCategory'); });
             } else {
                 badge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-positive-50 dark:bg-positive-900/40 text-positive-700 dark:text-positive-400';
                 icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + _unlockPath + '"/>';
@@ -1248,21 +1249,35 @@ document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && !do
 document.getElementById('txEditForm').addEventListener('submit', function(e) {
     e.preventDefault();
     var id = document.getElementById('txEditId').value;
-    var body = {
-        date: document.getElementById('txEditDate').value,
-        amount: parseFloat(document.getElementById('txEditAmount').value),
-        description: document.getElementById('txEditDesc').value,
-        account_id: document.getElementById('txEditAccount').value,
-        category_id: document.getElementById('txEditCategory').value,
-        reference: document.getElementById('txEditRef').value,
-        notes: document.getElementById('txEditNotes').value,
-    };
+    var locked = document.getElementById('txEditForm').dataset.locked === '1';
+    var body;
+    if (locked) {
+        // Locked rows: category is the only change allowed, and only after an
+        // explicit warning — never send any other field.
+        if (!window.confirm('This transaction is locked by reconciliation.\nOnly its category can be changed — all other details will stay as they are.\n\nChange the category anyway?')) return;
+        body = {
+            category_id: document.getElementById('txEditCategory').value,
+            confirm_locked: true,
+        };
+    } else {
+        body = {
+            date: document.getElementById('txEditDate').value,
+            amount: parseFloat(document.getElementById('txEditAmount').value),
+            description: document.getElementById('txEditDesc').value,
+            account_id: document.getElementById('txEditAccount').value,
+            category_id: document.getElementById('txEditCategory').value,
+            reference: document.getElementById('txEditRef').value,
+            notes: document.getElementById('txEditNotes').value,
+        };
+    }
     fetch('/transactions/' + id + '/edit-modal', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).then(function(r) {
-        if (r.status === 403) {
-            window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Transaction is locked by reconciliation', type: 'error' } }));
-            return;
+        if (!r.ok) {
+            return r.json().catch(function() { return {}; }).then(function(d) {
+                window.dispatchEvent(new CustomEvent('notify', { detail: { message: d.error || 'Could not save transaction', type: 'error' } }));
+                return null;
+            });
         }
         return r.json();
     }).then(function(d) {
