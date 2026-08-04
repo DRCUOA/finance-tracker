@@ -48,6 +48,7 @@ ROOT_CATEGORY_TYPE: dict[str, CategoryType] = {
     "income": CategoryType.INCOME,
     "expense": CategoryType.EXPENSE,
     "transfer": CategoryType.TRANSFER,
+    "non_cash": CategoryType.NON_CASH,
 }
 
 

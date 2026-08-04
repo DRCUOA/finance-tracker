@@ -55,6 +55,7 @@ from app.models.account import (
 )
 from app.models.transaction import Transaction
 from app.services.balances import BalanceBasis, balance
+from app.services.categories import get_or_create_interest_category
 
 
 INTEREST_SOURCE = "interest"
@@ -235,11 +236,18 @@ async def accrue_interest_for_account(
     sign = Decimal(1) if account.group == AccountGroup.ASSET else Decimal(-1)
     amount = sign * interest
 
+    # File under the user's non-cash Interest category: accruals are value
+    # movements, not cash, and the category type keeps them out of every
+    # spending / budget view (an uncategorised row would be counted as
+    # discretionary spending by the pulse).
+    interest_cat = await get_or_create_interest_category(db, account.user_id)
+
     tx = Transaction(
         user_id=account.user_id,
         account_id=account.id,
         date=now.date(),
         amount=amount,
+        category_id=interest_cat.id,
         description=(
             f"Interest {elapsed_days}d @ {account.interest_rate}% APR "
             f"— {INTEREST_MARKER}"
@@ -413,11 +421,13 @@ async def retro_reevaluate_interest(
 
     new_view: RetroTxView | None = None
     if true_up != 0:
+        interest_cat = await get_or_create_interest_category(db, account.user_id)
         tx = Transaction(
             user_id=account.user_id,
             account_id=account.id,
             date=now.date(),
             amount=true_up,
+            category_id=interest_cat.id,
             description=(
                 f"Retro interest true-up ({num_days}d through "
                 f"{end_date.isoformat()}) — {INTEREST_MARKER}"

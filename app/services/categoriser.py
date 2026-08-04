@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.category import Category, CategoryKeyword
+from app.models.category import Category, CategoryKeyword, NON_CASH_FLOW_TYPES
 from app.models.transaction import Transaction
 
 _SHORT_KW_THRESHOLD = 4
@@ -49,7 +49,10 @@ async def batch_suggest_categories(
     kw_stmt = (
         select(CategoryKeyword)
         .join(Category)
-        .where(Category.user_id == user_id)
+        .where(
+            Category.user_id == user_id,
+            Category.category_type.notin_(NON_CASH_FLOW_TYPES),
+        )
         .options(selectinload(CategoryKeyword.category))
         .order_by(CategoryKeyword.hit_count.desc())
     )
@@ -94,16 +97,20 @@ async def batch_suggest_categories(
 async def suggest_category(db: AsyncSession, user_id: uuid.UUID, description: str) -> uuid.UUID | None:
     """Find the best matching category for a transaction description using keyword matching.
 
-    Transfer-type categories are excluded — those should only be assigned
-    manually.  Short keywords (<=4 chars) require word-boundary matches to
-    avoid false positives like "on" matching inside "loan".
+    Transfer and non-cash categories are excluded — those should only be
+    assigned manually (or, for interest accruals, by the interest job).
+    Short keywords (<=4 chars) require word-boundary matches to avoid false
+    positives like "on" matching inside "loan".
     """
     desc_lower = description.lower()
 
     stmt = (
         select(CategoryKeyword)
         .join(Category)
-        .where(Category.user_id == user_id)
+        .where(
+            Category.user_id == user_id,
+            Category.category_type.notin_(NON_CASH_FLOW_TYPES),
+        )
         .order_by(CategoryKeyword.hit_count.desc())
     )
     result = await db.execute(stmt)

@@ -10,6 +10,11 @@ from app.models.category import Category, CategoryKeyword, CategoryType
 from app.models.transaction import Transaction
 
 
+# Well-known non-cash category names. The interest job and the 023 backfill
+# migration both resolve the accrual category by these names — keep in sync.
+NON_CASH_ROOT_NAME = "Non-Cash"
+NON_CASH_INTEREST_NAME = "Interest"
+
 DEFAULT_CATEGORIES = [
     ("Income", CategoryType.INCOME, [
         ("Salary", []),
@@ -47,6 +52,9 @@ DEFAULT_CATEGORIES = [
         ("Credit Card Payment", []),
     ]),
     ("Transfers", CategoryType.TRANSFER, []),
+    (NON_CASH_ROOT_NAME, CategoryType.NON_CASH, [
+        (NON_CASH_INTEREST_NAME, []),
+    ]),
 ]
 
 
@@ -78,6 +86,47 @@ async def seed_default_categories(db: AsyncSession, user_id: uuid.UUID) -> None:
                 for kw in keywords:
                     db.add(CategoryKeyword(category_id=child.id, keyword=kw.lower()))
                 child_order += 1
+
+
+async def get_or_create_interest_category(
+    db: AsyncSession, user_id: uuid.UUID,
+) -> Category:
+    """Resolve the user's non-cash Interest category, creating it if missing.
+
+    Interest accruals are pure liability/asset value movements, so the
+    interest job files them here to keep them out of every cash view. Users
+    seeded before the non_cash type (or who deleted the defaults) get the
+    "Non-Cash" root and "Interest" child recreated on the next accrual.
+    """
+    interest = (await db.execute(
+        select(Category).where(
+            Category.user_id == user_id,
+            Category.category_type == CategoryType.NON_CASH,
+            Category.name == NON_CASH_INTEREST_NAME,
+            Category.parent_id.isnot(None),
+        ).limit(1)
+    )).scalar_one_or_none()
+    if interest is not None:
+        return interest
+
+    # Reuse any existing top-level non-cash root regardless of its name —
+    # migrated users may have e.g. "Non-Cash Adjustments"; creating a second
+    # root next to it would reintroduce the sprawl this type removes.
+    root = (await db.execute(
+        select(Category).where(
+            Category.user_id == user_id,
+            Category.category_type == CategoryType.NON_CASH,
+            Category.parent_id.is_(None),
+        ).order_by(Category.sort_order).limit(1)
+    )).scalars().first()
+    if root is None:
+        root = await create_category(
+            db, user_id, NON_CASH_ROOT_NAME, CategoryType.NON_CASH,
+        )
+    return await create_category(
+        db, user_id, NON_CASH_INTEREST_NAME, CategoryType.NON_CASH,
+        parent_id=root.id,
+    )
 
 
 async def get_category_tree(db: AsyncSession, user_id: uuid.UUID) -> list[Category]:

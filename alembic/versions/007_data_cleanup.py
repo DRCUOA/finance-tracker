@@ -23,6 +23,16 @@ UID = "a6beaf68-88fd-4e8e-8dfc-6919a631456a"
 def upgrade() -> None:
     conn = op.get_bind()
 
+    # Every statement below is scoped to one real user's data. On a fresh
+    # database (new deployment, scratch environment) that user does not
+    # exist and the category lookups return NULL — which used to crash the
+    # inserts. Skip the whole migration when the target user is absent.
+    user_row = conn.execute(
+        sa.text("SELECT 1 FROM users WHERE id = :uid"), {"uid": UID}
+    ).fetchone()
+    if user_row is None:
+        return
+
     # ── 1a. Account fixes ────────────────────────────────────────────
     conn.execute(sa.text(
         "UPDATE accounts SET is_cashflow = false "

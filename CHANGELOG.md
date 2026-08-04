@@ -6,6 +6,20 @@ Format: [Semantic Versioning](https://semver.org/) &mdash; `MAJOR.MINOR.PATCH`
 
 ---
 
+## [Unreleased]
+
+### Added
+- `non_cash` category type for pure asset/liability value movements (interest accruals, revaluations, pension-fund growth) &mdash; excluded from every cash view: spending pulse, budgets, income-vs-expense totals and charts
+- Interest job files accruals under a non-cash &ldquo;Interest&rdquo; category (created on demand) instead of posting them uncategorised into the spending pulse
+- Default category seed includes a &ldquo;Non-Cash&rdquo; root with &ldquo;Interest&rdquo; child
+- Alembic migration 023: adds the enum value and backfills &mdash; retypes &ldquo;Non-Cash Adjustments&rdquo; trees and &ldquo;Mortgage Interest&rdquo; to `non_cash`, reparents the latter under the non-cash root, and recategorises all `source='interest'` transactions
+
+### Changed
+- Auto-categoriser now excludes transfer and non-cash categories from keyword matching at the query level (previously transfer exclusion was documented but unenforced)
+- Migration 007 skips cleanly on databases where its target user does not exist (fresh installs previously crashed mid-chain)
+
+---
+
 ## [5.6.0] &ndash; 2026-04-13
 
 ### Added

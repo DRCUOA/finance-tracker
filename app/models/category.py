@@ -14,6 +14,16 @@ class CategoryType(str, enum.Enum):
     INCOME = "income"
     EXPENSE = "expense"
     TRANSFER = "transfer"
+    # Pure asset/liability value movements (interest accruals, revaluations,
+    # depreciation). Not cash: excluded from every spending / budget /
+    # income-vs-expense view. Reports that want an accrual basis opt in
+    # explicitly.
+    NON_CASH = "non_cash"
+
+# Category types that never represent cash movement. Cash-basis reports
+# exclude these; use this constant rather than enumerating types inline so
+# future non-cash-like types have one place to land.
+NON_CASH_FLOW_TYPES = (CategoryType.TRANSFER, CategoryType.NON_CASH)
 
 
 class Category(Base):
