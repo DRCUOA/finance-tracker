@@ -9,7 +9,7 @@ from app.dates import fmt_date
 
 from app.models.account import Account
 from app.models.budget import Budget
-from app.models.category import Category, CategoryType
+from app.models.category import Category, CategoryType, NON_CASH_FLOW_TYPES
 from app.models.statement import Statement
 from app.models.transaction import Transaction
 from app.services.balances import BalanceBasis, aggregate_net_worth, balances_for
@@ -116,7 +116,7 @@ async def period_summary(
             "parent_id": str(row.parent_id) if row.parent_id else None,
             "total": float(total),
         })
-        if row.category_type != CategoryType.TRANSFER:
+        if row.category_type not in NON_CASH_FLOW_TYPES:
             income += row.pos_total or Decimal("0.00")
             expenses += abs(row.neg_total or Decimal("0.00"))
 
@@ -646,7 +646,7 @@ async def income_vs_spending_trend(
                 ).label("neg"),
             )
             .outerjoin(Transaction, and_(*conditions))
-            .where(Category.user_id == user_id, Category.category_type != CategoryType.TRANSFER)
+            .where(Category.user_id == user_id, Category.category_type.notin_(NON_CASH_FLOW_TYPES))
             .group_by(Category.category_type)
         )
         result = await db.execute(stmt)
@@ -762,7 +762,7 @@ async def fixed_vs_flexible_summary(
             sa_func.coalesce(sa_func.sum(Transaction.amount), Decimal("0.00")).label("total"),
         )
         .outerjoin(Transaction, and_(*conditions))
-        .where(Category.user_id == user_id, Category.category_type != CategoryType.TRANSFER)
+        .where(Category.user_id == user_id, Category.category_type.notin_(NON_CASH_FLOW_TYPES))
         .group_by(Category.id)
         .order_by(Category.sort_order)
     )

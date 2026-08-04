@@ -641,8 +641,9 @@ function initReportCharts() {
     const budgetData = {{ budget_data | tojson }};
     const allCats = {{ summary.categories | tojson }};
 
+    const nonCashTypes = ['transfer', 'non_cash'];
     const incomeCats = allCats
-        .filter(c => c.type !== 'transfer' && c.total > 0)
+        .filter(c => !nonCashTypes.includes(c.type) && c.total > 0)
         .sort((a, b) => b.total - a.total)
         .map(c => ({ name: c.name, actual: c.total, budgeted: 0, isIncome: true }));
 
@@ -696,7 +697,7 @@ function initReportCharts() {
     }
 
     // ──── Spending by Category Doughnut ────
-    const spendCats = allCats.filter(c => c.type !== 'transfer' && c.total < 0);
+    const spendCats = allCats.filter(c => !nonCashTypes.includes(c.type) && c.total < 0);
     if (spendCats.length > 0) {
         const colors = ['#6366f1','#ef4444','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b'];
         var catChartCanvas = document.getElementById('categoryChart');

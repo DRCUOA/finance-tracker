@@ -171,10 +171,11 @@ requestAnimationFrame(function() {
     const cats = {{ summary.categories | tojson }};
     const isDk = document.documentElement.classList.contains('dark');
 
-    const expenseCats = cats.filter(c => c.type !== 'transfer' && c.total < 0)
+    const nonCashTypes = ['transfer', 'non_cash'];
+    const expenseCats = cats.filter(c => !nonCashTypes.includes(c.type) && c.total < 0)
                             .map(c => ({...c, absTotal: Math.abs(c.total)}))
                             .sort((a, b) => b.absTotal - a.absTotal);
-    const incomeCats  = cats.filter(c => c.type !== 'transfer' && c.total > 0)
+    const incomeCats  = cats.filter(c => !nonCashTypes.includes(c.type) && c.total > 0)
                             .sort((a, b) => b.total - a.total);
 
     function buildDoughnut(canvas, items, valueKey, labelEl, valueEl, defaultLabel, defaultValue) {

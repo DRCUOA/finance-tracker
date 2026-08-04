@@ -1301,7 +1301,7 @@ function openCatEdit(catId) {
             document.getElementById('catEditId').value = d.id;
             document.getElementById('catEditName').value = d.name;
             document.getElementById('catEditBudget').value = d.budgeted_amount;
-            document.getElementById('catEditType').value = d.category_type;
+            document.getElementById('catEditType').value = d.category_type.replace('_', '-');
             document.getElementById('catEditFixed').checked = d.is_fixed || false;
             document.getElementById('catEditLoading').classList.add('hidden');
             document.getElementById('catEditForm').classList.remove('hidden');
