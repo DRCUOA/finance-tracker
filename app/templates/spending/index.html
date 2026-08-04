@@ -214,6 +214,98 @@ requestAnimationFrame(function() {
     const fmt = v => '$' + Number(v).toLocaleString('en-NZ', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     const isDark = document.documentElement.classList.contains('dark');
 
+    /* ── Broken (disproportionate) y-axis ─────────────────────────────────
+       When one day dwarfs the rest, a linear axis flattens every other bar.
+       The 'brokenLinear' scale splits the axis at a break: the everyday range
+       keeps ~78% of the plot height and everything above it is compressed
+       into the top, marked with the classic squiggle. Activates only when an
+       outlier is extreme (beyond the Tukey outer fence AND 2.5x the focus
+       range); otherwise the chart stays plain linear. */
+    function niceCeil(v) {
+        const pow = Math.pow(10, Math.floor(Math.log10(v)));
+        const r = v / pow;
+        return (r <= 1 ? 1 : r <= 2 ? 2 : r <= 2.5 ? 2.5 : r <= 5 ? 5 : 10) * pow;
+    }
+    function computeAxisBreak(values, mustFit) {
+        const v = values.filter(x => x > 0).sort((a, b) => a - b);
+        if (v.length < 6) return null;
+        const q = p => v[Math.floor(p * (v.length - 1))];
+        const fence = q(0.75) + 3 * Math.max(q(0.75) - q(0.25), q(0.75) * 0.5);
+        const outliers = v.filter(x => x > fence);
+        if (!outliers.length) return null;
+        const inliers = v.filter(x => x <= fence);
+        const focusMax = niceCeil(Math.max(...inliers, ...mustFit, 1) * 1.15);
+        const axisMax = niceCeil(Math.max(...outliers) * 1.02);
+        if (axisMax < focusMax * 2.5) return null;
+        return { enabled: true, focusMax, axisMax, focusFrac: 0.78 };
+    }
+    if (!window._brokenScaleReady) {
+        window._brokenScaleReady = true;
+        const LinearScale = Chart.registry.getScale('linear');
+        class BrokenLinearScale extends LinearScale {
+            getPixelForValue(v) {
+                const b = this.options.break;
+                if (!b || !b.enabled) return super.getPixelForValue(v);
+                const f = v <= b.focusMax
+                    ? (v / b.focusMax) * b.focusFrac
+                    : b.focusFrac + ((v - b.focusMax) / (b.axisMax - b.focusMax)) * (1 - b.focusFrac);
+                return super.getPixelForValue(f * b.axisMax);
+            }
+            getValueForPixel(px) {
+                const b = this.options.break;
+                if (!b || !b.enabled) return super.getValueForPixel(px);
+                const f = super.getValueForPixel(px) / b.axisMax;
+                return f <= b.focusFrac
+                    ? (f / b.focusFrac) * b.focusMax
+                    : b.focusMax + ((f - b.focusFrac) / (1 - b.focusFrac)) * (b.axisMax - b.focusMax);
+            }
+            determineDataLimits() {
+                super.determineDataLimits();
+                const b = this.options.break;
+                if (b && b.enabled) { this.min = Math.min(this.min, 0); this.max = b.axisMax; }
+            }
+            buildTicks() {
+                const b = this.options.break;
+                if (!b || !b.enabled) return super.buildTicks();
+                const step = niceCeil(b.focusMax / 5.5);
+                const ticks = [];
+                for (let v = 0; v <= b.focusMax + 1e-9; v += step) ticks.push({ value: v });
+                ticks.push({ value: b.axisMax });
+                return ticks;
+            }
+        }
+        BrokenLinearScale.id = 'brokenLinear';
+        BrokenLinearScale.defaults = LinearScale.defaults;
+        Chart.register(BrokenLinearScale);
+    }
+    const axisBreakMarker = {
+        id: 'axisBreakMarker',
+        afterDatasetsDraw(chart) {
+            const y = chart.scales.y;
+            const b = y && y.options.break;
+            if (!b || !b.enabled) return;
+            const yPix = y.getPixelForValue(b.focusMax);
+            const { left, right } = chart.chartArea;
+            const ctx = chart.ctx;
+            ctx.save();
+            ctx.fillStyle = isDark ? 'rgba(17,24,39,0.92)' : 'rgba(255,255,255,0.92)';
+            ctx.fillRect(left, yPix - 5, right - left, 10);
+            ctx.strokeStyle = isDark ? '#9ca3af' : '#6b7280';
+            ctx.lineWidth = 1;
+            [-3.5, 3.5].forEach(off => {
+                ctx.beginPath();
+                let up = true;
+                for (let x = left; x <= right + 4; x += 4) {
+                    const yy = yPix + off + (up ? -2 : 2);
+                    if (x === left) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+                    up = !up;
+                }
+                ctx.stroke();
+            });
+            ctx.restore();
+        }
+    };
+
     const dailyData = {{ p.daily_spending | tojson }};
     const dailyRate = {{ p.budget_daily_rate }};
     const daysElapsed = {{ p.days_elapsed }};
@@ -233,8 +325,12 @@ requestAnimationFrame(function() {
         Chart.defaults.color = isDark ? '#9ca3af' : '#666';
         Chart.defaults.borderColor = isDark ? 'rgba(75, 85, 99, 0.5)' : 'rgba(0, 0, 0, 0.1)';
 
+        const spentSoFar = dailyData.slice(0, daysElapsed).map(d => d.amount);
+        const axisBreak = computeAxisBreak(spentSoFar, [dailyRate]);
+
         new Chart(dailyCanvas, {
             type: 'bar',
+            plugins: [axisBreakMarker],
             data: {
                 labels: dailyData.map(d => d.label),
                 datasets: [
@@ -280,7 +376,9 @@ requestAnimationFrame(function() {
                 responsive: true,
                 scales: {
                     x: { grid: { display: false } },
-                    y: { beginAtZero: true, ticks: { callback: fmt } },
+                    y: axisBreak
+                        ? { type: 'brokenLinear', break: axisBreak, beginAtZero: true, ticks: { callback: fmt } }
+                        : { beginAtZero: true, ticks: { callback: fmt } },
                 },
                 plugins: {
                     legend: { display: false },
