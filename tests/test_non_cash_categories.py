@@ -7,8 +7,9 @@ accruals, revaluations). The contract under test:
   category (creating "Non-Cash" > "Interest" on demand);
 * cash-basis reports — period summary, spending pulse, income-vs-spending
   trend — exclude non-cash-categorised transactions entirely;
-* the keyword categoriser never auto-suggests a non-cash (or transfer)
-  category.
+* the keyword categoriser will match a non-cash (or transfer) category when
+  the user has authored a keyword for one — exclusion is the reports' job,
+  by category type, not the categoriser's.
 """
 from __future__ import annotations
 
@@ -228,14 +229,34 @@ class TestReportsExcludeNonCash:
 # ---------------------------------------------------------------------------
 
 
-class TestCategoriserExcludesNonCash:
+class TestCategoriserMatchesEveryType:
+    """Non-cash-ness is carried by the category, not by how it was assigned.
+
+    Rules may target non-cash and transfer categories: the alternative is
+    leaving those rows uncategorised, which puts them in the spending pulse's
+    uncategorised bucket — the leak this category type exists to close. The
+    reports below still exclude them, because they exclude by category type.
+    """
+
     @pytest.mark.asyncio
-    async def test_suggest_ignores_non_cash_keywords(self, db, user):
+    async def test_suggest_matches_non_cash_keywords(self, db, user):
         non_cash = await _add_category(db, user.id, "Interest", CategoryType.NON_CASH)
         db.add(CategoryKeyword(id=uuid.uuid4(), category_id=non_cash.id, keyword="interest"))
         await db.flush()
 
-        assert await suggest_category(db, user.id, "loan interest charged") is None
+        assert await suggest_category(db, user.id, "loan interest charged") == non_cash.id
+
+    @pytest.mark.asyncio
+    async def test_suggest_matches_transfer_keywords(self, db, user):
+        transfer = await _add_category(db, user.id, "Card payment", CategoryType.TRANSFER)
+        db.add(CategoryKeyword(
+            id=uuid.uuid4(), category_id=transfer.id, keyword="online payment - thank you",
+        ))
+        await db.flush()
+
+        assert await suggest_category(
+            db, user.id, "Online Payment - Thank You",
+        ) == transfer.id
 
     @pytest.mark.asyncio
     async def test_suggest_still_matches_expense_keywords(self, db, user):

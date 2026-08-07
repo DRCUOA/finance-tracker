@@ -32,6 +32,8 @@ async def matching_rules_page(
     request: Request,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    applied: int | None = Query(None),
+    locked: int = Query(0),
 ):
     rules = await mr_svc.list_rules(db, user.id)
     unmatched, unmatched_total = await tx_svc.get_transactions(
@@ -46,6 +48,8 @@ async def matching_rules_page(
         "unmatched_total": unmatched_total,
         "category_tree": tree,
         "search": "",
+        "applied": applied,
+        "locked": locked,
     })
 
 
@@ -85,9 +89,21 @@ async def add_rule(
     db: AsyncSession = Depends(get_db),
 ):
     keyword = keyword.strip()
-    if keyword:
-        await cat_svc.add_keyword(db, category_id, user.id, keyword)
-    return RedirectResponse(url="/matching-rules", status_code=302)
+    if not keyword:
+        return RedirectResponse(url="/matching-rules", status_code=302)
+
+    if await cat_svc.add_keyword(db, category_id, user.id, keyword) is None:
+        return RedirectResponse(url="/matching-rules", status_code=302)
+
+    # Saving a rule used to be inert until the next ingest; apply it to the
+    # transactions that are already sitting uncategorised.
+    applied, skipped_locked = await mr_svc.apply_rule_to_uncategorised(
+        db, user.id, category_id, keyword,
+    )
+    return RedirectResponse(
+        url=f"/matching-rules?applied={applied}&locked={skipped_locked}",
+        status_code=302,
+    )
 
 
 @router.post("/rules/{keyword_id}/delete")

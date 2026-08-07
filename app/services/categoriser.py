@@ -1,5 +1,6 @@
 import re
 import uuid
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -7,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.category import Category, CategoryKeyword, NON_CASH_FLOW_TYPES
+from app.models.category import Category, CategoryKeyword
 from app.models.transaction import Transaction
 
 _SHORT_KW_THRESHOLD = 4
@@ -30,6 +31,56 @@ def _keyword_matches(keyword: str, description: str) -> bool:
     return keyword in description
 
 
+async def _load_keywords(
+    db: AsyncSession, user_id: uuid.UUID,
+) -> Sequence[CategoryKeyword]:
+    """Every keyword the user has authored, whatever its category type.
+
+    Transfer and non-cash categories are matchable: a statement line reading
+    "Online Payment - Thank You" *is* a transfer, and the alternative to
+    matching it is leaving it uncategorised, which leaks it into the spending
+    pulse's uncategorised bucket. Cash-basis reports exclude these rows by
+    category type, so how the category got assigned doesn't affect them.
+    A keyword on such a category is an explicit statement of intent.
+    """
+    stmt = (
+        select(CategoryKeyword)
+        .join(Category)
+        .where(Category.user_id == user_id)
+        .order_by(CategoryKeyword.hit_count.desc())
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+def _best_match(
+    keywords: Sequence[CategoryKeyword], description: str,
+) -> uuid.UUID | None:
+    """Highest-scoring keyword's category, or None. Longer keywords win ties."""
+    desc_lower = description.lower()
+    best_match = None
+    best_score = -1
+    for kw in keywords:
+        if _keyword_matches(kw.keyword, desc_lower):
+            score = len(kw.keyword) * 10 + kw.hit_count
+            if score > best_score:
+                best_score = score
+                best_match = kw.category_id
+    return best_match
+
+
+async def build_suggester(
+    db: AsyncSession, user_id: uuid.UUID,
+) -> Callable[[str], uuid.UUID | None]:
+    """Load keywords once, return a matcher to reuse across many descriptions.
+
+    Same semantics as ``suggest_category`` but without the per-description
+    query — use this on bulk paths (statement import, rule backfill).
+    """
+    keywords = await _load_keywords(db, user_id)
+    return lambda description: _best_match(keywords, description)
+
+
 @dataclass
 class SuggestedMatch:
     transaction: Transaction
@@ -49,10 +100,7 @@ async def batch_suggest_categories(
     kw_stmt = (
         select(CategoryKeyword)
         .join(Category)
-        .where(
-            Category.user_id == user_id,
-            Category.category_type.notin_(NON_CASH_FLOW_TYPES),
-        )
+        .where(Category.user_id == user_id)
         .options(selectinload(CategoryKeyword.category))
         .order_by(CategoryKeyword.hit_count.desc())
     )
@@ -97,36 +145,11 @@ async def batch_suggest_categories(
 async def suggest_category(db: AsyncSession, user_id: uuid.UUID, description: str) -> uuid.UUID | None:
     """Find the best matching category for a transaction description using keyword matching.
 
-    Transfer and non-cash categories are excluded — those should only be
-    assigned manually (or, for interest accruals, by the interest job).
-    Short keywords (<=4 chars) require word-boundary matches to avoid false
-    positives like "on" matching inside "loan".
+    Every category type is matchable, transfer and non-cash included — see
+    ``_load_keywords``. Short keywords (<=4 chars) require word-boundary
+    matches to avoid false positives like "on" matching inside "loan".
     """
-    desc_lower = description.lower()
-
-    stmt = (
-        select(CategoryKeyword)
-        .join(Category)
-        .where(
-            Category.user_id == user_id,
-            Category.category_type.notin_(NON_CASH_FLOW_TYPES),
-        )
-        .order_by(CategoryKeyword.hit_count.desc())
-    )
-    result = await db.execute(stmt)
-    keywords = result.scalars().all()
-
-    best_match = None
-    best_score = -1
-
-    for kw in keywords:
-        if _keyword_matches(kw.keyword, desc_lower):
-            score = len(kw.keyword) * 10 + kw.hit_count
-            if score > best_score:
-                best_score = score
-                best_match = kw.category_id
-
-    return best_match
+    return _best_match(await _load_keywords(db, user_id), description)
 
 
 async def record_categorisation(

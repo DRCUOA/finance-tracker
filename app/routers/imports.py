@@ -205,6 +205,7 @@ async def confirm_import(
     return templates.TemplateResponse(request, "imports/done.html", {
         "user": user,
         "count": result.imported,
+        "categorised": result.categorised,
         "skipped": result.skipped,
         "skipped_descriptions": result.skipped_descriptions,
     })

@@ -13,6 +13,7 @@ from app.dates import parse_date_with_formats, parse_iso_date
 from app.models.statement import FileType, Statement, StatementLine, StatementStatus
 from app.models.transaction import Transaction
 from app.services import dedup
+from app.services.categoriser import build_suggester
 
 
 # CSV importer date formats: try the user-specified primary format first, then
@@ -25,6 +26,7 @@ CSV_FALLBACK_DATE_FORMATS = ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d", "%m-%d-%Y", "%d
 @dataclass
 class ImportResult:
     imported: int = 0
+    categorised: int = 0
     skipped: int = 0
     skipped_descriptions: list[str] = field(default_factory=list)
 
@@ -382,6 +384,10 @@ async def import_statement_lines(
     if stmt is None:
         return result
 
+    # Imported rows run the same matching rules as the Akahu feed and manual
+    # entry; without this, file-fed accounts would never auto-categorise.
+    suggest = await build_suggester(db, user_id)
+
     for lid in line_ids:
         line = await db.get(StatementLine, lid)
         if not line or line.statement_id != statement_id:
@@ -396,12 +402,14 @@ async def import_statement_lines(
             result.skipped_descriptions.append(line.description)
             continue
 
+        category_id = suggest(line.description)
         tx = Transaction(
             user_id=user_id, account_id=account_id,
             date=line.date, amount=line.amount,
             description=line.description,
             original_description=line.description,
             reference=line.reference,
+            category_id=category_id,
             content_hash=adm.content_hash,
             occurrence=adm.occurrence,
             dedup_override=adm.dedup_override,
@@ -410,6 +418,8 @@ async def import_statement_lines(
         await db.flush()
 
         result.imported += 1
+        if category_id is not None:
+            result.categorised += 1
 
     stmt.status = StatementStatus.IMPORTED
     await db.flush()
