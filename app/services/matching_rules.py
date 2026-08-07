@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, NamedTuple
 
-from sqlalchemy import func as sa_func, select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -44,49 +44,69 @@ async def list_rules(db: AsyncSession, user_id: uuid.UUID) -> list[dict[str, Any
     return rows
 
 
-def _uncategorised_matching_stmt(user_id: uuid.UUID, phrase: str):
-    """Uncategorised rows whose description contains phrase, as a SELECT.
+class PhraseMatch(NamedTuple):
+    """What a phrase would do to the ledger as it stands.
 
-    Substring-only: short phrases still need the word-boundary refinement the
-    categoriser applies, so callers pass the results through
-    ``_keyword_matches``.
+    ``total`` is every uncategorised row the categoriser matches; ``locked`` is
+    the subset a rule may not touch, because reconciliation pins them and their
+    category may only change through the explicit confirm-locked path.
+    Preview and apply both read these numbers, so what the preview promises is
+    by construction what saving the rule delivers.
     """
-    return select(Transaction).where(
-        Transaction.user_id == user_id,
-        Transaction.category_id.is_(None),
-        Transaction.description.ilike(f"%{phrase}%"),
-    )
+
+    rows: list[Transaction]
+    locked_ids: set[str]
+
+    @property
+    def total(self) -> int:
+        return len(self.rows)
+
+    @property
+    def locked(self) -> int:
+        return len(self.locked_ids)
+
+    @property
+    def changeable(self) -> int:
+        return self.total - self.locked
 
 
-async def count_uncategorized_matching(
+async def match_uncategorised(
     db: AsyncSession, user_id: uuid.UUID, phrase: str,
-) -> int:
-    """How many uncategorised transactions the categoriser would match.
+) -> PhraseMatch:
+    """Uncategorised rows matching phrase, flagging the ones a rule can't move.
 
-    Mirrors ``categoriser._keyword_matches``: phrases of four characters or
-    fewer only match on word boundaries, so the preview can't promise hits the
-    engine will refuse to make.
+    The ILIKE is a prefilter only: phrases of four characters or fewer are
+    refined through ``categoriser._keyword_matches`` so short phrases match on
+    word boundaries here exactly as they will in the engine.
     """
     phrase = phrase.strip().lower()
     if not phrase:
-        return 0
+        return PhraseMatch([], set())
 
-    if len(phrase) > _SHORT_KW_THRESHOLD:
-        stmt = select(sa_func.count()).select_from(Transaction).where(
+    result = await db.execute(
+        select(Transaction).where(
             Transaction.user_id == user_id,
             Transaction.category_id.is_(None),
             Transaction.description.ilike(f"%{phrase}%"),
         )
-        return (await db.execute(stmt)).scalar() or 0
+    )
+    rows = [
+        tx for tx in result.scalars().all()
+        if _keyword_matches(phrase, tx.description.lower())
+    ]
+    if not rows:
+        return PhraseMatch([], set())
 
-    result = await db.execute(
-        _uncategorised_matching_stmt(user_id, phrase).with_only_columns(
-            Transaction.description,
-        )
-    )
-    return sum(
-        1 for (desc,) in result.all() if _keyword_matches(phrase, desc.lower())
-    )
+    locked = await get_locked_tx_ids(db, [tx.id for tx in rows])
+    return PhraseMatch(rows, {str(tx.id) for tx in rows if str(tx.id) in locked})
+
+
+async def count_uncategorized_matching(
+    db: AsyncSession, user_id: uuid.UUID, phrase: str,
+) -> tuple[int, int]:
+    """Preview for the rules UI: (matching, of which reconciliation-locked)."""
+    match = await match_uncategorised(db, user_id, phrase)
+    return match.total, match.locked
 
 
 async def apply_rule_to_uncategorised(
@@ -95,40 +115,27 @@ async def apply_rule_to_uncategorised(
 ) -> tuple[int, int]:
     """Assign category_id to uncategorised transactions matching phrase.
 
-    Returns (applied, skipped_locked). Reconciliation-locked rows are left
-    alone — their category may only change through the explicit
-    confirm-locked path. Any category type is a valid target, matching what
-    the categoriser will do on the next import or sync.
+    Returns (applied, skipped_locked). Any category type is a valid target,
+    matching what the categoriser will do on the next import or sync.
 
     Only ever fills a blank category; an existing categorisation is never
     overwritten.
     """
-    phrase = phrase.strip().lower()
-    if not phrase:
-        return 0, 0
-
     cat = await db.get(Category, category_id)
     if not cat or cat.user_id != user_id:
         return 0, 0
 
-    result = await db.execute(_uncategorised_matching_stmt(user_id, phrase))
-    candidates = [
-        tx for tx in result.scalars().all()
-        if _keyword_matches(phrase, tx.description.lower())
-    ]
-    if not candidates:
+    match = await match_uncategorised(db, user_id, phrase)
+    if not match.rows:
         return 0, 0
 
-    locked = await get_locked_tx_ids(db, [tx.id for tx in candidates])
-    applied = 0
-    for tx in candidates:
-        if str(tx.id) in locked:
+    for tx in match.rows:
+        if str(tx.id) in match.locked_ids:
             continue
         tx.category_id = category_id
-        applied += 1
 
     await db.flush()
-    return applied, len(candidates) - applied
+    return match.changeable, match.locked
 
 
 async def keyword_health_report(

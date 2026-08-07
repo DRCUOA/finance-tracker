@@ -13,7 +13,7 @@ from app.dates import parse_date_with_formats, parse_iso_date
 from app.models.statement import FileType, Statement, StatementLine, StatementStatus
 from app.models.transaction import Transaction
 from app.services import dedup
-from app.services.categoriser import build_suggester
+from app.services.categoriser import build_suggester, record_match
 
 
 # CSV importer date formats: try the user-specified primary format first, then
@@ -402,7 +402,7 @@ async def import_statement_lines(
             result.skipped_descriptions.append(line.description)
             continue
 
-        category_id = suggest(line.description)
+        category_id = record_match(suggest(line.description))
         tx = Transaction(
             user_id=user_id, account_id=account_id,
             date=line.date, amount=line.amount,

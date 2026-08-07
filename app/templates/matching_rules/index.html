@@ -8,7 +8,8 @@
 {% endblock %}
 
 {% block content %}
-<div id="mr-page-root" class="space-y-6" x-data="matchingRulesPage()" x-init="initClickDelegation(); refreshPreview(); announceSaveResult()">
+<div id="mr-page-root" class="space-y-6" x-data="matchingRulesPage()" x-init="initClickDelegation(); adoptPhraseFromUrl(); refreshPreview(); announceSaveResult()"
+     @mr-set-phrase.window="usePhrase($event.detail.phrase)">
 
     <p class="text-sm text-gray-600 dark:text-gray-400 max-w-3xl">
         Rules match when a transaction <strong>description</strong> contains your phrase (case-insensitive), same as category keywords.
@@ -66,6 +67,9 @@
                     <p class="text-xs mt-1.5" :class="previewCount === 0 && keyword.trim() ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'">
                         <span x-show="previewCount !== null" x-cloak>
                             <span class="font-semibold tabular-nums" x-text="previewCount"></span> uncategorised transaction<span x-show="previewCount !== 1">s</span> would match.
+                        </span>
+                        <span x-show="previewLocked > 0" x-cloak class="text-amber-600 dark:text-amber-400">
+                            <span class="font-semibold tabular-nums" x-text="previewLocked"></span> of them <span x-text="previewLocked === 1 ? 'is' : 'are'"></span> reconciled and won't be changed.
                         </span>
                         <span x-show="previewCount === null && !keyword.trim()" class="text-gray-400">Enter a phrase to preview matches.</span>
                     </p>
@@ -189,6 +193,7 @@ document.addEventListener('alpine:init', () => {
         keyword: '',
         ruleFilter: '',
         previewCount: null,
+        previewLocked: 0,
         rules: {{ rules_json|tojson }},
         editingId: null,
         editDraft: '',
@@ -199,14 +204,25 @@ document.addEventListener('alpine:init', () => {
 
         announceSaveResult() {
             if (this.savedApplied === null) return;
-            const n = this.savedApplied;
-            let msg = n === 0
-                ? 'Rule saved — no existing uncategorised transactions matched.'
-                : 'Rule saved — ' + n + ' existing transaction' + (n === 1 ? '' : 's') + ' categorised.';
-            if (this.savedLocked > 0) {
-                msg += ' ' + this.savedLocked + ' reconciled row' + (this.savedLocked === 1 ? '' : 's') + ' left untouched.';
+            const n = this.savedApplied, locked = this.savedLocked;
+            const rows = (c) => c + ' transaction' + (c === 1 ? '' : 's');
+            let msg, type = 'success';
+            if (n > 0) {
+                msg = 'Rule saved — ' + rows(n) + ' categorised.';
+            } else if (locked > 0) {
+                // Every match was pinned by reconciliation. Saying "nothing
+                // matched" here is what made a working rule look broken.
+                msg = 'Rule saved, but it changed nothing:';
+                type = 'warning';
+            } else {
+                msg = 'Rule saved — no existing uncategorised transactions matched.';
             }
-            window.dispatchEvent(new CustomEvent('notify', { detail: { message: msg, type: 'success' } }));
+            if (locked > 0) {
+                msg += ' ' + rows(locked) + ' matched but ' + (locked === 1 ? 'is' : 'are')
+                     + ' reconciled, so ' + (locked === 1 ? 'its' : 'their')
+                     + ' category can only be changed one at a time.';
+            }
+            window.dispatchEvent(new CustomEvent('notify', { detail: { message: msg, type: type } }));
             window.history.replaceState({}, '', '/matching-rules');
         },
 
@@ -227,6 +243,12 @@ document.addEventListener('alpine:init', () => {
             document.getElementById('mr-unmatched-panel').addEventListener('click', (e) => {
                 const row = e.target.closest('tr[data-description]');
                 if (!row) return;
+                // A drag that selects part of the description ends in a click
+                // on the row. Taking the whole description there would both
+                // overwrite the narrower phrase the user just picked out and
+                // collapse the selection the text-tools popover needs.
+                const sel = window.getSelection();
+                if (sel && !sel.isCollapsed && (sel.toString() || '').trim()) return;
                 this.pickFromUnmatched(row.dataset.description);
             });
         },
@@ -245,21 +267,40 @@ document.addEventListener('alpine:init', () => {
             const phrase = (this.keyword || '').trim();
             if (!phrase) {
                 this.previewCount = null;
+                this.previewLocked = 0;
                 return;
             }
             try {
                 const r = await fetch('/matching-rules/api/preview-count?phrase=' + encodeURIComponent(phrase));
                 const j = await r.json();
                 this.previewCount = j.count;
+                this.previewLocked = j.locked || 0;
             } catch (e) {
                 this.previewCount = null;
+                this.previewLocked = 0;
             }
         },
 
         pickFromUnmatched(description) {
-            this.keyword = description;
+            this.usePhrase(description);
+        },
+
+        usePhrase(phrase) {
+            const t = (phrase || '').trim();
+            if (!t) return;
+            this.keyword = t;
             this.refreshPreview();
-            document.getElementById('mr-keyword')?.focus();
+            const field = document.getElementById('mr-keyword');
+            field?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            field?.focus();
+        },
+
+        // Arriving from the selection toolbar on another page: ?phrase=…
+        adoptPhraseFromUrl() {
+            const phrase = (new URLSearchParams(window.location.search).get('phrase') || '').trim();
+            if (!phrase) return;
+            this.keyword = phrase;
+            this.$nextTick(() => document.getElementById('mr-keyword')?.focus());
         },
 
         applyTemplate(kind) {

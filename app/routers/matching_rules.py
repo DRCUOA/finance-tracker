@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.user import User
 from app.routers.auth import require_user
 from app.schemas.matching_rules import KeywordUpdateBody
+from app.services import categoriser
 from app.services import categories as cat_svc
 from app.services import matching_rules as mr_svc
 from app.services import transactions as tx_svc
@@ -77,8 +78,8 @@ async def preview_count(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    n = await mr_svc.count_uncategorized_matching(db, user.id, phrase)
-    return JSONResponse({"count": n})
+    total, locked = await mr_svc.count_uncategorized_matching(db, user.id, phrase)
+    return JSONResponse({"count": total, "locked": locked})
 
 
 @router.post("/rules")
@@ -92,7 +93,8 @@ async def add_rule(
     if not keyword:
         return RedirectResponse(url="/matching-rules", status_code=302)
 
-    if await cat_svc.add_keyword(db, category_id, user.id, keyword) is None:
+    kw = await cat_svc.add_keyword(db, category_id, user.id, keyword)
+    if kw is None:
         return RedirectResponse(url="/matching-rules", status_code=302)
 
     # Saving a rule used to be inert until the next ingest; apply it to the
@@ -100,6 +102,7 @@ async def add_rule(
     applied, skipped_locked = await mr_svc.apply_rule_to_uncategorised(
         db, user.id, category_id, keyword,
     )
+    categoriser.record_match(kw, applied)
     return RedirectResponse(
         url=f"/matching-rules?applied={applied}&locked={skipped_locked}",
         status_code=302,
