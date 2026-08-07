@@ -15,6 +15,8 @@ Format: [Semantic Versioning](https://semver.org/) &mdash; `MAJOR.MINOR.PATCH`
 - Alembic migration 023: adds the enum value and backfills &mdash; retypes &ldquo;Non-Cash Adjustments&rdquo; trees and &ldquo;Mortgage Interest&rdquo; to `non_cash`, reparents the latter under the non-cash root, and recategorises all `source='interest'` transactions
 
 ### Fixed
+- Matching Rules preview no longer promises matches the rule can&rsquo;t deliver &mdash; it counted every uncategorised row, while saving skips reconciliation-locked ones, so a phrase could preview &ldquo;2 would match&rdquo; and change nothing. Preview and apply now read the same matcher, and the preview names the locked subset (&ldquo;2 would match. 2 of them are reconciled and won&rsquo;t be changed&rdquo;)
+- **Hits** counts automatic matches. `hit_count` only moved when a user confirmed a categorisation by hand, so rules quietly categorising every import read `0` &mdash; indistinguishable from a rule that never matched, and enough to get them flagged &ldquo;zero-hit stale&rdquo; by the keyword health report. Statement import, Akahu sync and rule backfill now each record the hit against the keyword that won. Existing rules count from here on; they aren&rsquo;t backfilled
 - Matching rules now run on CSV/OFX statement imports &mdash; previously only manual entry and the Akahu feed auto-categorised, so file-fed accounts never matched and rules looked broken for those accounts
 
 ### Changed

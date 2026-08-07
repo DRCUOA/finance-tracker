@@ -28,6 +28,7 @@ from app.models.category import Category, CategoryKeyword, CategoryType
 from app.models.statement import FileType, Statement, StatementLine, StatementStatus
 from app.models.transaction import Transaction
 from app.routers import matching_rules as mr_router
+from app.services import categoriser
 from app.services import dedup
 from app.services import import_service as import_svc
 from app.services import matching_rules as mr_svc
@@ -282,7 +283,7 @@ class TestPreviewCount:
         await _uncategorised_tx(db, user, unlinked_account, "COUNTDOWN ALBANY")
         await _uncategorised_tx(db, user, unlinked_account, "Hollywood Bakery")
 
-        assert await mr_svc.count_uncategorized_matching(db, user.id, "countdown") == 1
+        assert await mr_svc.count_uncategorized_matching(db, user.id, "countdown") == (1, 0)
 
     @pytest.mark.asyncio
     async def test_short_phrase_matches_the_engine(self, db, user, unlinked_account):
@@ -290,8 +291,109 @@ class TestPreviewCount:
         await _uncategorised_tx(db, user, unlinked_account, "Processed on: 4 July")
 
         # Substring counting would say 2; the engine only matches the standalone "on".
-        assert await mr_svc.count_uncategorized_matching(db, user.id, "on") == 1
+        assert await mr_svc.count_uncategorized_matching(db, user.id, "on") == (1, 0)
 
     @pytest.mark.asyncio
     async def test_blank_phrase_is_zero(self, db, user):
-        assert await mr_svc.count_uncategorized_matching(db, user.id, "  ") == 0
+        assert await mr_svc.count_uncategorized_matching(db, user.id, "  ") == (0, 0)
+
+    @pytest.mark.asyncio
+    async def test_reports_locked_rows_the_rule_cannot_move(self, db, user, unlinked_account):
+        """The preview promised rows the backfill then refused to touch."""
+        await _uncategorised_tx(db, user, unlinked_account, "Kmart Albany Auckland Nz")
+        await _uncategorised_tx(
+            db, user, unlinked_account, "Kmart Albany Auckland Nz 2", is_cleared=True,
+        )
+
+        total, locked = await mr_svc.count_uncategorized_matching(
+            db, user.id, "kmart albany",
+        )
+
+        assert (total, locked) == (2, 1)
+
+    @pytest.mark.asyncio
+    async def test_preview_agrees_with_what_saving_does(self, db, user, unlinked_account):
+        cat = await _category(db, user)
+        await _uncategorised_tx(db, user, unlinked_account, "Kmart Albany Auckland Nz")
+        await _uncategorised_tx(
+            db, user, unlinked_account, "Kmart Albany Auckland Nz 2", is_cleared=True,
+        )
+
+        total, locked = await mr_svc.count_uncategorized_matching(
+            db, user.id, "kmart albany",
+        )
+        applied, skipped = await mr_svc.apply_rule_to_uncategorised(
+            db, user.id, cat.id, "kmart albany",
+        )
+
+        assert (applied, skipped) == (total - locked, locked)
+
+
+class TestHitsCountAutomaticMatches:
+    """"Hits" read 0 for rules that were quietly categorising every import."""
+
+    @pytest.mark.asyncio
+    async def test_import_records_a_hit(self, db, user, unlinked_account):
+        cat = await _category(db, user)
+        kw = await _keyword(db, cat, "countdown")
+        stmt, lines = await _statement(
+            db, user, unlinked_account, ["COUNTDOWN ALBANY", "COUNTDOWN GLENFIELD"],
+        )
+
+        await import_svc.import_statement_lines(
+            db, user.id, stmt.id, [ln.id for ln in lines], unlinked_account.id,
+        )
+
+        assert kw.hit_count == 2
+
+    @pytest.mark.asyncio
+    async def test_only_the_winning_keyword_scores(self, db, user, unlinked_account):
+        cat = await _category(db, user)
+        broad = await _keyword(db, cat, "albany")
+        specific = await _keyword(db, cat, "countdown albany")
+        stmt, lines = await _statement(db, user, unlinked_account, ["COUNTDOWN ALBANY"])
+
+        await import_svc.import_statement_lines(
+            db, user.id, stmt.id, [ln.id for ln in lines], unlinked_account.id,
+        )
+
+        assert (specific.hit_count, broad.hit_count) == (1, 0)
+
+    @pytest.mark.asyncio
+    async def test_backfill_records_its_hits(self, db, user, unlinked_account):
+        cat = await _category(db, user)
+        await _uncategorised_tx(db, user, unlinked_account, "Kmart Albany Auckland Nz")
+        await _uncategorised_tx(db, user, unlinked_account, "Kmart Albany Glenfield")
+
+        await mr_router.add_rule(
+            category_id=cat.id, keyword="kmart albany", user=user, db=db,
+        )
+
+        kw = (await db.execute(select(CategoryKeyword))).scalars().one()
+        assert kw.hit_count == 2
+
+    @pytest.mark.asyncio
+    async def test_locked_rows_do_not_score(self, db, user, unlinked_account):
+        cat = await _category(db, user)
+        await _uncategorised_tx(
+            db, user, unlinked_account, "Kmart Albany Auckland Nz", is_cleared=True,
+        )
+
+        await mr_router.add_rule(
+            category_id=cat.id, keyword="kmart albany", user=user, db=db,
+        )
+
+        kw = (await db.execute(select(CategoryKeyword))).scalars().one()
+        assert kw.hit_count == 0
+
+    @pytest.mark.asyncio
+    async def test_review_screen_still_only_suggests(self, db, user, unlinked_account):
+        """Suggestions aren't matches — nothing is counted until it's applied."""
+        cat = await _category(db, user)
+        kw = await _keyword(db, cat, "countdown")
+        await _uncategorised_tx(db, user, unlinked_account, "COUNTDOWN ALBANY")
+
+        matches, _ = await categoriser.batch_suggest_categories(db, user.id)
+
+        assert len(matches) == 1
+        assert kw.hit_count == 0

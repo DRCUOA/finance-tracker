@@ -55,8 +55,12 @@ async def _load_keywords(
 
 def _best_match(
     keywords: Sequence[CategoryKeyword], description: str,
-) -> uuid.UUID | None:
-    """Highest-scoring keyword's category, or None. Longer keywords win ties."""
+) -> CategoryKeyword | None:
+    """Highest-scoring keyword, or None. Longer keywords win ties.
+
+    Returns the keyword itself rather than its category so callers can record
+    the hit against the rule that actually won — see ``record_match``.
+    """
     desc_lower = description.lower()
     best_match = None
     best_score = -1
@@ -65,17 +69,33 @@ def _best_match(
             score = len(kw.keyword) * 10 + kw.hit_count
             if score > best_score:
                 best_score = score
-                best_match = kw.category_id
+                best_match = kw
     return best_match
+
+
+def record_match(keyword: CategoryKeyword | None, times: int = 1) -> uuid.UUID | None:
+    """Count a keyword's automatic matches and return the category to file under.
+
+    Every path that lets a keyword categorise something goes through here, so
+    the Hits column means "transactions this rule has caught" rather than
+    "times someone confirmed it by hand" — which read as zero for rules that
+    were quietly working, and had the keyword health report recommending them
+    for deletion.
+    """
+    if keyword is None or times <= 0:
+        return None
+    keyword.hit_count += times
+    return keyword.category_id
 
 
 async def build_suggester(
     db: AsyncSession, user_id: uuid.UUID,
-) -> Callable[[str], uuid.UUID | None]:
+) -> Callable[[str], CategoryKeyword | None]:
     """Load keywords once, return a matcher to reuse across many descriptions.
 
-    Same semantics as ``suggest_category`` but without the per-description
-    query — use this on bulk paths (statement import, rule backfill).
+    Returns the matched keyword — pass it to ``record_match`` to count the hit
+    and get the category id. Use on bulk paths (statement import) to avoid a
+    query per description.
     """
     keywords = await _load_keywords(db, user_id)
     return lambda description: _best_match(keywords, description)
@@ -148,8 +168,19 @@ async def suggest_category(db: AsyncSession, user_id: uuid.UUID, description: st
     Every category type is matchable, transfer and non-cash included — see
     ``_load_keywords``. Short keywords (<=4 chars) require word-boundary
     matches to avoid false positives like "on" matching inside "loan".
+
+    Suggestion only — nothing is counted. Use ``suggest_and_record`` where the
+    result is actually written to a transaction.
     """
-    return _best_match(await _load_keywords(db, user_id), description)
+    kw = _best_match(await _load_keywords(db, user_id), description)
+    return kw.category_id if kw else None
+
+
+async def suggest_and_record(
+    db: AsyncSession, user_id: uuid.UUID, description: str,
+) -> uuid.UUID | None:
+    """``suggest_category``, counting the hit against the winning keyword."""
+    return record_match(_best_match(await _load_keywords(db, user_id), description))
 
 
 async def record_categorisation(

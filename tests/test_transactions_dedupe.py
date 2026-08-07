@@ -251,7 +251,7 @@ class TestFeedAdoption:
 
         monkeypatch.setattr(akahu_svc, "fetch_account_transactions", fake_fetch)
         monkeypatch.setattr(
-            akahu_svc, "suggest_category", AsyncMock(return_value=None),
+            akahu_svc, "suggest_and_record", AsyncMock(return_value=None),
         )
 
         result = await akahu_svc.sync_account_transactions(

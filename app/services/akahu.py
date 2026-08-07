@@ -23,7 +23,7 @@ from app.dates import parse_iso_datetime_or_none
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.services import dedup
-from app.services.categoriser import suggest_category
+from app.services.categoriser import suggest_and_record
 
 log = logging.getLogger(__name__)
 
@@ -508,7 +508,7 @@ async def sync_account_transactions(
                         adopt.akahu_account_id = parsed["akahu_account_id"]
                         outcome = "updated"
                     else:
-                        category_id = await suggest_category(db, user_id, parsed["description"])
+                        category_id = await suggest_and_record(db, user_id, parsed["description"])
                         db.add(Transaction(**parsed, category_id=category_id))
                         outcome = "inserted"
                 else:
@@ -690,7 +690,7 @@ async def sync_account_pending_transactions(
             )).scalar_one_or_none()
 
             if existing is None:
-                category_id = await suggest_category(db, user_id, parsed["description"])
+                category_id = await suggest_and_record(db, user_id, parsed["description"])
                 db.add(Transaction(**parsed, category_id=category_id))
                 result["inserted"] += 1
             else:
