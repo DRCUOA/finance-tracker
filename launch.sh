@@ -11,6 +11,29 @@ fail()  { printf "  ${RED}✖${NC}  %s\n" "$*"; }
 info()  { printf "  ${CYAN}→${NC}  %s\n" "$*"; }
 header(){ printf "\n${BOLD}%s${NC}\n" "$*"; }
 
+# Run a command with a hard timeout; returns 124 on timeout, like GNU timeout(1).
+# macOS ships no timeout(1), so we use a watchdog. Needed because a wedged Docker
+# daemon holds its socket open — the CLI connects and then blocks forever rather
+# than erroring, which hangs the whole pre-flight.
+with_timeout() {
+    local secs="$1"; shift
+    "$@" &
+    local cmd_pid=$!
+    # stdout/stderr MUST be redirected: the watchdog would otherwise inherit the
+    # caller's command-substitution pipe and hold it open for the full timeout,
+    # making even fast successes block for $secs.
+    ( sleep "$secs"; kill -9 "$cmd_pid" 2>/dev/null ) >/dev/null 2>&1 &
+    local watch_pid=$!
+    local rc=0
+    wait "$cmd_pid" 2>/dev/null || rc=$?
+    # Kill the watchdog and its sleep child so nothing lingers.
+    pkill -P "$watch_pid" 2>/dev/null || true
+    kill "$watch_pid" 2>/dev/null || true
+    wait "$watch_pid" 2>/dev/null || true
+    [[ $rc -eq 137 ]] && return 124   # SIGKILL from the watchdog
+    return "$rc"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
@@ -91,9 +114,20 @@ if ! command -v docker &>/dev/null; then
     exit 1
 fi
 
-if docker info &>/dev/null; then
-    DOCKER_VER=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "unknown")
+# Query the *server* version: unlike `docker info`, this fails cleanly when the
+# daemon is absent, and the timeout catches the wedged-daemon case.
+DOCKER_TIMEOUT="${DOCKER_TIMEOUT:-8}"
+DOCKER_RC=0
+DOCKER_VER=$(with_timeout "$DOCKER_TIMEOUT" docker version --format '{{.Server.Version}}' 2>/dev/null) || DOCKER_RC=$?
+
+if [[ $DOCKER_RC -eq 0 && -n "$DOCKER_VER" ]]; then
     pass "Docker engine running (v$DOCKER_VER)"
+elif [[ $DOCKER_RC -eq 124 ]]; then
+    fail "Docker engine did not respond within ${DOCKER_TIMEOUT}s"
+    info "The daemon is wedged, not stopped — its socket accepts connections but never replies."
+    info "Restart Docker Desktop:"
+    info "  osascript -e 'quit app \"Docker\"'; sleep 3; pkill -f com.docker.backend; open -a Docker"
+    exit 1
 else
     fail "Docker engine is not running — start Docker Desktop first"
     exit 1
