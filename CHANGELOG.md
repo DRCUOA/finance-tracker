@@ -14,8 +14,14 @@ Format: [Semantic Versioning](https://semver.org/) &mdash; `MAJOR.MINOR.PATCH`
 - Default category seed includes a &ldquo;Non-Cash&rdquo; root with &ldquo;Interest&rdquo; child
 - Alembic migration 023: adds the enum value and backfills &mdash; retypes &ldquo;Non-Cash Adjustments&rdquo; trees and &ldquo;Mortgage Interest&rdquo; to `non_cash`, reparents the latter under the non-cash root, and recategorises all `source='interest'` transactions
 
+### Fixed
+- Matching rules now run on CSV/OFX statement imports &mdash; previously only manual entry and the Akahu feed auto-categorised, so file-fed accounts never matched and rules looked broken for those accounts
+
 ### Changed
-- Auto-categoriser now excludes transfer and non-cash categories from keyword matching at the query level (previously transfer exclusion was documented but unenforced)
+- Saving a matching rule applies it immediately to existing uncategorised transactions (reconciliation-locked rows are left untouched and reported), instead of only affecting future ingests
+- Matching Rules preview count applies the engine&rsquo;s word-boundary rule for phrases of four characters or fewer, so the preview no longer over-promises
+- Import summary reports how many rows the rules categorised, linking to the review screen for the rest
+- Auto-categoriser matches every category type, transfer and non-cash included &mdash; a statement line reading &ldquo;Online Payment &ndash; Thank You&rdquo; is a transfer, and refusing to match it only left it uncategorised, in the spending pulse&rsquo;s uncategorised bucket. Cash-basis reports still exclude these rows, by category type, however they were categorised
 - Migration 007 skips cleanly on databases where its target user does not exist (fresh installs previously crashed mid-chain)
 
 ---

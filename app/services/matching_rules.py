@@ -8,7 +8,8 @@ from sqlalchemy.orm import aliased
 
 from app.models.category import Category, CategoryKeyword
 from app.models.transaction import Transaction
-from app.services.categoriser import _SHORT_KW_THRESHOLD
+from app.services.categoriser import _SHORT_KW_THRESHOLD, _keyword_matches
+from app.services.transactions import get_locked_tx_ids
 
 KNOWN_LOCATION_WORDS = frozenset({
     "albany", "wellington", "auckland", "christchurch", "hamilton",
@@ -43,20 +44,91 @@ async def list_rules(db: AsyncSession, user_id: uuid.UUID) -> list[dict[str, Any
     return rows
 
 
+def _uncategorised_matching_stmt(user_id: uuid.UUID, phrase: str):
+    """Uncategorised rows whose description contains phrase, as a SELECT.
+
+    Substring-only: short phrases still need the word-boundary refinement the
+    categoriser applies, so callers pass the results through
+    ``_keyword_matches``.
+    """
+    return select(Transaction).where(
+        Transaction.user_id == user_id,
+        Transaction.category_id.is_(None),
+        Transaction.description.ilike(f"%{phrase}%"),
+    )
+
+
 async def count_uncategorized_matching(
     db: AsyncSession, user_id: uuid.UUID, phrase: str,
 ) -> int:
-    """How many uncategorised transactions contain phrase (case-insensitive)."""
-    phrase = phrase.strip()
+    """How many uncategorised transactions the categoriser would match.
+
+    Mirrors ``categoriser._keyword_matches``: phrases of four characters or
+    fewer only match on word boundaries, so the preview can't promise hits the
+    engine will refuse to make.
+    """
+    phrase = phrase.strip().lower()
     if not phrase:
         return 0
-    pattern = f"%{phrase}%"
-    stmt = select(sa_func.count()).select_from(Transaction).where(
-        Transaction.user_id == user_id,
-        Transaction.category_id.is_(None),
-        Transaction.description.ilike(pattern),
+
+    if len(phrase) > _SHORT_KW_THRESHOLD:
+        stmt = select(sa_func.count()).select_from(Transaction).where(
+            Transaction.user_id == user_id,
+            Transaction.category_id.is_(None),
+            Transaction.description.ilike(f"%{phrase}%"),
+        )
+        return (await db.execute(stmt)).scalar() or 0
+
+    result = await db.execute(
+        _uncategorised_matching_stmt(user_id, phrase).with_only_columns(
+            Transaction.description,
+        )
     )
-    return (await db.execute(stmt)).scalar() or 0
+    return sum(
+        1 for (desc,) in result.all() if _keyword_matches(phrase, desc.lower())
+    )
+
+
+async def apply_rule_to_uncategorised(
+    db: AsyncSession, user_id: uuid.UUID,
+    category_id: uuid.UUID, phrase: str,
+) -> tuple[int, int]:
+    """Assign category_id to uncategorised transactions matching phrase.
+
+    Returns (applied, skipped_locked). Reconciliation-locked rows are left
+    alone — their category may only change through the explicit
+    confirm-locked path. Any category type is a valid target, matching what
+    the categoriser will do on the next import or sync.
+
+    Only ever fills a blank category; an existing categorisation is never
+    overwritten.
+    """
+    phrase = phrase.strip().lower()
+    if not phrase:
+        return 0, 0
+
+    cat = await db.get(Category, category_id)
+    if not cat or cat.user_id != user_id:
+        return 0, 0
+
+    result = await db.execute(_uncategorised_matching_stmt(user_id, phrase))
+    candidates = [
+        tx for tx in result.scalars().all()
+        if _keyword_matches(phrase, tx.description.lower())
+    ]
+    if not candidates:
+        return 0, 0
+
+    locked = await get_locked_tx_ids(db, [tx.id for tx in candidates])
+    applied = 0
+    for tx in candidates:
+        if str(tx.id) in locked:
+            continue
+        tx.category_id = category_id
+        applied += 1
+
+    await db.flush()
+    return applied, len(candidates) - applied
 
 
 async def keyword_health_report(
