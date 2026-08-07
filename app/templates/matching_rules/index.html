@@ -8,7 +8,8 @@
 {% endblock %}
 
 {% block content %}
-<div id="mr-page-root" class="space-y-6" x-data="matchingRulesPage()" x-init="initClickDelegation(); refreshPreview(); announceSaveResult()">
+<div id="mr-page-root" class="space-y-6" x-data="matchingRulesPage()" x-init="initClickDelegation(); adoptPhraseFromUrl(); refreshPreview(); announceSaveResult()"
+     @mr-set-phrase.window="usePhrase($event.detail.phrase)">
 
     <p class="text-sm text-gray-600 dark:text-gray-400 max-w-3xl">
         Rules match when a transaction <strong>description</strong> contains your phrase (case-insensitive), same as category keywords.
@@ -227,6 +228,12 @@ document.addEventListener('alpine:init', () => {
             document.getElementById('mr-unmatched-panel').addEventListener('click', (e) => {
                 const row = e.target.closest('tr[data-description]');
                 if (!row) return;
+                // A drag that selects part of the description ends in a click
+                // on the row. Taking the whole description there would both
+                // overwrite the narrower phrase the user just picked out and
+                // collapse the selection the text-tools popover needs.
+                const sel = window.getSelection();
+                if (sel && !sel.isCollapsed && (sel.toString() || '').trim()) return;
                 this.pickFromUnmatched(row.dataset.description);
             });
         },
@@ -257,9 +264,25 @@ document.addEventListener('alpine:init', () => {
         },
 
         pickFromUnmatched(description) {
-            this.keyword = description;
+            this.usePhrase(description);
+        },
+
+        usePhrase(phrase) {
+            const t = (phrase || '').trim();
+            if (!t) return;
+            this.keyword = t;
             this.refreshPreview();
-            document.getElementById('mr-keyword')?.focus();
+            const field = document.getElementById('mr-keyword');
+            field?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            field?.focus();
+        },
+
+        // Arriving from the selection toolbar on another page: ?phrase=…
+        adoptPhraseFromUrl() {
+            const phrase = (new URLSearchParams(window.location.search).get('phrase') || '').trim();
+            if (!phrase) return;
+            this.keyword = phrase;
+            this.$nextTick(() => document.getElementById('mr-keyword')?.focus());
         },
 
         applyTemplate(kind) {
