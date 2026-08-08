@@ -55,13 +55,26 @@
                         </span>
                     </div>
                     <div id="dailyFilterList" class="max-h-72 overflow-y-auto py-1"></div>
-                    <label class="flex items-start gap-2 px-3 py-2 border-t border-gray-100 dark:border-gray-700 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/60">
-                        <input type="checkbox" id="dailyLockAxis" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
-                        <span>
-                            <span class="text-gray-700 dark:text-gray-200">Lock y-axis to busiest day</span>
-                            <span class="block text-[11px] text-gray-400 dark:text-gray-500">Hold the scale at <span id="dailyLockPeak"></span> (all categories) so bar heights stay comparable as you filter.</span>
-                        </span>
-                    </label>
+                    <div class="border-t border-gray-100 dark:border-gray-700">
+                        <label id="dailyLockRow" class="flex items-start gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/60">
+                            <input type="checkbox" id="dailyLockAxis" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                            <span>
+                                <span class="text-gray-700 dark:text-gray-200">Lock y-axis to busiest day</span>
+                                <span class="block text-[11px] text-gray-400 dark:text-gray-500">Hold the scale at <span id="dailyLockPeak"></span> (all categories) so bar heights stay comparable as you filter.</span>
+                            </span>
+                        </label>
+                        <div class="px-3 pb-2.5">
+                            <label for="dailyAxisCustom" class="block text-xs text-gray-700 dark:text-gray-200 mb-1">Or anchor the top of the scale at</label>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-xs text-gray-400 dark:text-gray-500">$</span>
+                                <input type="number" id="dailyAxisCustom" min="0" step="any" inputmode="decimal" placeholder="e.g. 2000"
+                                       class="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs px-2 py-1 focus:border-brand-500 focus:ring-brand-500">
+                                <button type="button" id="dailyAxisCustomClear"
+                                        class="px-1.5 py-1 text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:underline">Clear</button>
+                            </div>
+                            <p id="dailyAxisCustomHint" class="text-[11px] text-gray-400 dark:text-gray-500 mt-1">Takes precedence over the lock above.</p>
+                        </div>
+                    </div>
                     <p class="px-3 py-2 border-t border-gray-100 dark:border-gray-700 text-[11px] text-gray-400 dark:text-gray-500">
                         The budget line follows your selection — it sums only the budgets of the categories shown.
                     </p>
@@ -375,6 +388,7 @@ requestAnimationFrame(function() {
 
         const selected = new Set(names);
         let lockAxis = false;
+        let customMax = null;   // user-entered anchor; wins over lockAxis
 
         // Highest single-day total outflow with every category counted. Locking
         // the axis here keeps the scale fixed while categories are ticked in and
@@ -412,11 +426,16 @@ requestAnimationFrame(function() {
             Chart.defaults.borderColor = isDark ? 'rgba(75, 85, 99, 0.5)' : 'rgba(0, 0, 0, 0.1)';
 
             const spentSoFar = rows.slice(0, daysElapsed).map(d => d.amount);
-            // Locked: hold the full-data peak, and skip the axis break — the
-            // break exists to rescue a squashed axis, which is the very thing
-            // a locked axis is choosing to show.
-            const axisBreak = lockAxis ? null : computeAxisBreak(spentSoFar, [dailyRate]);
-            const yMax = lockAxis ? Math.max(fullDayPeak, dailyRate) : undefined;
+            // A custom anchor is taken literally — including below the tallest
+            // bar, which is a legitimate way to zoom into the low end — so it
+            // is NOT widened to fit the data the way the lock is.
+            const anchor = customMax != null
+                ? customMax
+                : (lockAxis ? Math.max(fullDayPeak, dailyRate) : null);
+            // Anchored: skip the axis break. The break exists to rescue a
+            // squashed axis, which is the very thing a fixed scale is choosing.
+            const axisBreak = anchor != null ? null : computeAxisBreak(spentSoFar, [dailyRate]);
+            const yMax = anchor != null ? anchor : undefined;
 
             // Destroy by canvas, not just our own handle: an HTMX period swap
             // re-runs this script with a fresh closure, and Chart.js refuses a
@@ -530,12 +549,25 @@ requestAnimationFrame(function() {
             const hidden = names.length - selected.size;
             const badge = document.getElementById('dailyFilterBadge');
             if (badge) badge.textContent = hidden === 0 ? 'All' : (selected.size + '/' + names.length);
+
+            // A custom anchor below the tallest bar cuts that bar off at the
+            // top. Say so — a clipped bar reads as "that day hit the ceiling"
+            // rather than "that day is off the scale by $46,000".
+            const clipped = anchor != null ? rows.filter(d => d.amount > anchor).length : 0;
+            const msgs = [];
+            if (hidden > 0) {
+                msgs.push(hidden + ' categor' + (hidden === 1 ? 'y is' : 'ies are') +
+                    ' hidden — this chart is not your full spend for the period.');
+            }
+            if (clipped > 0) {
+                msgs.push(clipped + ' day' + (clipped === 1 ? '' : 's') +
+                    ' exceed' + (clipped === 1 ? 's' : '') + ' the ' + fmt(anchor) +
+                    ' anchor and ' + (clipped === 1 ? 'is' : 'are') + ' clipped.');
+            }
             const note = document.getElementById('dailyFilterNote');
             if (note) {
-                note.classList.toggle('hidden', hidden === 0);
-                note.textContent = hidden === 0 ? '' :
-                    hidden + ' categor' + (hidden === 1 ? 'y is' : 'ies are') +
-                    ' hidden — this chart is not your full spend for the period.';
+                note.classList.toggle('hidden', msgs.length === 0);
+                note.textContent = msgs.join(' ');
             }
         }
 
@@ -576,13 +608,49 @@ requestAnimationFrame(function() {
         }
 
         const lockEl = document.getElementById('dailyLockAxis');
+        const lockRowEl = document.getElementById('dailyLockRow');
         const lockPeakEl = document.getElementById('dailyLockPeak');
+        const customEl = document.getElementById('dailyAxisCustom');
+        const customHintEl = document.getElementById('dailyAxisCustomHint');
+
         if (lockPeakEl) lockPeakEl.textContent = fmt(fullDayPeak);
+
+        // The lock stays ticked but is visibly inert while a custom anchor is
+        // set, so the popover never shows two contradictory scales as active.
+        function syncAxisControls() {
+            const overridden = customMax != null;
+            if (lockEl) lockEl.disabled = overridden;
+            if (lockRowEl) lockRowEl.classList.toggle('opacity-40', overridden);
+            if (customHintEl) {
+                customHintEl.textContent = overridden
+                    ? 'Anchored at ' + fmt(customMax) + ' — overriding the lock above.'
+                    : 'Takes precedence over the lock above.';
+            }
+        }
+
         if (lockEl) lockEl.addEventListener('change', e => {
             lockAxis = e.target.checked;
             render();
         });
 
+        if (customEl) customEl.addEventListener('input', () => {
+            const raw = customEl.value.trim();
+            const n = raw === '' ? NaN : Number(raw);
+            // Blank, non-numeric or non-positive all mean "no custom anchor"
+            // rather than an axis of zero height.
+            customMax = Number.isFinite(n) && n > 0 ? n : null;
+            syncAxisControls();
+            render();
+        });
+
+        document.getElementById('dailyAxisCustomClear')?.addEventListener('click', () => {
+            if (customEl) customEl.value = '';
+            customMax = null;
+            syncAxisControls();
+            render();
+        });
+
+        syncAxisControls();
         render();
     }
 });
