@@ -23,14 +23,51 @@
 <!-- ═══════════════════════════════════════════════════════════ -->
 <!-- DAILY TIMELINE                                              -->
 <!-- ═══════════════════════════════════════════════════════════ -->
-<div x-data="{ open: true }" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
+<div x-data="{ open: true, filterOpen: false }" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
     <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Daily Allowance Used</h3>
         <div class="flex items-center gap-3">
             <div x-show="open" x-transition.opacity class="flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
-                <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-2 border-dashed" style="border-color:#6366f1"></span>Budget: {{ p.budget_daily_rate|nzd }}/day</span>
-                <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-2" style="border-color:rgba(217,119,6,0.7)"></span>Avg to date: {{ (p.total_actual / p.days_elapsed)|round(2)|nzd }}/day</span>
+                <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-2 border-dashed" style="border-color:#6366f1"></span>Budget: <span id="dailyBudgetLegend">{{ p.budget_daily_rate|nzd }}</span>/day</span>
+                <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-2" style="border-color:rgba(217,119,6,0.7)"></span>Avg to date: <span id="dailyAvgLegend">—</span>/day</span>
             </div>
+
+            <!-- Category filter: which categories the bars, tooltips, average
+                 and budget line are built from. Everything below is recomputed
+                 in the browser from the per-day category breakdown already in
+                 the payload, so toggling costs no round trip. -->
+            <div x-show="open" x-transition.opacity class="relative" @keydown.escape.window="filterOpen = false">
+                <button type="button" @click="filterOpen = !filterOpen"
+                        class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        :aria-expanded="filterOpen">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                    Categories
+                    <span id="dailyFilterBadge" class="tabular-nums text-gray-400 dark:text-gray-500">All</span>
+                </button>
+                <div x-show="filterOpen" x-cloak x-transition @click.outside="filterOpen = false"
+                     class="absolute right-0 mt-2 w-72 z-30 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
+                    <div class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+                        <span class="text-xs font-semibold text-gray-700 dark:text-gray-200">Include in chart</span>
+                        <span class="flex items-center gap-2">
+                            <button type="button" id="dailyFilterAll" class="text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:underline">All</button>
+                            <span class="text-gray-300 dark:text-gray-600">|</span>
+                            <button type="button" id="dailyFilterNone" class="text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:underline">None</button>
+                        </span>
+                    </div>
+                    <div id="dailyFilterList" class="max-h-72 overflow-y-auto py-1"></div>
+                    <label class="flex items-start gap-2 px-3 py-2 border-t border-gray-100 dark:border-gray-700 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/60">
+                        <input type="checkbox" id="dailyLockAxis" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                        <span>
+                            <span class="text-gray-700 dark:text-gray-200">Lock y-axis to busiest day</span>
+                            <span class="block text-[11px] text-gray-400 dark:text-gray-500">Hold the scale at <span id="dailyLockPeak"></span> (all categories) so bar heights stay comparable as you filter.</span>
+                        </span>
+                    </label>
+                    <p class="px-3 py-2 border-t border-gray-100 dark:border-gray-700 text-[11px] text-gray-400 dark:text-gray-500">
+                        The budget line follows your selection — it sums only the budgets of the categories shown.
+                    </p>
+                </div>
+            </div>
+
             <button @click="open = !open" type="button"
                     class="flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     :title="open ? 'Collapse' : 'Expand'" :aria-expanded="open">
@@ -42,6 +79,7 @@
     </div>
     <div x-show="open" x-transition>
         <canvas id="dailyChart" height="160"></canvas>
+        <p id="dailyFilterNote" class="hidden mt-2 text-[11px] text-amber-600 dark:text-amber-400"></p>
     </div>
 </div>
 
@@ -307,43 +345,100 @@ requestAnimationFrame(function() {
     };
 
     const dailyData = {{ p.daily_spending | tojson }};
-    const dailyRate = {{ p.budget_daily_rate }};
+    const fullDailyRate = {{ p.budget_daily_rate }};
     const daysElapsed = {{ p.days_elapsed }};
+    const daysTotal = {{ p.days_total }};
+    const catRows = {{ p.categories | tojson }};
     const dailyCanvas = document.getElementById('dailyChart');
 
     if (dailyCanvas && dailyData.length > 0) {
-        const existing = Chart.getChart(dailyCanvas);
-        if (existing) existing.destroy();
+        const round2 = v => Math.round(v * 100) / 100;
 
-        let runningSum = 0;
-        const rollingAvg = dailyData.map((d, i) => {
-            if (i >= daysElapsed) return null;
-            runningSum += d.amount;
-            return runningSum / (i + 1);
-        });
+        /* ── Category filter ──────────────────────────────────────────────
+           Selectable set = every category with spend in this period, plus
+           every budgeted category (they carry no bars but do hold up the
+           budget line, so hiding them from the list would make that line
+           impossible to account for). With everything ticked the chart is
+           identical to the unfiltered one. */
+        const budgetByName = new Map();
+        catRows.forEach(c => budgetByName.set(c.category_name, (budgetByName.get(c.category_name) || 0) + (c.budgeted || 0)));
 
-        Chart.defaults.color = isDark ? '#9ca3af' : '#666';
-        Chart.defaults.borderColor = isDark ? 'rgba(75, 85, 99, 0.5)' : 'rgba(0, 0, 0, 0.1)';
+        const spendByName = new Map();
+        dailyData.forEach(d => (d.categories || []).forEach(c => {
+            spendByName.set(c.name, (spendByName.get(c.name) || 0) + c.amount);
+        }));
 
-        const spentSoFar = dailyData.slice(0, daysElapsed).map(d => d.amount);
-        const axisBreak = computeAxisBreak(spentSoFar, [dailyRate]);
+        const names = [...new Set([
+            ...spendByName.keys(),
+            ...catRows.filter(c => (c.budgeted || 0) > 0).map(c => c.category_name),
+        ])].sort((a, b) => (spendByName.get(a) || 0) - (spendByName.get(b) || 0));
 
-        new Chart(dailyCanvas, {
+        const selected = new Set(names);
+        let lockAxis = false;
+
+        // Highest single-day total outflow with every category counted. Locking
+        // the axis here keeps the scale fixed while categories are ticked in and
+        // out, so bar heights stay comparable between selections instead of
+        // being rescaled to whatever is left.
+        const fullDayPeak = Math.max(0, ...dailyData.map(d => d.amount || 0));
+
+        function dayFor(d) {
+            const cats = (d.categories || []).filter(c => selected.has(c.name));
+            const net = round2(cats.reduce((s, c) => s + c.amount, 0));
+            return { label: d.label, date: d.date, categories: cats, day_net: net, amount: round2(Math.max(0, -net)) };
+        }
+
+        function selectedDailyRate() {
+            if (selected.size === names.length) return fullDailyRate;
+            let sum = 0;
+            selected.forEach(n => { sum += budgetByName.get(n) || 0; });
+            return round2(sum / Math.max(daysTotal, 1));
+        }
+
+        let chart = null;
+
+        function render() {
+            const rows = dailyData.map(dayFor);
+            const dailyRate = selectedDailyRate();
+
+            let runningSum = 0;
+            const rollingAvg = rows.map((d, i) => {
+                if (i >= daysElapsed) return null;
+                runningSum += d.amount;
+                return runningSum / (i + 1);
+            });
+
+            Chart.defaults.color = isDark ? '#9ca3af' : '#666';
+            Chart.defaults.borderColor = isDark ? 'rgba(75, 85, 99, 0.5)' : 'rgba(0, 0, 0, 0.1)';
+
+            const spentSoFar = rows.slice(0, daysElapsed).map(d => d.amount);
+            // Locked: hold the full-data peak, and skip the axis break — the
+            // break exists to rescue a squashed axis, which is the very thing
+            // a locked axis is choosing to show.
+            const axisBreak = lockAxis ? null : computeAxisBreak(spentSoFar, [dailyRate]);
+            const yMax = lockAxis ? Math.max(fullDayPeak, dailyRate) : undefined;
+
+            // Destroy by canvas, not just our own handle: an HTMX period swap
+            // re-runs this script with a fresh closure, and Chart.js refuses a
+            // canvas that still has a live chart attached.
+            const attached = Chart.getChart(dailyCanvas);
+            if (attached) attached.destroy();
+            chart = new Chart(dailyCanvas, {
             type: 'bar',
             plugins: [axisBreakMarker],
             data: {
-                labels: dailyData.map(d => d.label),
+                labels: rows.map(d => d.label),
                 datasets: [
                     {
                         label: 'Spent',
-                        data: dailyData.map(d => d.amount),
-                        backgroundColor: dailyData.map((d, i) => {
+                        data: rows.map(d => d.amount),
+                        backgroundColor: rows.map((d, i) => {
                             if (i >= daysElapsed) return isDark ? 'rgba(75,85,99,0.2)' : 'rgba(229,231,235,0.6)';
                             return d.amount > dailyRate
                                 ? 'rgba(239,68,68,0.35)'
                                 : 'rgba(16,185,129,0.35)';
                         }),
-                        borderColor: dailyData.map((d, i) => {
+                        borderColor: rows.map((d, i) => {
                             if (i >= daysElapsed) return isDark ? 'rgba(75,85,99,0.4)' : 'rgba(209,213,219,0.8)';
                             return d.amount > dailyRate ? 'rgb(239,68,68)' : 'rgb(16,185,129)';
                         }),
@@ -352,7 +447,7 @@ requestAnimationFrame(function() {
                     },
                     {
                         label: 'Daily Budget',
-                        data: dailyData.map(() => dailyRate),
+                        data: rows.map(() => dailyRate),
                         type: 'line',
                         borderColor: '#6366f1',
                         borderWidth: 2,
@@ -374,11 +469,12 @@ requestAnimationFrame(function() {
             },
             options: {
                 responsive: true,
+                animation: false,
                 scales: {
                     x: { grid: { display: false } },
                     y: axisBreak
                         ? { type: 'brokenLinear', break: axisBreak, beginAtZero: true, ticks: { callback: fmt } }
-                        : { beginAtZero: true, ticks: { callback: fmt } },
+                        : { beginAtZero: true, max: yMax, ticks: { callback: fmt } },
                 },
                 plugins: {
                     legend: { display: false },
@@ -386,7 +482,7 @@ requestAnimationFrame(function() {
                         callbacks: {
                             title: ctx => {
                                 const pt = ctx[0];
-                                const d = dailyData[pt.dataIndex];
+                                const d = rows[pt.dataIndex];
                                 return d ? d.label + ' — ' + fdate(d.date) : pt.label;
                             },
                             label: ctx => {
@@ -397,7 +493,7 @@ requestAnimationFrame(function() {
                             afterBody: ctx => {
                                 const pt = ctx[0];
                                 if (pt.datasetIndex !== 0) return '';
-                                const d = dailyData[pt.dataIndex];
+                                const d = rows[pt.dataIndex];
                                 if (!d || !d.categories || d.categories.length === 0) return '';
                                 const lines = d.categories.map(c => {
                                     const v = c.amount;
@@ -421,7 +517,73 @@ requestAnimationFrame(function() {
                     },
                 },
             }
+            });
+
+            // Header legend tracks the chart, so the numbers can't disagree
+            // with the lines they label.
+            const elapsed = rows.slice(0, daysElapsed).reduce((s, d) => s + d.amount, 0);
+            const budgetEl = document.getElementById('dailyBudgetLegend');
+            const avgEl = document.getElementById('dailyAvgLegend');
+            if (budgetEl) budgetEl.textContent = fmt(dailyRate);
+            if (avgEl) avgEl.textContent = fmt(daysElapsed > 0 ? elapsed / daysElapsed : 0);
+
+            const hidden = names.length - selected.size;
+            const badge = document.getElementById('dailyFilterBadge');
+            if (badge) badge.textContent = hidden === 0 ? 'All' : (selected.size + '/' + names.length);
+            const note = document.getElementById('dailyFilterNote');
+            if (note) {
+                note.classList.toggle('hidden', hidden === 0);
+                note.textContent = hidden === 0 ? '' :
+                    hidden + ' categor' + (hidden === 1 ? 'y is' : 'ies are') +
+                    ' hidden — this chart is not your full spend for the period.';
+            }
+        }
+
+        const list = document.getElementById('dailyFilterList');
+        if (list) {
+            list.innerHTML = '';
+            names.forEach(name => {
+                // Signed net, not max(0, …): a category whose refunds outweigh
+                // its spend reads as a credit here rather than a flat $0.00.
+                const net = spendByName.get(name) || 0;
+                const row = document.createElement('label');
+                row.className = 'flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/60';
+                row.innerHTML =
+                    '<input type="checkbox" checked class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">' +
+                    '<span class="flex-1 truncate text-gray-700 dark:text-gray-200"></span>' +
+                    '<span class="tabular-nums"></span>';
+                row.querySelector('span').textContent = name;
+                const amtEl = row.querySelectorAll('span')[1];
+                amtEl.textContent = net > 0 ? '+' + fmt(net) : fmt(-net || 0);
+                amtEl.className = 'tabular-nums ' + (net > 0
+                    ? 'text-positive-600 dark:text-positive-400'
+                    : 'text-gray-400 dark:text-gray-500');
+                row.querySelector('input').addEventListener('change', e => {
+                    if (e.target.checked) selected.add(name); else selected.delete(name);
+                    render();
+                });
+                list.appendChild(row);
+            });
+            const setAll = on => {
+                list.querySelectorAll('input').forEach((cb, i) => {
+                    cb.checked = on;
+                    if (on) selected.add(names[i]); else selected.delete(names[i]);
+                });
+                render();
+            };
+            document.getElementById('dailyFilterAll')?.addEventListener('click', () => setAll(true));
+            document.getElementById('dailyFilterNone')?.addEventListener('click', () => setAll(false));
+        }
+
+        const lockEl = document.getElementById('dailyLockAxis');
+        const lockPeakEl = document.getElementById('dailyLockPeak');
+        if (lockPeakEl) lockPeakEl.textContent = fmt(fullDayPeak);
+        if (lockEl) lockEl.addEventListener('change', e => {
+            lockAxis = e.target.checked;
+            render();
         });
+
+        render();
     }
 });
 })();
