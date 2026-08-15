@@ -1,0 +1,887 @@
+{#
+  Statement helper — the recon-helper tool, merged into Finla.
+
+  Shows a bank statement (OFX/QFX or CSV) as a tickable list, ordered like the
+  reconcile screen (date ascending, statement order within a day), so each
+  statement line can be checked off as it is cleared in the tracker. The file
+  is parsed in the browser tab and never uploaded; tick progress lives in
+  localStorage, keyed to the statement (bank FITIDs when the file has them),
+  so a session survives a reload and can be exported/imported as JSON.
+
+  Include once per page. Context variables (set before {% include %}):
+    rh_embedded          – true inside the reconcile screen's split pane:
+                           fixed-height, internally scrolling, "Follow
+                           difference" control, tracker balance cross-check
+    rh_scope             – account id; the last session is remembered per scope
+    rh_expected_balance  – the statement balance the reconciliation was
+                           started with (embedded only)
+
+  Behaviour is window.reconHelper(root) below; every [data-recon-helper] root
+  on the page mounts itself. The instance hangs off root.__reconHelper:
+    setFind(minor|null)  – highlight lines whose |amount| equals minor cents
+                           (the reconcile screen feeds its live difference in)
+    getStats()           – {loaded, tickedMinor, remainingMinor, done, total}
+  and it dispatches a bubbling `recon-helper:stats` CustomEvent (same shape
+  in event.detail) whenever the numbers change.
+#}
+<div data-recon-helper x-ignore
+     data-scope="{{ rh_scope or '' }}"
+     data-embedded="{{ '1' if rh_embedded else '' }}"
+     data-expected-balance="{{ rh_expected_balance or '' }}"
+     class="rh-root flex flex-col min-h-0 {{ 'rh-embedded flex-1' if rh_embedded else '' }}">
+
+    <!-- Header line: what's loaded, and the way out -->
+    <div class="flex items-center gap-3 flex-wrap mb-3 min-h-[1.75rem]">
+        <p data-rh="fileMeta" class="min-w-0 flex-1 text-xs text-gray-500 dark:text-gray-400 truncate"></p>
+        <button type="button" data-rh="btnNewFile" hidden
+                class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors whitespace-nowrap">
+            Load another statement
+        </button>
+    </div>
+
+    <!-- Empty state / drop zone -->
+    <div data-rh="emptyState">
+        <div data-rh="dropzone"
+             class="rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-6 py-10 text-center transition-colors">
+            <div class="w-10 h-10 mx-auto mb-3 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            </div>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Drop your bank statement here</h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                .ofx / .qfx (best) or .csv &mdash; or
+                <button type="button" data-rh="btnBrowse" class="font-semibold text-brand-600 dark:text-brand-300 hover:underline">choose a file</button>
+            </p>
+            <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">Parsed in this browser tab. Nothing is uploaded; tick progress is saved only on this device.</p>
+        </div>
+        <div data-rh="resumeCard" hidden
+             class="mt-3 flex items-center gap-3 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-100 dark:ring-gray-700 px-4 py-3">
+            <div class="min-w-0 flex-1">
+                <p data-rh="resumeTitle" class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"></p>
+                <p data-rh="resumeDetail" class="text-xs text-gray-500 dark:text-gray-400"></p>
+            </div>
+            <button type="button" data-rh="btnResume"
+                    class="px-3.5 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors">Resume</button>
+        </div>
+    </div>
+    <input type="file" data-rh="fileInput" accept=".ofx,.qfx,.csv,.txt" hidden>
+    <input type="file" data-rh="importInput" accept=".json" hidden>
+
+    <!-- Loaded statement -->
+    <div data-rh="app" hidden class="rh-app flex flex-col min-h-0">
+        <div class="flex items-center gap-x-3 gap-y-2 flex-wrap mb-3 text-xs">
+            <label class="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+                <input type="checkbox" data-rh="hideChecked" class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                Hide ticked
+            </label>
+            <span class="flex-1"></span>
+            <input type="search" data-rh="searchBox" placeholder="Filter… ( / )" autocomplete="off"
+                   class="w-36 rounded-lg border-gray-300 dark:border-gray-600 text-xs py-1.5 px-2.5 focus:border-brand-500 focus:ring-brand-500">
+            <label class="flex items-center gap-1.5 text-gray-600 dark:text-gray-400"
+                   title="Type the difference the tracker is showing and any statement line with that amount lights up">
+                Find
+                <input type="text" data-rh="discBox" placeholder="e.g. 23.50" inputmode="decimal" autocomplete="off"
+                       class="rh-find w-24 rounded-lg border-gray-300 dark:border-gray-600 text-xs py-1.5 px-2.5 tabular-nums focus:border-brand-500 focus:ring-brand-500">
+            </label>
+            <span data-rh="discCount" class="text-[11px] text-gray-500 dark:text-gray-400 min-w-[4.5rem]"></span>
+            {% if rh_embedded %}
+            <label class="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 cursor-pointer select-none"
+                   title="Keep the Find box equal to the tracker's live difference, so whatever is still unaccounted for lights up here">
+                <input type="checkbox" data-rh="followDiff" checked class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                Follow difference
+            </label>
+            {% endif %}
+        </div>
+
+        <div data-rh="tableWrap" tabindex="0"
+             class="rh-table bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+            <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                <thead class="bg-gray-50/90 dark:bg-gray-700/90 sticky top-0 z-[1] backdrop-blur-sm">
+                    <tr>
+                        <th class="px-4 py-3 text-center w-10">
+                            <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        </th>
+                        <th data-rh-sort="date" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 whitespace-nowrap">Date <span class="rh-arr"></span></th>
+                        <th data-rh-sort="desc" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200">Description <span class="rh-arr"></span></th>
+                        <th data-rh-sort="amount" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 whitespace-nowrap">Amount <span class="rh-arr"></span></th>
+                    </tr>
+                </thead>
+                <tbody data-rh="rows" class="divide-y divide-gray-50 dark:divide-gray-700"></tbody>
+            </table>
+            <div data-rh="emptyRows" hidden class="px-4 py-10 text-center text-sm text-gray-400 dark:text-gray-500">No transactions match the current filter.</div>
+        </div>
+
+        <p class="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] text-gray-400 dark:text-gray-500">
+            <span><kbd class="rh-kbd">↑</kbd><kbd class="rh-kbd">↓</kbd> navigate &nbsp;<kbd class="rh-kbd">space</kbd> tick &nbsp;<kbd class="rh-kbd">/</kbd> filter</span>
+            <span class="ml-auto flex items-center gap-3">
+                <a href="#" data-rh="btnExport" class="hover:text-brand-600 dark:hover:text-brand-300 hover:underline">Export session</a>
+                <a href="#" data-rh="btnImport" class="hover:text-brand-600 dark:hover:text-brand-300 hover:underline">Import session</a>
+                <a href="#" data-rh="btnReset" class="hover:text-red-600 dark:hover:text-red-400 hover:underline">Reset ticks</a>
+            </span>
+        </p>
+    </div>
+
+    <!-- Stats bar: mirrors the reconcile screen's pinned "Ticked Total" bar -->
+    <div data-rh="statsBar" hidden
+         class="rh-stats mt-3 shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg ring-1 ring-gray-200 dark:ring-gray-700 px-5 py-3 flex items-center gap-x-6 gap-y-2 flex-wrap">
+        <div>
+            <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Ticked total</p>
+            <p class="text-xl font-bold tabular-nums text-brand-600 dark:text-brand-400" data-rh="statTicked">&mdash;</p>
+        </div>
+        <div>
+            <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Remaining to tick</p>
+            <p class="text-sm font-semibold tabular-nums text-gray-700 dark:text-gray-200" data-rh="statRemaining">&mdash;</p>
+        </div>
+        <div class="flex-1 min-w-[7rem]">
+            <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Progress</p>
+            <p class="text-sm font-semibold tabular-nums text-gray-700 dark:text-gray-200" data-rh="statProgress">0 / 0</p>
+            <div class="h-1.5 mt-1 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                <div data-rh="progressFill" class="h-full bg-brand-600 dark:bg-brand-400 transition-[width] duration-150" style="width:0%"></div>
+            </div>
+        </div>
+        <div>
+            <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Statement balance</p>
+            <input type="text" data-rh="stmtBalInput" placeholder="—" inputmode="decimal" autocomplete="off"
+                   title="From the file's LEDGERBAL when it has one; editable"
+                   class="mt-0.5 w-28 rounded-lg border-gray-300 dark:border-gray-600 text-sm text-right font-semibold tabular-nums py-1 px-2 focus:border-brand-500 focus:ring-brand-500">
+        </div>
+        <p data-rh="savedNote" class="text-[11px] text-gray-400 dark:text-gray-500 ml-auto self-end"></p>
+        <p data-rh="balNote" hidden class="basis-full text-[11px] text-amber-600 dark:text-amber-400"></p>
+    </div>
+</div>
+
+<style>
+    /* The JS shows/hides sections with the `hidden` attribute; utility display
+       classes (flex, block) must not win over it. */
+    .rh-root [hidden] { display: none !important; }
+    /* Row states are toggled from JS on the <tr>, so they live here rather than
+       as per-cell utility classes. */
+    .rh-root .rh-row.rh-checked { background: rgb(249 250 251); }
+    html.dark .rh-root .rh-row.rh-checked { background: rgb(17 24 39 / 0.45); }
+    .rh-root .rh-row.rh-checked td:not(:first-child) { opacity: 0.45; }
+    .rh-root .rh-row.rh-match td { background: #fef3c7; }
+    html.dark .rh-root .rh-row.rh-match td { background: rgb(69 26 3 / 0.55); }
+    .rh-root .rh-row.rh-match td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
+    .rh-root .rh-row.rh-focus { outline: 2px solid #a3a3a3; outline-offset: -2px; }
+    html.dark .rh-root .rh-row.rh-focus { outline-color: #7a7a7a; }
+    .rh-root .rh-find.rh-linked { border-color: #525252; box-shadow: 0 0 0 1px #525252; }
+    html.dark .rh-root .rh-find.rh-linked { border-color: #a3a3a3; box-shadow: 0 0 0 1px #a3a3a3; }
+    .rh-root .rh-dragover { border-color: #525252; background: rgb(245 245 245); }
+    html.dark .rh-root .rh-dragover { border-color: #a3a3a3; background: rgb(55 65 81); }
+    .rh-kbd {
+        display: inline-block; padding: 0 5px; margin-right: 2px; font-size: 10px; line-height: 16px;
+        border: 1px solid #d1d5db; border-bottom-width: 2px; border-radius: 4px; background: #fff; color: #4b5563;
+    }
+    html.dark .rh-kbd { border-color: #4b5563; background: #1f2937; color: #9ca3af; }
+    /* Embedded (split pane): the pane has a fixed height, the table scrolls inside it. */
+    .rh-embedded .rh-app { flex: 1 1 auto; min-height: 0; }
+    .rh-embedded .rh-table { flex: 1 1 auto; min-height: 0; }
+    /* Standalone page: the table scrolls with the page and the stats bar pins to the bottom. */
+    .rh-root:not(.rh-embedded) .rh-stats { position: sticky; bottom: 0; z-index: 10; }
+</style>
+
+<script>
+(function () {
+    'use strict';
+    if (window.reconHelper) return;
+
+    var STORE = 'finla_recon:';          // + statement hash → session
+    var LAST = 'finla_recon:last';       // (+ ':' + scope) → key of the last session
+
+    /* ---------- amount / date helpers ---------- */
+    function parseAmountToMinor(raw) {
+        if (raw == null) return null;
+        var s = String(raw).trim().replace(/[£$€\s]/g, '');
+        if (!s) return null;
+        var neg = false;
+        if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+        if (s.startsWith('-')) { neg = true; s = s.slice(1); }
+        else if (s.startsWith('+')) s = s.slice(1);
+        var lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.');
+        var decSep = -1;
+        if (lastComma > -1 && lastDot > -1) decSep = Math.max(lastComma, lastDot);
+        else if (lastDot > -1) decSep = lastDot;
+        else if (lastComma > -1 && s.length - lastComma - 1 <= 2) decSep = lastComma;
+        var intPart = decSep > -1 ? s.slice(0, decSep) : s;
+        var fracPart = decSep > -1 ? s.slice(decSep + 1) : '';
+        intPart = intPart.replace(/[.,]/g, '');
+        fracPart = fracPart.replace(/\D/g, '');
+        if (!/^\d*$/.test(intPart) || (intPart === '' && fracPart === '')) return null;
+        fracPart = (fracPart + '00').slice(0, 2);
+        var v = parseInt(intPart || '0', 10) * 100 + parseInt(fracPart, 10);
+        return neg ? -v : v;
+    }
+
+    // DD-MM-YY, the same shape the reconcile screen prints (fdate 'medium').
+    function fmtDate(iso) {
+        var p = String(iso).split('-');
+        return p.length === 3 ? p[2] + '-' + p[1] + '-' + p[0].slice(2) : iso;
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function unescapeEntities(s) {
+        return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'");
+    }
+    function hashKey(str) {
+        var h = 5381;
+        for (var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+        return h.toString(36);
+    }
+    function notify(message, type) {
+        window.dispatchEvent(new CustomEvent('notify', { detail: { message: message, type: type || 'error' } }));
+    }
+    function confirmDialog(opts, onConfirm) {
+        window.dispatchEvent(new CustomEvent('app-confirm', { detail: {
+            title: opts.title, message: opts.message,
+            confirmLabel: opts.confirmLabel || 'Continue', style: opts.style || 'amber',
+            onConfirm: onConfirm,
+        } }));
+    }
+
+    /* ---------- OFX ---------- */
+    function parseOfxDate(s) {
+        var m = String(s).match(/(\d{4})(\d{2})(\d{2})/);
+        return m ? m[1] + '-' + m[2] + '-' + m[3] : null;
+    }
+    function ofxLeaf(block, tag) {
+        var m = block.match(new RegExp('<' + tag + '>([^<\\r\\n]*)', 'i'));
+        return m ? unescapeEntities(m[1].trim()) : '';
+    }
+    function parseOFX(text) {
+        var blocks = text.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi) || [];
+        if (!blocks.length) throw new Error('No transactions (<STMTTRN>) found in this OFX file.');
+        var seen = new Map();
+        var txns = blocks.map(function (b, i) {
+            var date = parseOfxDate(ofxLeaf(b, 'DTPOSTED'));
+            var amountMinor = parseAmountToMinor(ofxLeaf(b, 'TRNAMT'));
+            var name = ofxLeaf(b, 'NAME') || ofxLeaf(b, 'PAYEE') || '(no description)';
+            var memo = ofxLeaf(b, 'MEMO');
+            var id = ofxLeaf(b, 'FITID') || (date + '|' + amountMinor + '|' + name + '|' + i);
+            var n = seen.get(id) || 0;
+            seen.set(id, n + 1);
+            if (n) id = id + '#' + n;
+            if (!date || amountMinor == null) throw new Error('Transaction ' + (i + 1) + ' has a missing/unreadable date or amount.');
+            return { id: id, date: date, name: name, memo: memo, amountMinor: amountMinor, idx: i };
+        });
+        var meta = { source: 'ofx' };
+        var cur = text.match(/<CURDEF>([A-Za-z]{3})/i);
+        meta.currency = cur ? cur[1].toUpperCase() : 'NZD';
+        meta.acctId = ofxLeaf(text, 'ACCTID') || 'unknown-acct';
+        var ledger = text.match(/<LEDGERBAL>[\s\S]*?(<\/LEDGERBAL>|<AVAILBAL>|$)/i);
+        if (ledger) {
+            meta.balanceMinor = parseAmountToMinor(ofxLeaf(ledger[0], 'BALAMT'));
+            meta.balanceDate = parseOfxDate(ofxLeaf(ledger[0], 'DTASOF'));
+        }
+        return { txns: txns, meta: meta };
+    }
+
+    /* ---------- CSV ---------- */
+    function parseCSVRows(text) {
+        var rows = [], row = [], field = '', inQ = false;
+        for (var i = 0; i < text.length; i++) {
+            var c = text[i];
+            if (inQ) {
+                if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+                else field += c;
+            } else if (c === '"') inQ = true;
+            else if (c === ',') { row.push(field); field = ''; }
+            else if (c === '\n' || c === '\r') {
+                if (c === '\r' && text[i + 1] === '\n') i++;
+                row.push(field); field = '';
+                if (row.length > 1 || row[0].trim() !== '') rows.push(row);
+                row = [];
+            } else field += c;
+        }
+        if (field !== '' || row.length) { row.push(field); if (row.length > 1 || row[0].trim() !== '') rows.push(row); }
+        return rows;
+    }
+    function csvDateToISO(s, fmt) {
+        s = String(s).trim();
+        var m;
+        if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) return m[1] + '-' + m[2] + '-' + m[3];
+        if ((m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/))) {
+            var a = m[1], b = m[2], y = m[3];
+            if (y.length === 2) y = '20' + y;
+            var day, mon;
+            if (fmt === 'mdy') { mon = a; day = b; }
+            else if (fmt === 'dmy') { day = a; mon = b; }
+            else {   // auto: prefer DMY, let a >12 part disambiguate
+                if (Number(a) > 12) { day = a; mon = b; }
+                else if (Number(b) > 12) { mon = a; day = b; }
+                else { day = a; mon = b; }
+            }
+            if (Number(mon) < 1 || Number(mon) > 12 || Number(day) < 1 || Number(day) > 31) return null;
+            return y + '-' + String(mon).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        }
+        return null;
+    }
+
+    /* =================================================================== */
+    window.reconHelper = function (root, opts) {
+        opts = opts || {};
+        var scope = opts.scope || root.dataset.scope || '';
+        var embedded = !!(opts.embedded || root.dataset.embedded);
+        var expectedBalanceMinor = parseAmountToMinor(
+            opts.expectedBalance != null ? opts.expectedBalance : root.dataset.expectedBalance);
+        var el = function (name) { return root.querySelector('[data-rh="' + name + '"]'); };
+        var lastKeyName = function () { return scope ? LAST + ':' + scope : LAST; };
+
+        var state = {
+            txns: [],            // {id, date:'YYYY-MM-DD', name, memo, amountMinor, idx}
+            meta: {},            // {acctId, currency, balanceMinor, balanceDate, fileName, source}
+            checked: new Set(),
+            sortKey: 'date',
+            sortDir: 'asc',
+            hideChecked: false,
+            query: '',
+            discMinor: null,     // |amount| to light up, in cents
+            stmtBalMinor: null,
+            focusId: null,
+            storageKey: null,
+            follow: embedded,    // Find box tracks the tracker's difference
+            externalFindMinor: null,
+        };
+
+        function fmtMinor(minor) {
+            if (minor == null) return '—';
+            var cur = state.meta.currency || 'NZD';
+            try {
+                return new Intl.NumberFormat('en-NZ', { style: 'currency', currency: cur }).format(minor / 100);
+            } catch (e) {
+                return (minor / 100).toFixed(2) + ' ' + cur;
+            }
+        }
+
+        /* ---------- session persistence ---------- */
+        function computeStorageKey() {
+            var ids = state.txns.map(function (t) { return t.id; }).slice().sort().join('|');
+            return STORE + hashKey((state.meta.acctId || '') + '::' + ids);
+        }
+        function saveSession() {
+            if (!state.storageKey) return;
+            var payload = {
+                v: 1,
+                fileName: state.meta.fileName,
+                meta: state.meta,
+                txns: state.txns,
+                checked: Array.from(state.checked),
+                sortKey: state.sortKey,
+                sortDir: state.sortDir,
+                hideChecked: state.hideChecked,
+                stmtBalMinor: state.stmtBalMinor,
+                savedAt: new Date().toISOString(),
+            };
+            try {
+                localStorage.setItem(state.storageKey, JSON.stringify(payload));
+                localStorage.setItem(lastKeyName(), state.storageKey);
+                if (scope) localStorage.setItem(LAST, state.storageKey);
+                el('savedNote').textContent = 'Saved on this device ✓';
+            } catch (e) {
+                el('savedNote').textContent = '⚠ Could not save locally';
+            }
+        }
+        function loadSaved(key) {
+            try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
+        }
+
+        /* ---------- loading ---------- */
+        function loadText(text, fileName) {
+            try {
+                var lower = fileName.toLowerCase();
+                var looksOfx = /<OFX>|<STMTTRN>|OFXHEADER/i.test(text);
+                if (lower.endsWith('.csv') || (!looksOfx && text.indexOf(',') !== -1)) {
+                    var rows = parseCSVRows(text);
+                    if (rows.length < 2) throw new Error('CSV file appears to have no data rows.');
+                    showCsvMapper(rows, fileName);
+                    return;
+                }
+                var parsed = parseOFX(text);
+                adoptStatement(parsed.txns, parsed.meta, fileName);
+            } catch (err) {
+                notify('Could not load file: ' + err.message, 'error');
+            }
+        }
+
+        function adoptStatement(txns, meta, fileName) {
+            state.txns = txns;
+            state.meta = Object.assign({}, meta, { fileName: fileName });
+            state.checked = new Set();
+            state.stmtBalMinor = meta.balanceMinor != null ? meta.balanceMinor : null;
+            state.focusId = null;
+            state.storageKey = computeStorageKey();
+
+            var saved = loadSaved(state.storageKey);
+            if (saved) {
+                var validIds = new Set(txns.map(function (t) { return t.id; }));
+                state.checked = new Set((saved.checked || []).filter(function (id) { return validIds.has(id); }));
+                state.sortKey = saved.sortKey || 'date';
+                state.sortDir = saved.sortDir || 'asc';
+                state.hideChecked = !!saved.hideChecked;
+                if (saved.stmtBalMinor != null) state.stmtBalMinor = saved.stmtBalMinor;
+            }
+            // Embedded and the file carried no balance: start from the one the
+            // reconciliation was opened with rather than a blank.
+            if (state.stmtBalMinor == null && expectedBalanceMinor != null) state.stmtBalMinor = expectedBalanceMinor;
+            saveSession();
+            showApp();
+        }
+
+        function resumeLast() {
+            var key = localStorage.getItem(lastKeyName()) || localStorage.getItem(LAST);
+            var saved = key && loadSaved(key);
+            if (!saved || !saved.txns) return false;
+            state.txns = saved.txns;
+            state.meta = saved.meta || {};
+            state.checked = new Set(saved.checked || []);
+            state.sortKey = saved.sortKey || 'date';
+            state.sortDir = saved.sortDir || 'asc';
+            state.hideChecked = !!saved.hideChecked;
+            state.stmtBalMinor = saved.stmtBalMinor != null ? saved.stmtBalMinor : null;
+            if (state.stmtBalMinor == null && expectedBalanceMinor != null) state.stmtBalMinor = expectedBalanceMinor;
+            state.storageKey = key;
+            saveSession();   // re-points this scope's "last" at it
+            showApp();
+            return true;
+        }
+
+        /* ---------- CSV column mapper (Finla-styled modal) ---------- */
+        function showCsvMapper(rows, fileName) {
+            var headers = rows[0].map(function (h, i) { return h.trim() || ('Column ' + (i + 1)); });
+            var guess = function (patterns) {
+                var idx = headers.findIndex(function (h) {
+                    return patterns.some(function (p) { return h.toLowerCase().indexOf(p) !== -1; });
+                });
+                return idx === -1 ? '' : String(idx);
+            };
+            var optsHtml = function (sel) {
+                return '<option value="">— none —</option>' + headers.map(function (h, i) {
+                    return '<option value="' + i + '"' + (String(i) === sel ? ' selected' : '') + '>' + escHtml(h) + '</option>';
+                }).join('');
+            };
+            var selCls = 'w-full rounded-lg border-gray-300 dark:border-gray-600 text-sm py-1.5 px-2 focus:border-brand-500 focus:ring-brand-500';
+            var rowCls = 'flex items-center gap-3';
+            var lblCls = 'w-36 shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400';
+
+            var overlay = document.createElement('div');
+            // z-[58]: above the floating calculator (55), below the app-confirm dialog (60),
+            // which the "rows could not be parsed" prompt opens on top of this.
+            overlay.className = 'fixed inset-0 z-[58] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4';
+            overlay.innerHTML =
+                '<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">' +
+                '  <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700">' +
+                '    <h2 class="text-base font-bold text-gray-900 dark:text-gray-100">Map CSV columns</h2>' +
+                '    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">' + escHtml(fileName) + ' &mdash; ' + (rows.length - 1) + ' data rows. Which column is which?</p>' +
+                '  </div>' +
+                '  <div class="px-6 py-5 space-y-3 overflow-y-auto">' +
+                '    <div class="' + rowCls + '"><span class="' + lblCls + '">Date</span><select data-rh="mapDate" class="' + selCls + '">' + optsHtml(guess(['date'])) + '</select></div>' +
+                '    <div class="' + rowCls + '"><span class="' + lblCls + '">Date format</span><select data-rh="mapDateFmt" class="' + selCls + '">' +
+                '      <option value="auto">Auto-detect</option><option value="dmy">DD/MM/YYYY</option><option value="mdy">MM/DD/YYYY</option></select></div>' +
+                '    <div class="' + rowCls + '"><span class="' + lblCls + '">Description</span><select data-rh="mapDesc" class="' + selCls + '">' + optsHtml(guess(['desc', 'narrat', 'payee', 'name', 'detail', 'reference'])) + '</select></div>' +
+                '    <div class="' + rowCls + '"><span class="' + lblCls + '">Amount (signed)</span><select data-rh="mapAmt" class="' + selCls + '">' + optsHtml(guess(['amount', 'value'])) + '</select></div>' +
+                '    <div class="' + rowCls + '"><span class="' + lblCls + '">&hellip; or Debit / Credit</span>' +
+                '      <select data-rh="mapDebit" class="' + selCls + '">' + optsHtml(guess(['debit', 'paid out', 'money out', 'out'])) + '</select>' +
+                '      <select data-rh="mapCredit" class="' + selCls + '">' + optsHtml(guess(['credit', 'paid in', 'money in', 'in'])) + '</select></div>' +
+                '    <div class="' + rowCls + '"><span class="' + lblCls + '">Memo (optional)</span><select data-rh="mapMemo" class="' + selCls + '">' + optsHtml('') + '</select></div>' +
+                '    <div class="' + rowCls + '"><span class="' + lblCls + '">Currency code</span><input type="text" data-rh="mapCur" value="NZD" maxlength="3" class="' + selCls + ' uppercase"></div>' +
+                '    <div data-rh="csvPreview" class="text-[11px] text-gray-500 dark:text-gray-400 overflow-x-auto rounded-lg ring-1 ring-gray-100 dark:ring-gray-700"></div>' +
+                '    <p data-rh="mapErr" class="text-xs text-red-600 dark:text-red-400 min-h-[1rem]"></p>' +
+                '  </div>' +
+                '  <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">' +
+                '    <button type="button" data-rh="mapCancel" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">Cancel</button>' +
+                '    <button type="button" data-rh="mapOk" class="px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors shadow-sm">Load transactions</button>' +
+                '  </div>' +
+                '</div>';
+            document.body.appendChild(overlay);
+            var q = function (name) { return overlay.querySelector('[data-rh="' + name + '"]'); };
+
+            var preview = rows.slice(0, 4);
+            q('csvPreview').innerHTML = '<table class="min-w-full"><tr>' +
+                preview[0].map(function (c) { return '<th class="px-2 py-1 text-left font-semibold whitespace-nowrap border-b border-gray-100 dark:border-gray-700">' + escHtml(c) + '</th>'; }).join('') + '</tr>' +
+                preview.slice(1).map(function (r) {
+                    return '<tr>' + r.map(function (c) { return '<td class="px-2 py-1 whitespace-nowrap">' + escHtml(c) + '</td>'; }).join('') + '</tr>';
+                }).join('') + '</table>';
+
+            var closeMapper = function () { overlay.remove(); document.removeEventListener('keydown', onEsc); };
+            var onEsc = function (e) { if (e.key === 'Escape') closeMapper(); };
+            document.addEventListener('keydown', onEsc);
+            overlay.addEventListener('click', function (e) { if (e.target === overlay) closeMapper(); });
+            q('mapCancel').onclick = closeMapper;
+            q('mapOk').onclick = function () {
+                var col = function (name) { var v = q(name).value; return v === '' ? null : Number(v); };
+                var cDate = col('mapDate'), cDesc = col('mapDesc'), cAmt = col('mapAmt'),
+                    cDeb = col('mapDebit'), cCred = col('mapCredit'), cMemo = col('mapMemo');
+                var fmt = q('mapDateFmt').value;
+                if (cDate == null) { q('mapErr').textContent = 'A date column is required.'; return; }
+                if (cAmt == null && cDeb == null && cCred == null) { q('mapErr').textContent = 'Pick an amount column, or debit/credit columns.'; return; }
+                var txns = [], errs = [];
+                rows.slice(1).forEach(function (r, i) {
+                    var date = csvDateToISO(r[cDate] != null ? r[cDate] : '', fmt);
+                    var amountMinor = null;
+                    if (cAmt != null) amountMinor = parseAmountToMinor(r[cAmt]);
+                    else {
+                        var d = cDeb != null ? parseAmountToMinor(r[cDeb]) : null;
+                        var c = cCred != null ? parseAmountToMinor(r[cCred]) : null;
+                        if (d != null && d !== 0) amountMinor = -Math.abs(d);
+                        else if (c != null) amountMinor = Math.abs(c);
+                    }
+                    if (date == null || amountMinor == null) { errs.push(i + 2); return; }
+                    var name = cDesc != null ? String(r[cDesc]).trim() : '(no description)';
+                    var memo = cMemo != null ? String(r[cMemo]).trim() : '';
+                    txns.push({ id: date + '|' + amountMinor + '|' + name + '|' + i, date: date, name: name, memo: memo, amountMinor: amountMinor, idx: i });
+                });
+                if (!txns.length) { q('mapErr').textContent = 'No rows could be parsed — check the column choices and date format.'; return; }
+                var cur = (q('mapCur').value || 'NZD').toUpperCase() || 'NZD';
+                var finish = function () {
+                    closeMapper();
+                    adoptStatement(txns, { source: 'csv', currency: cur, acctId: 'csv:' + fileName }, fileName);
+                };
+                if (errs.length) {
+                    confirmDialog({
+                        title: 'Some rows could not be parsed',
+                        message: errs.length + ' row(s) (lines ' + errs.slice(0, 8).join(', ') + (errs.length > 8 ? '…' : '') + ') have no readable date or amount and will be skipped.',
+                        confirmLabel: 'Load anyway', style: 'amber',
+                    }, finish);
+                    return;
+                }
+                finish();
+            };
+        }
+
+        /* ---------- rendering ---------- */
+        function visibleTxns() {
+            var q = state.query.trim().toLowerCase();
+            var list = state.txns.filter(function (t) {
+                if (state.hideChecked && state.checked.has(t.id)) return false;
+                if (q && (t.name + ' ' + t.memo).toLowerCase().indexOf(q) === -1) return false;
+                return true;
+            });
+            // Single-column sort; ties keep statement order via idx — same rule as the reconcile screen.
+            var dir = state.sortDir === 'asc' ? 1 : -1;
+            var key = state.sortKey;
+            list.sort(function (a, b) {
+                var c = 0;
+                if (key === 'amount') c = a.amountMinor - b.amountMinor;
+                else if (key === 'desc') c = a.name.localeCompare(b.name);
+                else c = a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+                return c * dir || (a.idx - b.idx);
+            });
+            return list;
+        }
+
+        function render() {
+            var list = visibleTxns();
+            var tbody = el('rows');
+            tbody.innerHTML = '';
+            el('emptyRows').hidden = list.length > 0;
+
+            list.forEach(function (t) {
+                var tr = document.createElement('tr');
+                tr.dataset.id = t.id;
+                var isChecked = state.checked.has(t.id);
+                tr.className = 'rh-row cursor-pointer transition-colors hover:bg-gray-50/60 dark:hover:bg-gray-700/40' +
+                    (isChecked ? ' rh-checked' : '') +
+                    (state.discMinor != null && Math.abs(t.amountMinor) === state.discMinor ? ' rh-match' : '') +
+                    (t.id === state.focusId ? ' rh-focus' : '');
+                var amtCls = t.amountMinor < 0 ? 'text-red-600' : 'text-positive-600';
+                tr.innerHTML =
+                    '<td class="px-4 py-2.5 text-center"><input type="checkbox" tabindex="-1" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 pointer-events-none"' + (isChecked ? ' checked' : '') + '></td>' +
+                    '<td class="px-4 py-2.5 text-sm whitespace-nowrap tabular-nums text-gray-900 dark:text-gray-100">' + fmtDate(t.date) + '</td>' +
+                    '<td class="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100">' + escHtml(t.name) +
+                        (t.memo ? '<span class="block text-[11px] text-gray-400 dark:text-gray-500">' + escHtml(t.memo) + '</span>' : '') + '</td>' +
+                    '<td class="px-4 py-2.5 text-sm text-right font-semibold tabular-nums whitespace-nowrap ' + amtCls + '">' + escHtml(fmtMinor(t.amountMinor)) + '</td>';
+                tr.addEventListener('click', function () { state.focusId = t.id; toggle(t.id); });
+                tbody.appendChild(tr);
+            });
+            root.querySelectorAll('[data-rh-sort]').forEach(function (th) {
+                th.querySelector('.rh-arr').textContent =
+                    th.dataset.rhSort === state.sortKey ? (state.sortDir === 'asc' ? '▲' : '▼') : '';
+            });
+            renderStats();
+            renderMeta();
+        }
+
+        function getStats() {
+            var total = state.txns.length, done = state.checked.size;
+            var tickedMinor = 0, remainingMinor = 0;
+            state.txns.forEach(function (t) {
+                if (state.checked.has(t.id)) tickedMinor += t.amountMinor;
+                else remainingMinor += t.amountMinor;
+            });
+            return {
+                loaded: total > 0, total: total, done: done,
+                tickedMinor: tickedMinor, remainingMinor: remainingMinor,
+                stmtBalMinor: state.stmtBalMinor, currency: state.meta.currency || 'NZD',
+            };
+        }
+
+        function broadcast() {
+            root.dispatchEvent(new CustomEvent('recon-helper:stats', { bubbles: true, detail: getStats() }));
+        }
+
+        function renderStats() {
+            var s = getStats();
+            el('statProgress').textContent = s.done + ' / ' + s.total;
+            el('progressFill').style.width = s.total ? (s.done / s.total * 100) + '%' : '0%';
+            el('statTicked').innerHTML = escHtml(fmtMinor(s.tickedMinor)) +
+                ' <span class="text-sm font-medium text-gray-400 dark:text-gray-500">(' + s.done + ')</span>';
+            var remainCount = s.total - s.done;
+            var remEl = el('statRemaining');
+            remEl.textContent = remainCount === 0 ? 'All ticked ✓' : fmtMinor(s.remainingMinor) + ' (' + remainCount + ')';
+            remEl.classList.toggle('text-positive-600', remainCount === 0);
+            remEl.classList.toggle('dark:text-positive-400', remainCount === 0);
+            var balInput = el('stmtBalInput');
+            if (document.activeElement !== balInput) {
+                balInput.value = state.stmtBalMinor != null ? (state.stmtBalMinor / 100).toFixed(2) : '';
+            }
+            // Cross-check against the balance the reconciliation was started with.
+            var note = el('balNote');
+            if (embedded && expectedBalanceMinor != null && state.stmtBalMinor != null && state.stmtBalMinor !== expectedBalanceMinor) {
+                note.textContent = 'This statement says ' + fmtMinor(state.stmtBalMinor) +
+                    ' but the reconciliation was started with ' + fmtMinor(expectedBalanceMinor) +
+                    ' — one of them is off by ' + fmtMinor(Math.abs(state.stmtBalMinor - expectedBalanceMinor)) + '.';
+                note.hidden = false;
+            } else {
+                note.hidden = true;
+            }
+            // Find matches
+            var dc = el('discCount');
+            if (state.discMinor != null) {
+                var n = state.txns.filter(function (t) { return Math.abs(t.amountMinor) === state.discMinor; }).length;
+                dc.textContent = n ? (n + ' match' + (n > 1 ? 'es' : '')) : 'no match';
+                dc.classList.toggle('text-amber-600', n > 0);
+                dc.classList.toggle('dark:text-amber-400', n > 0);
+                dc.classList.toggle('font-semibold', n > 0);
+            } else {
+                dc.textContent = '';
+                dc.classList.remove('text-amber-600', 'dark:text-amber-400', 'font-semibold');
+            }
+            broadcast();
+        }
+
+        function renderMeta() {
+            var m = state.meta;
+            if (!state.txns.length) { el('fileMeta').textContent = ''; return; }
+            var dates = state.txns.map(function (t) { return t.date; }).sort();
+            var range = fmtDate(dates[0]) + ' – ' + fmtDate(dates[dates.length - 1]);
+            var acct = m.acctId && String(m.acctId).indexOf('csv:') !== 0 ? 'acct …' + String(m.acctId).slice(-4) + ' · ' : '';
+            el('fileMeta').innerHTML = '<span class="font-semibold text-gray-700 dark:text-gray-200">' + escHtml(m.fileName || 'statement') + '</span> · ' +
+                acct + range + ' · ' + state.txns.length + ' transactions · ' + escHtml(m.currency || '');
+        }
+
+        function showApp() {
+            el('emptyState').hidden = true;
+            el('app').hidden = false;
+            el('statsBar').hidden = false;
+            el('btnNewFile').hidden = false;
+            el('hideChecked').checked = state.hideChecked;
+            var follow = el('followDiff');
+            if (follow) follow.checked = state.follow;
+            el('discBox').classList.toggle('rh-linked', state.follow);
+            if (state.follow) applyFind(state.externalFindMinor, true);
+            render();
+            // Hand the keyboard to the list when the load was the user's own doing here.
+            var ae = document.activeElement;
+            if (!ae || ae === document.body || root.contains(ae)) el('tableWrap').focus({ preventScroll: true });
+        }
+
+        function showEmpty() {
+            el('emptyState').hidden = false;
+            el('app').hidden = true;
+            el('statsBar').hidden = true;
+            el('btnNewFile').hidden = true;
+            el('fileMeta').textContent = '';
+            var key = localStorage.getItem(lastKeyName()) || localStorage.getItem(LAST);
+            var saved = key && loadSaved(key);
+            if (saved && saved.txns) {
+                el('resumeCard').hidden = false;
+                el('resumeTitle').textContent = saved.fileName || 'Previous session';
+                var done = (saved.checked || []).length;
+                var when = saved.savedAt ? new Date(saved.savedAt).toLocaleString() : '';
+                el('resumeDetail').textContent = done + ' of ' + saved.txns.length + ' ticked' + (when ? ' · saved ' + when : '');
+            } else {
+                el('resumeCard').hidden = true;
+            }
+            state.txns = []; state.checked = new Set(); state.storageKey = null;
+            broadcast();
+        }
+
+        /* ---------- interactions ---------- */
+        function toggle(id) {
+            if (state.checked.has(id)) state.checked.delete(id);
+            else state.checked.add(id);
+            saveSession();
+            render();
+        }
+
+        function moveFocus(delta) {
+            var list = visibleTxns();
+            if (!list.length) return;
+            var i = list.findIndex(function (t) { return t.id === state.focusId; });
+            i = i === -1 ? (delta > 0 ? 0 : list.length - 1) : Math.min(list.length - 1, Math.max(0, i + delta));
+            state.focusId = list[i].id;
+            render();
+            var row = el('rows').querySelector('tr[data-id="' + CSS.escape(state.focusId) + '"]');
+            if (row) row.scrollIntoView({ block: 'nearest' });
+        }
+
+        // Find: highlight lines whose |amount| equals `minor` cents. `applyFind`
+        // writes the box; `setFind` is the external entry point (the reconcile
+        // screen's difference) and only takes effect while Follow is on.
+        function applyFind(minor, quiet) {
+            state.discMinor = minor == null ? null : Math.abs(minor);
+            var box = el('discBox');
+            if (box && document.activeElement !== box) box.value = state.discMinor == null ? '' : (state.discMinor / 100).toFixed(2);
+            if (!quiet && !el('app').hidden) render();
+        }
+        function setFind(minor) {
+            state.externalFindMinor = minor == null ? null : Math.abs(minor);
+            if (state.follow) applyFind(state.externalFindMinor);
+        }
+
+        // Keyboard: only while focus is inside the helper (the table wrapper is
+        // focusable and takes focus when a row is clicked).
+        root.addEventListener('keydown', function (e) {
+            if (el('app').hidden) return;
+            var t = e.target, tag = t && t.tagName;
+            if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') {
+                if (e.key === 'Escape') { t.blur(); el('tableWrap').focus({ preventScroll: true }); }
+                return;
+            }
+            if (tag === 'BUTTON' || tag === 'A') return;
+            if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); moveFocus(1); }
+            else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); moveFocus(-1); }
+            else if (e.key === ' ' || e.key === 'Enter') {
+                if (state.focusId) { e.preventDefault(); toggle(state.focusId); }
+            }
+            else if (e.key === '/') { e.preventDefault(); el('searchBox').focus(); }
+        });
+
+        root.querySelectorAll('[data-rh-sort]').forEach(function (th) {
+            th.addEventListener('click', function () {
+                if (state.sortKey === th.dataset.rhSort) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+                else { state.sortKey = th.dataset.rhSort; state.sortDir = 'asc'; }
+                saveSession(); render();
+            });
+        });
+        el('hideChecked').addEventListener('change', function (e) { state.hideChecked = e.target.checked; saveSession(); render(); });
+        el('searchBox').addEventListener('input', function (e) { state.query = e.target.value; render(); });
+        el('discBox').addEventListener('input', function (e) {
+            // Typing your own amount takes the box off the tracker's difference.
+            if (state.follow) {
+                state.follow = false;
+                var fb = el('followDiff'); if (fb) fb.checked = false;
+                e.target.classList.remove('rh-linked');
+            }
+            var v = parseAmountToMinor(e.target.value);
+            state.discMinor = v == null ? null : Math.abs(v);
+            render();
+        });
+        var followBox = el('followDiff');
+        if (followBox) {
+            followBox.addEventListener('change', function (e) {
+                state.follow = e.target.checked;
+                el('discBox').classList.toggle('rh-linked', state.follow);
+                if (state.follow) applyFind(state.externalFindMinor);
+            });
+        }
+        el('stmtBalInput').addEventListener('change', function (e) {
+            state.stmtBalMinor = parseAmountToMinor(e.target.value);
+            saveSession(); renderStats();
+        });
+
+        /* file loading */
+        el('btnBrowse').addEventListener('click', function () { el('fileInput').click(); });
+        el('btnNewFile').addEventListener('click', function () { showEmpty(); });
+        el('fileInput').addEventListener('change', function (e) {
+            var f = e.target.files[0];
+            if (f) f.text().then(function (t) { loadText(t, f.name); });
+            e.target.value = '';
+        });
+        el('btnResume').addEventListener('click', function () { resumeLast(); });
+
+        var dz = el('dropzone');   // highlight only; the root's drop handler below does the loading
+        ['dragover', 'dragenter'].forEach(function (ev) {
+            dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('rh-dragover'); });
+        });
+        ['dragleave', 'drop'].forEach(function (ev) {
+            dz.addEventListener(ev, function () { dz.classList.remove('rh-dragover'); });
+        });
+        // A file dropped anywhere on the helper is taken — and never handed to the
+        // browser, which would otherwise navigate the whole app away to the file.
+        root.addEventListener('dragover', function (e) {
+            if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') !== -1) e.preventDefault();
+        });
+        root.addEventListener('drop', function (e) {
+            var f = e.dataTransfer && e.dataTransfer.files[0];
+            if (!f) return;
+            e.preventDefault();
+            var go = function () { f.text().then(function (t) { loadText(t, f.name); }); };
+            if (el('app').hidden || !state.txns.length) { go(); return; }
+            confirmDialog({
+                title: 'Replace the loaded statement?',
+                message: 'Load ' + f.name + ' instead of ' + (state.meta.fileName || 'the current statement') + '? Ticks on the current one stay saved and can be resumed later.',
+                confirmLabel: 'Load it', style: 'amber',
+            }, go);
+        });
+
+        /* session export / import / reset */
+        el('btnExport').addEventListener('click', function (e) {
+            e.preventDefault();
+            var data = state.storageKey && localStorage.getItem(state.storageKey);
+            if (!data) return;
+            var blob = new Blob([data], { type: 'application/json' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'recon-session-' + (state.meta.fileName || 'statement').replace(/\.[^.]+$/, '') + '.json';
+            a.click();
+            URL.revokeObjectURL(a.href);
+        });
+        el('btnImport').addEventListener('click', function (e) { e.preventDefault(); el('importInput').click(); });
+        el('importInput').addEventListener('change', function (e) {
+            var f = e.target.files[0];
+            e.target.value = '';
+            if (!f) return;
+            f.text().then(function (t) {
+                try {
+                    var data = JSON.parse(t);
+                    var validIds = new Set(state.txns.map(function (x) { return x.id; }));
+                    var incoming = (data.checked || []).filter(function (id) { return validIds.has(id); });
+                    if (!incoming.length) { notify('No matching transactions found in that session file.', 'warning'); return; }
+                    incoming.forEach(function (id) { state.checked.add(id); });
+                    saveSession(); render();
+                    notify('Imported ' + incoming.length + ' tick' + (incoming.length === 1 ? '' : 's'), 'success');
+                } catch (err) { notify('Could not read session file: ' + err.message, 'error'); }
+            });
+        });
+        el('btnReset').addEventListener('click', function (e) {
+            e.preventDefault();
+            var doReset = function () { state.checked.clear(); saveSession(); render(); };
+            if (!state.checked.size) { doReset(); return; }
+            confirmDialog({
+                title: 'Reset ticks?',
+                message: 'Clear all ' + state.checked.size + ' ticks for this statement? The statement stays loaded.',
+                confirmLabel: 'Reset ticks', style: 'red',
+            }, doReset);
+        });
+
+        var api = {
+            root: root, state: state,
+            loadText: loadText, render: render, setFind: setFind, getStats: getStats,
+            resume: resumeLast, showEmpty: showEmpty,
+        };
+        root.__reconHelper = api;
+
+        // Embedded in a reconciliation: pick the account's last statement straight
+        // back up. Standalone: offer it on a Resume card, like the original tool.
+        showEmpty();
+        if (embedded && scope && localStorage.getItem(lastKeyName())) resumeLast();
+        return api;
+    };
+
+    document.querySelectorAll('[data-recon-helper]').forEach(function (r) {
+        if (!r.__reconHelper) window.reconHelper(r);
+    });
+})();
+</script>

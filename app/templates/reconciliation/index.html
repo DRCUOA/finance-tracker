@@ -2,6 +2,15 @@
 {% block title %}Reconciliation — Finla{% endblock %}
 {% block page_title %}Reconciliation{% endblock %}
 
+{% block header_actions %}
+<a href="/reconciliation/helper"
+   class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+   title="A tickable copy of your bank statement to check off against the reconcile screen">
+    <svg class="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2z"/></svg>
+    Statement Helper
+</a>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-8">
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">

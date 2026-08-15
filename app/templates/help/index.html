@@ -495,6 +495,16 @@
                             If your cleared balance doesn't match the statement balance after ticking everything, it usually means a transaction is missing, duplicated, or has the wrong amount. Check for transactions that appear on the statement but not in the app, and vice versa.
                         </p>
                     </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Statement Helper &amp; Split View</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The <span class="font-medium">Statement Helper</span> turns your bank's statement file (OFX/QFX, or CSV with a quick column-mapping step) into a tickable list, ordered the same way as the reconcile screen. Tick each statement line as you clear its transaction in the app; the helper's ticked total should track the reconcile screen's, and its "remaining to tick" should hit zero together with the app's difference. The file is read in your browser tab and never uploaded; ticks are saved on the device, keyed to the statement, so you can close the tab and resume &mdash; or export/import the session as JSON.
+                        </p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                            While reconciling an account, press <span class="font-medium">Statement helper</span> in the header to open it beside the transaction list. In this split view the helper's Find box follows the app's live difference, so whatever is still unaccounted for lights up on the statement side; the pinned bar shows both ticked totals and the gap between them; and the helper warns if the balance in the file differs from the one you started with. Drag the divider to resize, and the helper remembers the last statement per account. Keyboard, inside the helper: <span class="font-medium">↑/↓</span> move, <span class="font-medium">space</span> ticks, <span class="font-medium">/</span> jumps to the filter.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

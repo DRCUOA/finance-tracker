@@ -44,6 +44,32 @@ async def reconciliation_index(
     })
 
 
+@router.get("/helper", response_class=HTMLResponse)
+async def reconciliation_helper(
+    request: Request,
+    account_id: str = Query(""),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Standalone statement helper: a tickable copy of a bank statement (OFX/CSV),
+    parsed in the browser, to check off against the reconcile screen. Declared
+    before /{account_id} so the literal path isn't parsed as a UUID.
+
+    ``account_id`` only scopes which saved session the page resumes; an id
+    that isn't the caller's is ignored rather than 404'd, since nothing is read.
+    """
+    account = None
+    if account_id:
+        try:
+            account = await acct_svc.get_account(db, uuid.UUID(account_id), user.id)
+        except ValueError:
+            account = None
+    return templates.TemplateResponse(request, "reconciliation/helper.html", {
+        "user": user,
+        "account": account,
+    })
+
+
 @router.get("/{account_id}", response_class=HTMLResponse)
 async def reconcile_account(
     account_id: uuid.UUID,
