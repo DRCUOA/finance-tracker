@@ -3,14 +3,63 @@
 {% block page_title %}Reconcile: {{ account.name }}{% endblock %}
 
 {% block header_actions %}
-<a href="/reconciliation" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Cancel</a>
+<div class="flex items-center gap-2">
+    {# Split view: the statement helper beside the transaction list. State lives
+       in the reconSplit store (registered below, before Alpine boots) so this
+       button and the content area agree without passing events around. #}
+    <button type="button" x-data @click="$store.reconSplit.toggle()"
+            :aria-pressed="$store.reconSplit.on ? 'true' : 'false'"
+            :class="$store.reconSplit.on
+                ? 'bg-brand-600 border-brand-600 text-white hover:bg-brand-700'
+                : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'"
+            class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg border transition-colors"
+            title="Show a tickable copy of your bank statement beside this list">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h5v16H5a1 1 0 01-1-1V5zm10-1h5a1 1 0 011 1v14a1 1 0 01-1 1h-5V4z"/></svg>
+        Statement helper
+    </button>
+    <a href="/reconciliation" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Cancel</a>
+</div>
 {% endblock %}
 
 {% block content %}
+<script>
+document.addEventListener('alpine:init', function () {
+    Alpine.store('reconSplit', {
+        on: localStorage.getItem('reconcile-split') === '1',
+        left: (function () {
+            var v = parseFloat(localStorage.getItem('reconcile-split-left'));
+            return v >= 30 && v <= 70 ? v : 55;   // % of the row given to the transaction list
+        })(),
+        toggle: function () {
+            this.on = !this.on;
+            localStorage.setItem('reconcile-split', this.on ? '1' : '0');
+        },
+        persist: function () {
+            localStorage.setItem('reconcile-split-left', String(this.left));
+        },
+    });
+});
+</script>
+<style>
+    /* Split view: transaction list | drag handle | statement helper. Below lg the
+       helper simply stacks under the list. */
+    .recon-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+    .recon-split-divider { display: none; }
+    @media (min-width: 1024px) {
+        .recon-split.is-split {
+            grid-template-columns: minmax(0, var(--split-left, 55fr)) 0.75rem minmax(0, var(--split-right, 45fr));
+        }
+        .recon-split.is-split .recon-split-divider { display: flex; }
+        .recon-split.is-split .recon-helper-pane { position: sticky; top: 0; }
+    }
+</style>
+
 <div x-data="{
          statementBalance: {{ statement_balance }},
          clearedBalance: {{ cleared_balance }},
          checked: { {% for did in draft_ids %}{% if not loop.first %}, {% endif %}'{{ did }}': null{% endfor %} },
+         helperStats: null,
+         splitDrag: null,
          init() {
              {% for tx in transactions %}
              {% for did in draft_ids %}
@@ -20,6 +69,14 @@
              for (const id in this.checked) {
                  if (this.checked[id] === null) delete this.checked[id];
              }
+             // The helper mounted itself before Alpine booted, so its first
+             // stats broadcast was missed — read them directly.
+             this.$nextTick(() => {
+                 const api = this.helperApi();
+                 this.helperStats = api ? api.getStats() : null;
+                 this.sizeHelperPane();
+                 this.pushDifference();   // x-effect's first run predates $refs
+             });
          },
          get checkedTotal() {
              let sum = 0;
@@ -30,6 +87,10 @@
          },
          nzd(v) {
              return new Intl.NumberFormat('en-NZ', {style: 'currency', currency: 'NZD'}).format(Math.round(v * 100) / 100);
+         },
+         money(v, cur) {
+             try { return new Intl.NumberFormat('en-NZ', {style: 'currency', currency: cur || 'NZD'}).format(Math.round(v * 100) / 100); }
+             catch (e) { return this.nzd(v); }
          },
          get difference() {
              return Math.round((this.statementBalance - this.clearedBalance - this.checkedTotal) * 100) / 100;
@@ -55,9 +116,68 @@
          submitTo(action) {
              this.$refs.theForm.action = action;
              this.$nextTick(() => this.$refs.theForm.submit());
-         }
-     }">
+         },
 
+         /* ---- statement helper (split view) ---- */
+         helperApi() {
+             const root = this.$refs.helperPane && this.$refs.helperPane.querySelector('[data-recon-helper]');
+             return root ? root.__reconHelper : null;
+         },
+         get helperTicked() {
+             return this.helperStats && this.helperStats.loaded ? this.helperStats.tickedMinor / 100 : null;
+         },
+         get helperGap() {
+             // Helper's ticked total minus this list's — zero once the same items are ticked on both sides.
+             return this.helperTicked === null ? null : Math.round((this.helperTicked - this.checkedTotal) * 100) / 100;
+         },
+         pushDifference() {
+             // x-effect: whenever the live difference changes (or the split opens/
+             // closes) the helper's Find box follows it, so whatever is still
+             // unaccounted for lights up on the statement side.
+             const on = this.$store.reconSplit.on, d = this.difference, balanced = this.isBalanced;
+             const api = this.helperApi();
+             if (!api) return;
+             api.setFind(on && !balanced ? Math.round(Math.abs(d) * 100) : null);
+         },
+         sizeHelperPane() {
+             const pane = this.$refs.helperPane;
+             if (!pane) return;
+             if (window.innerWidth < 1024) { pane.style.maxHeight = ''; return; }
+             const main = pane.closest('main');
+             if (!main) return;
+             const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 14;
+             pane.style.maxHeight = Math.max(320, main.clientHeight - 2 * rem) + 'px';
+         },
+         startSplitDrag(e) {
+             const box = this.$refs.splitBox.getBoundingClientRect();
+             this.splitDrag = { left: box.left, width: box.width };
+             if (e.target.setPointerCapture) { try { e.target.setPointerCapture(e.pointerId); } catch (err) {} }
+             document.body.classList.add('select-none');
+         },
+         onSplitDrag(e) {
+             if (!this.splitDrag || !this.splitDrag.width) return;
+             let pct = (e.clientX - this.splitDrag.left) / this.splitDrag.width * 100;
+             pct = Math.max(30, Math.min(70, pct));
+             this.$store.reconSplit.left = Math.round(pct * 10) / 10;
+         },
+         endSplitDrag() {
+             if (!this.splitDrag) return;
+             this.splitDrag = null;
+             document.body.classList.remove('select-none');
+             this.$store.reconSplit.persist();
+         }
+     }"
+     x-effect="pushDifference()"
+     @recon-helper:stats="helperStats = $event.detail"
+     @pointermove.window="onSplitDrag($event)"
+     @pointerup.window="endSplitDrag()"
+     @pointercancel.window="endSplitDrag()"
+     @resize.window="sizeHelperPane()">
+
+    <div x-ref="splitBox" class="recon-split" :class="$store.reconSplit.on ? 'is-split' : ''"
+         :style="'--split-left:' + $store.reconSplit.left + 'fr; --split-right:' + (100 - $store.reconSplit.left) + 'fr'">
+
+    <div class="min-w-0">
     <form x-ref="theForm" method="post" action="/reconciliation/{{ account.id }}/finish">
         <input type="hidden" name="statement_date" value="{{ statement_date }}">
         <input type="hidden" name="statement_balance" value="{{ statement_balance }}">
@@ -186,8 +306,9 @@
             </div>
 
             <!-- Running ticked total: stays pinned to the viewport bottom while the
-                 transaction list scrolls, so it can be eyeballed against the recon
-                 helper's matching footer at any point during tick-off. -->
+                 transaction list scrolls, so it can be eyeballed against the statement
+                 helper's matching footer at any point during tick-off. In split view
+                 the helper's own ticked total is pulled in here too. -->
             <div class="sticky bottom-0 z-10 pb-2">
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg ring-1 ring-gray-200 dark:ring-gray-700 px-6 py-3 flex items-center gap-8 flex-wrap">
                     <div>
@@ -197,6 +318,19 @@
                             <span class="text-sm font-medium text-gray-400 dark:text-gray-500" x-text="'(' + Object.keys(checked).length + ')'"></span>
                         </p>
                     </div>
+                    <template x-if="$store.reconSplit.on && helperTicked !== null">
+                        <div class="pl-8 border-l border-gray-100 dark:border-gray-700"
+                             title="The statement helper's ticked total, and how far it is from this list's. Zero once the same items are ticked on both sides (assuming the statement signs its amounts the way the tracker does).">
+                            <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Statement Ticked</p>
+                            <p class="text-lg font-bold tabular-nums text-gray-700 dark:text-gray-200">
+                                <span x-text="money(helperTicked, helperStats.currency)"></span>
+                                <span class="text-sm font-medium text-gray-400 dark:text-gray-500" x-text="'(' + helperStats.done + ')'"></span>
+                                <span class="ml-2 text-xs font-semibold"
+                                      :class="Math.abs(helperGap) < 0.005 ? 'text-positive-600 dark:text-positive-400' : 'text-amber-600 dark:text-amber-400'"
+                                      x-text="Math.abs(helperGap) < 0.005 ? 'matches ✓' : 'gap ' + money(helperGap, helperStats.currency)"></span>
+                            </p>
+                        </div>
+                    </template>
                     <div class="ml-auto text-right">
                         <p class="text-xs font-medium uppercase tracking-wider"
                            :class="isBalanced ? 'text-positive-600 dark:text-positive-400' : 'text-gray-400 dark:text-gray-500'">Difference</p>
@@ -210,11 +344,35 @@
             </div>
         </div>
     </form>
+    </div>
+
+    <!-- Drag handle between the panes (lg+ only, when the split is on) -->
+    <div class="recon-split-divider self-stretch justify-center cursor-col-resize group py-2"
+         @pointerdown.prevent="startSplitDrag($event)" title="Drag to resize">
+        <div class="w-px h-full rounded bg-gray-200 dark:bg-gray-700 group-hover:bg-brand-400 dark:group-hover:bg-brand-300 transition-colors"></div>
+    </div>
+
+    <!-- Statement helper pane: sticky beside the list, scrolls inside itself -->
+    <aside x-show="$store.reconSplit.on" x-cloak x-ref="helperPane"
+           class="recon-helper-pane min-w-0 flex flex-col" aria-label="Statement helper">
+        <div class="flex items-center justify-between mb-2 shrink-0">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Statement helper</h3>
+            <a href="/reconciliation/helper?account_id={{ account.id }}" target="_blank" rel="noopener"
+               class="text-xs text-gray-400 dark:text-gray-500 hover:text-brand-600 dark:hover:text-brand-300"
+               title="Open the helper in its own tab (same saved session)">Open in tab ↗</a>
+        </div>
+        {% set rh_embedded = true %}
+        {% set rh_scope = account.id %}
+        {% set rh_expected_balance = statement_balance %}
+        {% include "reconciliation/_helper.html" %}
+    </aside>
+
+    </div>
 </div>
 
 <script>
 /* Single-column sorting by clicking a header (click again to flip direction),
-   matching the recon helper exactly. Ties keep entry order via the data-idx
+   matching the statement helper exactly. Ties keep entry order via the data-idx
    fallback. Moving <tr> nodes preserves their Alpine bindings. */
 (function () {
     const body = document.getElementById('txBody');
