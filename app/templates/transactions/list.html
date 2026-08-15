@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "components/category_options.html" import category_options %}
+{% from "components/category_picker.html" import category_picker %}
 {% block title %}Transactions — Finla{% endblock %}
 {% block page_title %}Transactions{% endblock %}
 
@@ -67,7 +67,13 @@
         else if (!checked) this.selected = this.selected.filter(i => i !== id);
     },
     async updateCategory(txId, categoryId, sel) {
-        const revert = () => { if (sel && sel.dataset.prev !== undefined) sel.value = sel.dataset.prev; };
+        // The picker wrapping `sel` records the previous value in data-prev
+        // and redraws its label on picker:sync, so a rejected change snaps back.
+        const revert = () => {
+            if (!sel || sel.dataset.prev === undefined) return;
+            sel.value = sel.dataset.prev;
+            sel.dispatchEvent(new CustomEvent('picker:sync', { bubbles: true }));
+        };
         const body = new FormData();
         body.append('category_id', categoryId);
         let r = await fetch('/transactions/' + txId + '/update-category', { method: 'POST', body });
@@ -111,11 +117,12 @@
             </div>
             <div>
                 <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Category</label>
-                <select name="category_id" class="block w-full rounded-lg border-gray-300 text-sm py-2 focus:border-brand-500 focus:ring-brand-500">
+                {# Picking dispatches `change` on the hidden <select>, which bubbles
+                   to the form and fires the hx-trigger like the native control did. #}
+                {% call category_picker('category_id', category_tree, category_id, class='w-full') %}
                     <option value="">All</option>
                     <option value="__none__" {% if category_id == '__none__' %}selected{% endif %}>Uncategorized</option>
-                    {{ category_options(category_tree, category_id) }}
-                </select>
+                {% endcall %}
             </div>
             <div>
                 <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Source</label>
@@ -150,9 +157,7 @@
             <div class="flex gap-3">
                 <form hx-post="/transactions/batch/categorise" hx-target="#tx-table" hx-swap="innerHTML" class="flex items-center gap-2">
                     <template x-for="id in selected"><input type="hidden" name="tx_ids" :value="id"></template>
-                    <select name="category_id" class="rounded-lg border-gray-300 text-sm py-1.5 focus:border-brand-500 focus:ring-brand-500">
-                        {{ category_options(category_tree) }}
-                    </select>
+                    {{ category_picker('category_id', category_tree, class='w-56') }}
                     <button type="submit" class="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors">Categorise</button>
                 </form>
                 <form hx-post="/transactions/batch/delete" hx-target="#tx-table" hx-swap="innerHTML" hx-confirm="Delete selected transactions?">

@@ -1029,6 +1029,267 @@
 })();
 </script>
 
+<!-- Searchable category picker (markup: components/category_picker.html) -->
+<script>
+(function() {
+    var PANEL_MIN_REM = 16;   // never narrower than this, even on a narrow trigger
+    var PANEL_MAX_REM = 22;   // taller than this and it stops feeling like a dropdown
+    var GAP = 4, MARGIN = 8;  // px: trigger→panel, panel→viewport edge
+
+    function rem() {
+        return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    }
+
+    /* Build a predicate for the typed text. Regex first (case-insensitive);
+       a pattern that doesn't compile — usually because it's half-typed —
+       is matched as a plain substring instead so the list never empties on
+       an unbalanced bracket. Returns { test(item), literal }. */
+    function makeMatcher(q) {
+        if (!q) return { test: function() { return true; }, literal: false };
+        var re = null;
+        try { re = new RegExp(q, 'i'); } catch (e) { re = null; }
+        if (re) {
+            return {
+                literal: false,
+                test: function(it) {
+                    return re.test(it.label) ||
+                        (!!it.group && (re.test(it.group) || re.test(it.group + ' ' + it.label)));
+                }
+            };
+        }
+        var needle = q.toLowerCase();
+        return {
+            literal: true,
+            test: function(it) {
+                return it.label.toLowerCase().indexOf(needle) !== -1 ||
+                    (!!it.group && it.group.toLowerCase().indexOf(needle) !== -1);
+            }
+        };
+    }
+
+    window.categoryPicker = function() {
+        return {
+            enhanced: false,     // flips once init() ran: native <select> hides, button shows
+            isOpen: false,
+            query: '',
+            literal: false,      // query isn't a valid regex → substring matching
+            value: '',
+            label: '',
+            rows: [],            // rendered list: group headers + visible options
+            count: 0,            // visible options
+            active: -1,          // index (0..count-1) of the highlighted option
+            uid: '',
+            _placeholder: '',
+            _items: null,        // [{value, label, group}] parsed lazily from the <select>
+            _onViewport: null,
+
+            init: function() {
+                this.uid = 'cp-' + Math.random().toString(36).slice(2, 9);
+                this._placeholder = this.$el.dataset.placeholder || '';
+                this.sync();
+                var self = this;
+                this.$watch('query', function() { self.refilter(); });
+                this.enhanced = true;
+            },
+
+            destroy: function() {
+                this._unbindViewport();
+            },
+
+            /* Redraw the button from whatever the <select> currently holds. */
+            sync: function() {
+                var sel = this.$refs.select;
+                if (!sel) return;
+                var opt = sel.options[sel.selectedIndex];
+                this.value = sel.value;
+                this.label = opt ? opt.text.trim() : this._placeholder;
+            },
+
+            items: function() {
+                if (this._items) return this._items;
+                var out = [];
+                var sel = this.$refs.select;
+                Array.prototype.forEach.call(sel.children, function(node) {
+                    if (node.tagName === 'OPTGROUP') {
+                        Array.prototype.forEach.call(node.children, function(o) {
+                            out.push({ value: o.value, label: o.text.trim(), group: node.label });
+                        });
+                    } else if (node.tagName === 'OPTION') {
+                        out.push({ value: node.value, label: node.text.trim(), group: '' });
+                    }
+                });
+                this._items = out;
+                return out;
+            },
+
+            refilter: function() {
+                var m = makeMatcher(this.query.trim());
+                this.literal = m.literal;
+                var rows = [], i = 0, lastGroup = null;
+                this.items().forEach(function(it, idx) {
+                    if (!m.test(it)) return;
+                    if (it.group && it.group !== lastGroup) {
+                        rows.push({ key: 'g' + idx, group: true, label: it.group });
+                    }
+                    lastGroup = it.group;
+                    rows.push({ key: 'o' + idx, group: false, label: it.label, value: it.value, indent: !!it.group, i: i++ });
+                });
+                this.rows = rows;
+                this.count = i;
+                // Keep the highlight on the current choice while it's visible; else the first hit.
+                var cur = null;
+                for (var r = 0; r < rows.length; r++) {
+                    if (!rows[r].group && rows[r].value === this.value) { cur = rows[r]; break; }
+                }
+                this.active = cur ? cur.i : (i ? 0 : -1);
+                var self = this;
+                this.$nextTick(function() { self._scrollActiveIntoView(); });
+            },
+
+            open: function() {
+                if (this.isOpen) return;
+                this.items();
+                var wasEmpty = this.query === '';
+                this.query = '';
+                if (wasEmpty) this.refilter();   // $watch won't fire for '' → ''
+                this.isOpen = true;
+                this._bindViewport();
+                var self = this;
+                this.$nextTick(function() {
+                    self._position();
+                    var s = self.$refs.search;
+                    if (s) s.focus();
+                    self._scrollActiveIntoView();
+                });
+            },
+
+            /* Typing on the focused trigger opens the list with that character already in the box. */
+            openWith: function(ch) {
+                this.open();
+                this.query = ch;
+            },
+
+            close: function(refocus) {
+                if (!this.isOpen) return;
+                this.isOpen = false;
+                this._unbindViewport();
+                if (refocus) {
+                    var b = this.$refs.button;
+                    if (b) b.focus();
+                }
+            },
+
+            toggle: function() {
+                if (this.isOpen) this.close(true); else this.open();
+            },
+
+            pick: function(val) {
+                var sel = this.$refs.select;
+                var prev = sel.value;
+                sel.dataset.prev = prev;
+                sel.value = val;
+                this.sync();
+                this.close(true);
+                if (val !== prev) sel.dispatchEvent(new Event('change', { bubbles: true }));
+            },
+
+            pickActive: function() {
+                for (var r = 0; r < this.rows.length; r++) {
+                    var row = this.rows[r];
+                    if (!row.group && row.i === this.active) { this.pick(row.value); return; }
+                }
+            },
+
+            move: function(delta) {
+                if (!this.count) return;
+                var next = this.active + delta;
+                if (next < 0) next = 0;
+                if (next > this.count - 1) next = this.count - 1;
+                this.active = next;
+                this._scrollActiveIntoView();
+            },
+
+            onTriggerKey: function(e) {
+                if (e.altKey || e.ctrlKey || e.metaKey) return;
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.open();
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    if (this.isOpen) { e.stopPropagation(); this.close(true); }
+                    return;
+                }
+                // Enter and Space reach the button as a click → toggle(); everything
+                // else printable starts a search.
+                if (e.key.length === 1 && e.key !== ' ') {
+                    e.preventDefault();
+                    this.openWith(e.key);
+                }
+            },
+
+            _scrollActiveIntoView: function() {
+                var list = this.$refs.list;
+                if (!list || this.active < 0) return;
+                var el = list.querySelector('[data-i="' + this.active + '"]');
+                if (!el) return;
+                // Manual scroll rather than scrollIntoView(): the panel is position:fixed
+                // and we don't want any ancestor scrolling along.
+                var top = el.offsetTop, bottom = top + el.offsetHeight;
+                if (top < list.scrollTop) list.scrollTop = top;
+                else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight;
+            },
+
+            /* Fixed positioning so the panel escapes overflow-x:auto table wrappers.
+               Opens downward by default, upward when that's the roomier side. */
+            _position: function() {
+                var btn = this.$refs.button;
+                if (!btn) return;
+                var r = btn.getBoundingClientRect();
+                var vw = window.innerWidth, vh = window.innerHeight;
+                if (r.bottom < 0 || r.top > vh) { this.close(); return; }   // trigger scrolled away
+                var unit = rem();
+                var width = Math.max(r.width, PANEL_MIN_REM * unit);
+                width = Math.min(width, vw - 2 * MARGIN);
+                var left = Math.max(MARGIN, Math.min(r.left, vw - width - MARGIN));
+                var below = vh - r.bottom - GAP - MARGIN;
+                var above = r.top - GAP - MARGIN;
+                var want = PANEL_MAX_REM * unit;
+                var openUp = below < Math.min(want, 240) && above > below;
+                var maxH = Math.max(120, Math.min(want, openUp ? above : below));
+                var style = 'left:' + left + 'px;width:' + width + 'px;max-height:' + maxH + 'px;';
+                style += openUp ? ('bottom:' + (vh - r.top + GAP) + 'px;') : ('top:' + (r.bottom + GAP) + 'px;');
+                // Written straight to the element (not a reactive :style) so the
+                // geometry is final before _scrollActiveIntoView() measures it.
+                var panel = this.$refs.panel;
+                if (panel) panel.style.cssText = style;
+            },
+
+            _bindViewport: function() {
+                if (this._onViewport) return;
+                var self = this, raf = 0;
+                this._onViewport = function() {
+                    if (raf) return;
+                    raf = requestAnimationFrame(function() {
+                        raf = 0;
+                        if (self.isOpen) self._position();
+                    });
+                };
+                window.addEventListener('scroll', this._onViewport, true);
+                window.addEventListener('resize', this._onViewport);
+            },
+
+            _unbindViewport: function() {
+                if (!this._onViewport) return;
+                window.removeEventListener('scroll', this._onViewport, true);
+                window.removeEventListener('resize', this._onViewport);
+                this._onViewport = null;
+            }
+        };
+    };
+})();
+</script>
+
 <script>
 function toggleTheme() {
     var isDark = document.documentElement.classList.toggle('dark');

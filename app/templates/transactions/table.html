@@ -1,4 +1,4 @@
-{% from "components/category_options.html" import category_options %}
+{% from "components/category_picker.html" import category_picker %}
 {% set _qs = "search=" ~ (search|default('')) ~ "&account_id=" ~ (account_id|default('')) ~ "&category_id=" ~ (category_id|default('')) ~ "&source=" ~ (source|default('')) ~ "&date_from=" ~ (date_from|default('')) ~ "&date_to=" ~ (date_to|default('')) %}
 
 {# Sort-header helper: renders a clickable column header that toggles asc/desc #}
@@ -83,12 +83,13 @@
                     <td class="px-4 py-3.5 text-sm text-gray-900 dark:text-gray-100">{{ tx.description }}</td>
                     <td class="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{{ tx.account.name if tx.account else '—' }}</td>
                     <td class="px-4 py-2">
-                        <select @focus="$event.target.dataset.prev = $event.target.value"
-                                @change="updateCategory('{{ tx.id }}', $event.target.value, $event.target)"
-                                class="w-full max-w-[11rem] rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-700 text-xs py-1.5 pl-2 pr-7 focus:border-brand-500 focus:ring-brand-500 text-gray-700 dark:text-gray-300 cursor-pointer">
+                        {# Type-to-filter picker; picking fires `change` on the hidden
+                           <select> so updateCategory() runs exactly as it did for the
+                           native control. #}
+                        {% call category_picker('', category_tree, tx.category_id, size='xs', class='w-full max-w-[11rem]',
+                                                on_change="updateCategory('" ~ tx.id ~ "', $event.target.value, $event.target)") %}
                             <option value="" {% if not tx.category_id %}selected{% endif %}>Uncategorised</option>
-                            {{ category_options(category_tree, tx.category_id) }}
-                        </select>
+                        {% endcall %}
                     </td>
                     <td class="px-4 py-3.5 text-sm text-right font-semibold tabular-nums whitespace-nowrap {% if tx.amount >= 0 %}text-positive-600{% else %}text-red-600{% endif %}">
                         {{ tx.amount|nzd }}

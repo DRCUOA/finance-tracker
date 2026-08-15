@@ -22,6 +22,7 @@ Format: [Semantic Versioning](https://semver.org/) &mdash; `MAJOR.MINOR.PATCH`
 - Matching rules now run on CSV/OFX statement imports &mdash; previously only manual entry and the Akahu feed auto-categorised, so file-fed accounts never matched and rules looked broken for those accounts
 
 ### Changed
+- Category selectors on the Transactions page &mdash; every row, the filter bar and the batch-categorise bar &mdash; are type-to-filter pickers instead of sixty-option native dropdowns. Open one and type: the list narrows to what matches. The text is tried as a case-insensitive regular expression first (`^ins`, `gas|water`, `hol.*trip`) against the category name and then its group, and falls back to a plain substring match while a pattern is still half-typed, so an unbalanced `(` never empties the list. Arrow keys move, Enter picks, Escape closes; typing on a focused picker opens it. The real `<select>` stays underneath, so form submission, the HTMX filter trigger and the locked-row confirmation all behave as before
 - Saving a matching rule applies it immediately to existing uncategorised transactions (reconciliation-locked rows are left untouched and reported), instead of only affecting future ingests
 - Matching Rules preview count applies the engine&rsquo;s word-boundary rule for phrases of four characters or fewer, so the preview no longer over-promises
 - Import summary reports how many rows the rules categorised, linking to the review screen for the rest

@@ -1,0 +1,115 @@
+{% from "components/category_options.html" import category_options %}
+{#
+  Searchable category picker — a drop-in replacement for a bare <select>
+  filled by category_options(). Sixty-odd categories in a native dropdown
+  means scrolling; this one filters as you type.
+
+  What it renders:
+
+    * the real <select>, kept in the DOM (hidden once Alpine boots), so the
+      field still submits with its form, still fires `change` for HTMX and
+      Alpine listeners, and still works as a plain native select if JS
+      never arrives;
+    * a trigger button showing the current choice;
+    * a pop-up panel with a text box that narrows the list as you type. The
+      text is tried as a case-insensitive regular expression first — `^ins`,
+      `gas|water`, `hol.*trip` — against the category name, then its group
+      name; a pattern that isn't valid (yet) falls back to a plain substring
+      match, so a half-typed `(` never empties the list.
+      Arrow keys move, Enter picks, Escape closes.
+
+  Behaviour is categoryPicker() in base.html. Picking sets the <select>'s
+  value, records the previous one in data-prev (as the old @focus handler
+  did), and dispatches a bubbling `change`. A caller that rejects the change
+  can put the old value back and fire `picker:sync` on the select to redraw
+  the label — see updateCategory() in transactions/list.html.
+
+  Parameters:
+    name         – form field name for the underlying <select> ('' for none)
+    tree         – list[Category] from get_category_tree (parents with .children)
+    selected_id  – optional UUID/string of the currently-selected category id
+    size         – 'sm' (default: filter bar, batch bar) or 'xs' (table rows)
+    class        – extra classes on the wrapper; put the width here
+    placeholder  – label when nothing is selected
+    on_change    – optional Alpine expression bound as @change on the <select>
+                   ($event.target is the <select>, exactly as before)
+
+  Leading options such as "All" or "Uncategorised" go in a call block:
+
+    {% call category_picker('category_id', category_tree, category_id) %}
+        <option value="">All</option>
+    {% endcall %}
+#}
+{% macro category_picker(name, tree, selected_id='', size='sm', class='', placeholder='Select category', on_change='') %}
+{%- set field = 'text-xs py-1.5 pl-2 pr-7 border-gray-200' if size == 'xs' else 'text-sm py-2 pl-3 pr-8 border-gray-300' -%}
+<div x-data="categoryPicker()" data-placeholder="{{ placeholder }}"
+     @picker:sync="sync()"
+     @click.outside="close()"
+     class="cat-picker relative {{ class }}">
+    <select {% if name %}name="{{ name }}"{% endif %} x-ref="select" x-show="!enhanced" tabindex="-1"
+            {% if on_change %}@change="{{ on_change }}"{% endif %}
+            class="block w-full rounded-lg dark:border-gray-600 dark:bg-gray-700 {{ field }} focus:border-brand-500 focus:ring-brand-500">
+        {%- if caller %}{{ caller() }}{% endif -%}
+        {{ category_options(tree, selected_id) }}
+    </select>
+
+    {# keyup is stopped on the button and the search box so a form listening for
+       "keyup changed" (the transactions filter) doesn't fire a second request
+       for the Enter that picked the option. #}
+    <button type="button" x-ref="button" x-show="enhanced" x-cloak
+            @click="toggle()" @keydown="onTriggerKey($event)" @keyup.stop
+            :aria-expanded="isOpen" aria-haspopup="listbox"
+            :title="label"
+            class="relative flex w-full items-center rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-left text-gray-700 dark:text-gray-200 {{ field }} focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 cursor-pointer">
+        <span x-text="label" class="block min-w-0 flex-1 truncate"></span>
+        <svg class="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+    </button>
+
+    <template x-if="isOpen">
+        <div x-ref="panel"
+             class="cat-picker-panel fixed z-40 flex flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
+            <div class="shrink-0 border-b border-gray-100 dark:border-gray-700 p-2">
+                <input type="text" x-ref="search" x-model="query"
+                       autocomplete="off" autocapitalize="off" spellcheck="false"
+                       placeholder="Type to filter — regex ok"
+                       role="combobox" aria-autocomplete="list" :aria-expanded="isOpen"
+                       :aria-controls="uid + '-list'" :aria-activedescendant="active >= 0 ? uid + '-' + active : null"
+                       @keydown.down.prevent="move(1)"
+                       @keydown.up.prevent="move(-1)"
+                       @keydown.enter.prevent="pickActive()"
+                       @keydown.escape.prevent.stop="close(true)"
+                       @keydown.tab="close()"
+                       @keyup.stop
+                       @change.stop
+                       class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-2.5 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+                <p x-show="literal" class="mt-1 px-0.5 text-[10px] leading-tight text-amber-600 dark:text-amber-400">Not a valid pattern yet &mdash; matching the text as typed</p>
+            </div>
+            <ul x-ref="list" :id="uid + '-list'" role="listbox" class="relative min-h-0 flex-1 overflow-y-auto py-1">
+                <template x-for="row in rows" :key="row.key">
+                    <li>
+                        <template x-if="row.group">
+                            <div class="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 select-none" x-text="row.label"></div>
+                        </template>
+                        <template x-if="!row.group">
+                            <div role="option" :id="uid + '-' + row.i" :data-i="row.i"
+                                 :aria-selected="row.value === value ? 'true' : 'false'"
+                                 @mousedown.prevent @click="pick(row.value)" @mousemove="active = row.i"
+                                 :class="{
+                                     'bg-gray-100 dark:bg-gray-700': row.i === active,
+                                     'font-semibold text-gray-900 dark:text-white': row.value === value,
+                                     'text-gray-700 dark:text-gray-200': row.value !== value,
+                                     'pl-5': row.indent, 'pl-3': !row.indent
+                                 }"
+                                 class="flex cursor-pointer items-center justify-between gap-2 pr-3 py-1.5 text-sm select-none">
+                                <span class="truncate" x-text="row.label"></span>
+                                <svg x-show="row.value === value" class="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-300" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                        </template>
+                    </li>
+                </template>
+                <li x-show="!rows.length" class="px-3 py-4 text-center text-xs text-gray-400 dark:text-gray-500">No categories match</li>
+            </ul>
+        </div>
+    </template>
+</div>
+{% endmacro %}
