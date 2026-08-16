@@ -65,6 +65,13 @@ document.addEventListener('alpine:init', function () {
          hideTicked: localStorage.getItem('reconcile-hide-ticked') === '1',
          helperStats: null,
          splitDrag: null,
+         // Candidate matches (split view): when a statement line is ticked in
+         // the helper, rows here with the same amount within ±3 days light up
+         // — fuller shade when a vendor word is shared too. Only the last helper
+         // tick counts, nothing is auto-ticked, and it is not remembered.
+         txs: [],             // [{id, desc, cents, day}] read off the rows once
+         cand: null,          // {id, label, count, best} for the driving helper line
+         candIds: {},         // tx id → 'strong' | 'possible'
          init() {
              {% for tx in transactions %}
              {% for did in draft_ids %}
@@ -75,6 +82,12 @@ document.addEventListener('alpine:init', function () {
                  if (this.checked[id] === null) delete this.checked[id];
              }
              this.$watch('hideTicked', v => localStorage.setItem('reconcile-hide-ticked', v ? '1' : '0'));
+             this.txs = Array.from(this.$root.querySelectorAll('#txBody tr[data-id]')).map(r => ({
+                 id: r.dataset.id, desc: r.dataset.desc,
+                 cents: Math.round(parseFloat(r.dataset.amount) * 100),
+                 day: Date.UTC(+r.dataset.date.slice(0, 4), +r.dataset.date.slice(5, 7) - 1, +r.dataset.date.slice(8, 10)),
+             }));
+             this.$watch('$store.reconSplit.on', on => { if (!on) this.clearCandidates(); });
              // The helper mounted itself before Alpine booted, so its first
              // stats broadcast was missed — read them directly.
              this.$nextTick(() => {
@@ -117,15 +130,101 @@ document.addEventListener('alpine:init', function () {
                  delete this.checked[id];
              } else {
                  this.checked[id] = amount;
+                 // A tick here settles the candidate question either way: the
+                 // picked row is now just a ticked row, and the rest revert.
+                 this.clearCandidates();
              }
          },
          selectAll() {
              {% for tx in transactions %}
              this.checked['{{ tx.id }}'] = {{ tx.amount }};
              {% endfor %}
+             this.clearCandidates();
          },
          clearAll() {
              this.checked = {};
+         },
+         rowClass(id) {
+             if (this.checked[id] !== undefined) return 'bg-brand-50/50 dark:bg-brand-900/20';
+             const tier = this.candIds[id];
+             if (tier === 'strong') return 'bg-violet-100/80 dark:bg-violet-900/40';
+             if (tier === 'possible') return 'bg-violet-50 dark:bg-violet-900/20';
+             return '';
+         },
+
+         /* ---- candidate matches for the helper's last tick ---- */
+         vendorTokens(s) {
+             // Words that identify a vendor: lower-cased, punctuation split,
+             // dropping numbers, short bits (Nz, Gb, St) and filler that both
+             // sides sprinkle around the name.
+             const STOP = ['the', 'and', 'for', 'ltd', 'limited', 'auckland', 'wellington', 'christchurch',
+                           'hamilton', 'tauranga', 'dunedin', 'online', 'card', 'payment', 'purchase', 'eftpos',
+                           'converted', 'includes', 'currency', 'conversion', 'charges', 'please', 'relevant',
+                           'statement', 'details', 'your', 'this', 'any', 'see', 'usd', 'aud', 'gbp', 'eur',
+                           'fxamnt', 'fxcurr', 'fxrate', 'visa', 'mastercard', 'debit', 'credit', 'direct'];
+             const out = new Set();
+             String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').forEach(t => {
+                 if (t.length >= 3 && !/^\d+$/.test(t) && STOP.indexOf(t) === -1) out.add(t);
+             });
+             return out;
+         },
+         findCandidates(line) {
+             // Exact signed amount, date within ±3 days, not already ticked.
+             // Strong when a vendor word is shared; ranked strong → nearest
+             // date → list order.
+             const day = Date.UTC(+line.date.slice(0, 4), +line.date.slice(5, 7) - 1, +line.date.slice(8, 10));
+             const words = this.vendorTokens(line.name + ' ' + (line.memo || ''));
+             const found = [];
+             this.txs.forEach((tx, i) => {
+                 if (this.checked[tx.id] !== undefined || tx.cents !== line.amountMinor) return;
+                 const days = Math.abs(tx.day - day) / 86400000;
+                 if (days > 3) return;
+                 let overlap = 0;
+                 this.vendorTokens(tx.desc).forEach(t => { if (words.has(t)) overlap++; });
+                 found.push({ id: tx.id, tier: overlap ? 'strong' : 'possible', days: days, i: i });
+             });
+             found.sort((a, b) => (a.tier === b.tier ? 0 : (a.tier === 'strong' ? -1 : 1)) || (a.days - b.days) || (a.i - b.i));
+             return found;
+         },
+         onHelperTick(d) {
+             // Only the last tick drives the candidates; unticking that line
+             // (or losing the statement) clears them, unticking another does not.
+             if (!d || d.id === null || !d.ticked) {
+                 if (!d || d.id === null || (this.cand && this.cand.id === d.id)) this.clearCandidates();
+                 return;
+             }
+             const found = this.findCandidates(d);
+             const ids = {};
+             found.forEach(c => { ids[c.id] = c.tier; });
+             this.candIds = ids;
+             this.cand = { id: d.id, count: found.length, best: found.length ? found[0].id : null, label: this.lineLabel(d) };
+             if (this.cand.best) this.$nextTick(() => this.revealRow(this.cand && this.cand.best));
+         },
+         clearCandidates() {
+             if (this.cand === null) return;
+             this.cand = null;
+             this.candIds = {};
+         },
+         lineLabel(d) {
+             // Amount and date first: they survive truncation in a narrow pane,
+             // and the vendor is visible on the helper's own row anyway.
+             const name = String(d.name || '').trim();
+             const p = String(d.date || '').split('-');
+             const date = p.length === 3 ? p[2] + '-' + p[1] + '-' + p[0].slice(2) : d.date;
+             return this.money(d.amountMinor / 100, d.currency) + ' · ' + date + ' · ' + name;
+         },
+         get candNote() {
+             if (!this.cand) return '';
+             const n = this.cand.count;
+             return (n ? n + (n === 1 ? ' candidate' : ' candidates') : 'No candidate on this side') + ' for ' + this.cand.label;
+         },
+         revealRow(id) {
+             if (!id) return;
+             const row = Array.from(this.$root.querySelectorAll('#txBody tr[data-id]')).find(r => r.dataset.id === id);
+             if (!row) return;
+             const r = row.getBoundingClientRect();
+             if (r.top >= 0 && r.bottom <= window.innerHeight - 96) return;   // already in view (above the pinned bar)
+             row.scrollIntoView({ block: 'center', behavior: 'smooth' });
          },
          submitTo(action) {
              this.$refs.theForm.action = action;
@@ -183,6 +282,7 @@ document.addEventListener('alpine:init', function () {
      }"
      x-effect="pushDifference()"
      @recon-helper:stats="helperStats = $event.detail"
+     @recon-helper:tick="onHelperTick($event.detail)"
      @pointermove.window="onSplitDrag($event)"
      @pointerup.window="endSplitDrag()"
      @pointercancel.window="endSplitDrag()"
@@ -269,11 +369,11 @@ document.addEventListener('alpine:init', function () {
                         <tbody id="txBody" class="divide-y divide-gray-50 dark:divide-gray-700">
                             {% for tx in transactions %}
                             <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group"
-                                data-idx="{{ loop.index0 }}" data-date="{{ tx.date|fiso }}"
+                                data-idx="{{ loop.index0 }}" data-id="{{ tx.id }}" data-date="{{ tx.date|fiso }}"
                                 data-amount="{{ tx.amount }}" data-desc="{{ tx.description|e }}"
                                 @click="toggle('{{ tx.id }}', {{ tx.amount }})"
                                 x-show="!isHidden('{{ tx.id }}')"
-                                :class="checked['{{ tx.id }}'] !== undefined ? 'bg-brand-50/50 dark:bg-brand-900/20' : ''">
+                                :class="rowClass('{{ tx.id }}')">
                                 <td class="px-4 py-3 text-center">
                                     <input type="checkbox" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 pointer-events-none"
                                            :checked="checked['{{ tx.id }}'] !== undefined">
@@ -334,7 +434,8 @@ document.addEventListener('alpine:init', function () {
             <!-- Running ticked total: stays pinned to the viewport bottom while the
                  transaction list scrolls, so it can be eyeballed against the statement
                  helper's matching footer at any point during tick-off. In split view
-                 the helper's own ticked total is pulled in here too. -->
+                 the helper's own ticked total is pulled in here too, plus a note on
+                 the candidate matches lit up for the helper's last tick. -->
             <div class="sticky bottom-0 z-10 pb-2">
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg ring-1 ring-gray-200 dark:ring-gray-700 px-6 py-3 flex items-center gap-8 flex-wrap">
                     <div>
@@ -355,6 +456,15 @@ document.addEventListener('alpine:init', function () {
                                       :class="Math.abs(helperGap) < 0.005 ? 'text-positive-600 dark:text-positive-400' : 'text-amber-600 dark:text-amber-400'"
                                       x-text="Math.abs(helperGap) < 0.005 ? 'matches ✓' : 'gap ' + money(helperGap, helperStats.currency)"></span>
                             </p>
+                        </div>
+                    </template>
+                    <template x-if="$store.reconSplit.on && cand">
+                        <div class="pl-8 border-l border-gray-100 dark:border-gray-700 min-w-0"
+                             title="Rows lit up in this list are candidate matches for the statement line you last ticked in the helper: same amount, dated within 3 days. The fuller shade also shares a vendor word. Tick one to keep it and the rest revert; nothing is ticked for you.">
+                            <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Candidates</p>
+                            <p class="text-sm font-semibold tabular-nums truncate max-w-[22rem]"
+                               :class="cand.count ? 'text-violet-700 dark:text-violet-300' : 'text-gray-500 dark:text-gray-400'"
+                               x-text="candNote"></p>
                         </div>
                     </template>
                     <div class="ml-auto text-right">
