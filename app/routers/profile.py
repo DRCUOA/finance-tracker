@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
-from app.routers.auth import _set_auth_cookies, require_user
+from app.routers.auth import require_user, set_auth_cookies
 from app.services import auth as auth_service
 from app.services import user_profile as profile_svc
 from app.templating import templates
@@ -202,5 +202,5 @@ async def change_password(
     refresh = await auth_service.create_refresh_token(db, user.id)
     base_ctx["password_ok"] = True
     response = templates.TemplateResponse(request, "profile/index.html", base_ctx)
-    _set_auth_cookies(response, access, refresh)
+    set_auth_cookies(response, access, refresh)
     return response

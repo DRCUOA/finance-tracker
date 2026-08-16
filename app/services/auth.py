@@ -1,11 +1,12 @@
 import hashlib
 import secrets
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from jose import JWTError, jwt
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -15,6 +16,13 @@ from app.models.user import RefreshToken, User
 # Lock the (email, ip) pair after this many failed attempts inside the window.
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_WINDOW = timedelta(minutes=15)
+
+# A refresh token is single-use: the first request that presents it after the
+# access token has expired retires it and is issued a fresh pair. Requests that
+# were already in flight with the *old* cookies (a page firing several fetches
+# at once) would otherwise bounce to login, so a retired token keeps working —
+# without minting anything further — for this short grace window.
+REFRESH_REUSE_GRACE = timedelta(seconds=60)
 
 
 def hash_password(password: str) -> str:
@@ -57,27 +65,59 @@ async def create_refresh_token(db: AsyncSession, user_id: uuid.UUID) -> str:
     return raw
 
 
-async def validate_refresh_token(db: AsyncSession, raw_token: str) -> User | None:
+@dataclass(frozen=True)
+class RefreshOutcome:
+    """Result of presenting a refresh token.
+
+    ``rotate`` is True when this presentation retired the token, i.e. the
+    caller must issue (and set) a fresh access + refresh pair. It is False for
+    a retired token still inside ``REFRESH_REUSE_GRACE``: the request is
+    served, but the pair minted by the first presentation stands.
+    """
+
+    user: User
+    rotate: bool
+
+
+async def validate_refresh_token(db: AsyncSession, raw_token: str) -> RefreshOutcome | None:
+    now = datetime.now(timezone.utc)
     h = _hash_refresh(raw_token)
     stmt = select(RefreshToken).where(
         RefreshToken.token_hash == h,
-        RefreshToken.is_revoked.is_(False),
-        RefreshToken.expires_at > datetime.now(timezone.utc),
+        RefreshToken.expires_at > now,
+        # Live, or retired-by-rotation and still inside the grace window. A
+        # token revoked outright (logout, password change) keeps its original
+        # far-off expiry and so never satisfies the second arm.
+        or_(
+            RefreshToken.is_revoked.is_(False),
+            RefreshToken.expires_at <= now + REFRESH_REUSE_GRACE,
+        ),
     )
     result = await db.execute(stmt)
     rt = result.scalar_one_or_none()
     if not rt:
         return None
-    rt.is_revoked = True
     user = await db.get(User, rt.user_id)
-    return user
+    if not user:
+        return None
+    if rt.is_revoked:
+        return RefreshOutcome(user=user, rotate=False)
+    # First presentation: retire it, leaving the short reuse grace for
+    # requests already in flight with the old cookie.
+    rt.is_revoked = True
+    rt.expires_at = now + REFRESH_REUSE_GRACE
+    return RefreshOutcome(user=user, rotate=True)
 
 
 async def revoke_all_refresh_tokens(db: AsyncSession, user_id: uuid.UUID) -> None:
-    stmt = select(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.is_revoked.is_(False))
+    """Kill every token for the user outright — including any retired-by-
+    rotation token still inside its reuse grace, hence the expiry collapse."""
+    now = datetime.now(timezone.utc)
+    stmt = select(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.expires_at > now)
     result = await db.execute(stmt)
     for rt in result.scalars():
         rt.is_revoked = True
+        rt.expires_at = now
 
 
 async def register_user(db: AsyncSession, email: str, password: str, display_name: str) -> User | None:

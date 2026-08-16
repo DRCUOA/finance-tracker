@@ -23,7 +23,7 @@ from app.database import get_db
 from app.main import app
 from app.models.login_attempt import LoginAttempt
 from app.models.user import User
-from app.routers.auth import _set_auth_cookies
+from app.routers.auth import set_auth_cookies
 from app.services import auth as auth_service
 
 
@@ -53,7 +53,7 @@ def test_auth_cookies_secure_when_enabled(monkeypatch):
     from app.routers import auth as auth_router
     monkeypatch.setattr(auth_router.settings, "COOKIE_SECURE", True)
     resp = Response()
-    _set_auth_cookies(resp, "acc", "ref")
+    set_auth_cookies(resp, "acc", "ref")
     cookies = resp.headers.getlist("set-cookie")
     assert all("Secure" in c for c in cookies)
 
@@ -62,7 +62,7 @@ def test_auth_cookies_not_secure_when_disabled(monkeypatch):
     from app.routers import auth as auth_router
     monkeypatch.setattr(auth_router.settings, "COOKIE_SECURE", False)
     resp = Response()
-    _set_auth_cookies(resp, "acc", "ref")
+    set_auth_cookies(resp, "acc", "ref")
     cookies = resp.headers.getlist("set-cookie")
     assert all("Secure" not in c for c in cookies)
 

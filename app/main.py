@@ -80,6 +80,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Finla", lifespan=lifespan)
 
+# Attaches the cookies for a session renewed mid-request (see
+# app.routers.auth.get_current_user) to whatever response the endpoint returns.
+app.add_middleware(auth.SessionCookieMiddleware)
+
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
