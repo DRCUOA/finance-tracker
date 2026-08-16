@@ -23,7 +23,7 @@
 <!-- ═══════════════════════════════════════════════════════════ -->
 <!-- DAILY TIMELINE                                              -->
 <!-- ═══════════════════════════════════════════════════════════ -->
-<div x-data="{ open: true, filterOpen: false }" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
+<div x-data="{ open: true }" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 p-6 mb-8">
     <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Daily Allowance Used</h3>
         <div class="flex items-center gap-3">
@@ -32,52 +32,102 @@
                 <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-2" style="border-color:rgba(217,119,6,0.7)"></span>Avg to date: <span id="dailyAvgLegend">—</span>/day</span>
             </div>
 
-            <!-- Category filter: which categories the bars, tooltips, average
-                 and budget line are built from. Everything below is recomputed
-                 in the browser from the per-day category breakdown already in
-                 the payload, so toggling costs no round trip. -->
-            <div x-show="open" x-transition.opacity class="relative" @keydown.escape.window="filterOpen = false">
-                <button type="button" @click="filterOpen = !filterOpen"
-                        class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                        :aria-expanded="filterOpen">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-                    Categories
-                    <span id="dailyFilterBadge" class="tabular-nums text-gray-400 dark:text-gray-500">All</span>
-                </button>
-                <div x-show="filterOpen" x-cloak x-transition @click.outside="filterOpen = false"
-                     class="absolute right-0 mt-2 w-72 z-30 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
-                    <div class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-700">
-                        <span class="text-xs font-semibold text-gray-700 dark:text-gray-200">Include in chart</span>
-                        <span class="flex items-center gap-2">
-                            <button type="button" id="dailyFilterAll" class="text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:underline">All</button>
-                            <span class="text-gray-300 dark:text-gray-600">|</span>
-                            <button type="button" id="dailyFilterNone" class="text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:underline">None</button>
-                        </span>
-                    </div>
-                    <div id="dailyFilterList" class="max-h-72 overflow-y-auto py-1"></div>
-                    <div class="border-t border-gray-100 dark:border-gray-700">
-                        <label id="dailyLockRow" class="flex items-start gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/60">
-                            <input type="checkbox" id="dailyLockAxis" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
-                            <span>
-                                <span class="text-gray-700 dark:text-gray-200">Lock y-axis to busiest day</span>
-                                <span class="block text-[11px] text-gray-400 dark:text-gray-500">Hold the scale at <span id="dailyLockPeak"></span> (all categories) so bar heights stay comparable as you filter.</span>
-                            </span>
-                        </label>
-                        <div class="px-3 pb-2.5">
-                            <label for="dailyAxisCustom" class="block text-xs text-gray-700 dark:text-gray-200 mb-1">Or anchor the top of the scale at</label>
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-xs text-gray-400 dark:text-gray-500">$</span>
-                                <input type="number" id="dailyAxisCustom" min="0" step="any" inputmode="decimal" placeholder="e.g. 2000"
-                                       class="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs px-2 py-1 focus:border-brand-500 focus:ring-brand-500">
-                                <button type="button" id="dailyAxisCustomClear"
-                                        class="px-1.5 py-1 text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:underline">Clear</button>
+            <!-- Category filter + y-axis anchor: which categories the bars,
+                 tooltips, average and budget line are built from, and where the
+                 top of the scale sits. Everything below is recomputed in the
+                 browser from the per-day category breakdown already in the
+                 payload, so toggling costs no round trip.
+
+                 The panel is a working tool, not a menu: you tick categories,
+                 watch the chart, type an anchor, watch it again. So collapse,
+                 expand and drag are all live while it is open, and none of them
+                 is a close — the panel keeps its size and place across a
+                 close/open cycle. -->
+            <div x-show="open" x-transition.opacity>
+                <div x-data="chartControlsPanel()" class="relative"
+                     @keydown.escape.window="close()"
+                     @pointermove.window="onDrag($event)"
+                     @pointerup.window="endDrag()"
+                     @pointercancel.window="endDrag()"
+                     @resize.window="reclamp()">
+                    <button type="button" @click="toggle()"
+                            class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                            :aria-expanded="panelOpen">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                        Categories
+                        <span data-daily-filter-badge class="tabular-nums text-gray-400 dark:text-gray-500">All</span>
+                    </button>
+
+                    <div x-ref="panel" x-show="panelOpen" x-cloak x-transition.opacity
+                         role="dialog" aria-label="Chart controls"
+                         @click.outside="if (!pos) close()"
+                         :style="panelStyle()"
+                         :class="pos ? 'fixed z-50' : 'absolute right-0 mt-2 z-30'"
+                         class="w-72 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
+
+                        <!-- Title bar doubles as the drag handle. Buttons inside
+                             it are excluded from the grab in startDrag(). -->
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-xl select-none bg-gray-50/80 dark:bg-gray-900/40"
+                             :class="[collapsed ? 'rounded-b-xl' : 'border-b border-gray-100 dark:border-gray-700', dragging ? 'cursor-grabbing' : 'cursor-grab']"
+                             style="touch-action:none"
+                             @pointerdown="startDrag($event)"
+                             @dblclick="dock()"
+                             :title="pos ? 'Drag to move · double-click to snap back' : 'Drag to move'">
+                            <svg class="w-3.5 h-3.5 flex-shrink-0 text-gray-400 dark:text-gray-500" fill="currentColor" viewBox="0 0 20 20"><circle cx="7" cy="5" r="1.4"/><circle cx="13" cy="5" r="1.4"/><circle cx="7" cy="10" r="1.4"/><circle cx="13" cy="10" r="1.4"/><circle cx="7" cy="15" r="1.4"/><circle cx="13" cy="15" r="1.4"/></svg>
+                            <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Chart controls</span>
+                            <span data-daily-filter-badge class="ml-auto text-[11px] tabular-nums text-gray-400 dark:text-gray-500">All</span>
+                            <button type="button" x-show="pos" @click="dock()"
+                                    class="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200/80 dark:hover:bg-gray-700/80"
+                                    title="Snap back to the button">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 15L3 21m0 0h6m-6 0v-6M15 9l6-6m0 0h-6m6 0v6"/></svg>
+                            </button>
+                            <button type="button" @click="collapsed = !collapsed; $nextTick(() => reclamp())"
+                                    class="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200/80 dark:hover:bg-gray-700/80"
+                                    :title="collapsed ? 'Expand' : 'Collapse'" :aria-expanded="!collapsed">
+                                <svg class="w-3.5 h-3.5 transition-transform" :class="collapsed ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <button type="button" @click="close()"
+                                    class="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200/80 dark:hover:bg-gray-700/80"
+                                    title="Close">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+
+                        <div x-show="!collapsed" x-transition.opacity>
+                            <div class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+                                <span class="text-xs font-semibold text-gray-700 dark:text-gray-200">Include in chart</span>
+                                <span class="flex items-center gap-2">
+                                    <button type="button" id="dailyFilterAll" class="text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:underline">All</button>
+                                    <span class="text-gray-300 dark:text-gray-600">|</span>
+                                    <button type="button" id="dailyFilterNone" class="text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:underline">None</button>
+                                </span>
                             </div>
-                            <p id="dailyAxisCustomHint" class="text-[11px] text-gray-400 dark:text-gray-500 mt-1">Takes precedence over the lock above.</p>
+                            <div id="dailyFilterList" class="max-h-72 overflow-y-auto py-1"></div>
+                            <div class="border-t border-gray-100 dark:border-gray-700">
+                                <label id="dailyLockRow" class="flex items-start gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/60">
+                                    <input type="checkbox" id="dailyLockAxis" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                                    <span>
+                                        <span class="text-gray-700 dark:text-gray-200">Lock y-axis to busiest day</span>
+                                        <span class="block text-[11px] text-gray-400 dark:text-gray-500">Hold the scale at <span id="dailyLockPeak"></span> (all categories) so bar heights stay comparable as you filter.</span>
+                                    </span>
+                                </label>
+                                <div class="px-3 pb-2.5">
+                                    <label for="dailyAxisCustom" class="block text-xs text-gray-700 dark:text-gray-200 mb-1">Or anchor the top of the scale at</label>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-xs text-gray-400 dark:text-gray-500">$</span>
+                                        <input type="number" id="dailyAxisCustom" min="0" step="any" inputmode="decimal" placeholder="e.g. 2000"
+                                               class="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs px-2 py-1 focus:border-brand-500 focus:ring-brand-500">
+                                        <button type="button" id="dailyAxisCustomClear"
+                                                class="px-1.5 py-1 text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:underline">Clear</button>
+                                    </div>
+                                    <p id="dailyAxisCustomHint" class="text-[11px] text-gray-400 dark:text-gray-500 mt-1">Takes precedence over the lock above.</p>
+                                </div>
+                            </div>
+                            <p class="px-3 py-2 border-t border-gray-100 dark:border-gray-700 text-[11px] text-gray-400 dark:text-gray-500">
+                                The budget line follows your selection — it sums only the budgets of the categories shown.
+                            </p>
                         </div>
                     </div>
-                    <p class="px-3 py-2 border-t border-gray-100 dark:border-gray-700 text-[11px] text-gray-400 dark:text-gray-500">
-                        The budget line follows your selection — it sums only the budgets of the categories shown.
-                    </p>
                 </div>
             </div>
 
@@ -210,6 +260,79 @@
 
 <script>
 document.addEventListener('alpine:init', () => {
+    /* ── Chart controls panel ──────────────────────────────────────────────
+       Open/close, collapse/expand and position are three independent bits of
+       state. Collapsing leaves the panel open and its settings live; dragging
+       does the same. Neither is reset by closing, so a panel you parked beside
+       the chart comes back where you left it, at the size you left it.
+
+       Docked (pos === null) it behaves like the menu it replaced: anchored to
+       the button, dismissed by a click outside. Once you drag it, it is a
+       floating tool — an outside click is you working on the page, not a
+       request to dismiss, so only Escape or the × closes it from there.        */
+    Alpine.data('chartControlsPanel', () => ({
+        panelOpen: false,
+        collapsed: false,
+        pos: null,       // viewport coords once dragged; null = docked to the button
+        dragging: false,
+        grab: null,
+
+        toggle() { this.panelOpen = !this.panelOpen; },
+        close() { this.panelOpen = false; },
+        dock() { this.pos = null; },
+
+        panelStyle() {
+            return this.pos ? 'left:' + this.pos.x + 'px; top:' + this.pos.y + 'px; right:auto;' : '';
+        },
+
+        startDrag(e) {
+            if (e.button !== 0) return;
+            // The title bar carries the dock/collapse/close buttons; a press on
+            // one of those is a click, not the start of a drag.
+            if (e.target.closest('button')) return;
+            const r = this.$refs.panel.getBoundingClientRect();
+            // Pin to where it already is before switching to fixed, so the
+            // first pixel of movement doesn't jump the panel across the screen.
+            this.pos = { x: r.left, y: r.top };
+            this.grab = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+            this.dragging = true;
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        },
+
+        onDrag(e) {
+            if (!this.dragging) return;
+            this.pos = this.clamp(e.clientX - this.grab.dx, e.clientY - this.grab.dy);
+        },
+
+        endDrag() {
+            if (!this.dragging) return;
+            this.dragging = false;
+            document.body.style.userSelect = '';
+        },
+
+        // Keep the title bar reachable: the panel may hang off the bottom (it
+        // is taller than some viewports) but never off the top or the sides.
+        clamp(x, y) {
+            const el = this.$refs.panel;
+            const w = el ? el.offsetWidth : 288;
+            const h = el ? el.offsetHeight : 0;
+            const m = 8;
+            const maxX = Math.max(m, window.innerWidth - w - m);
+            const maxY = Math.max(m, window.innerHeight - Math.min(h, window.innerHeight - 2 * m) - m);
+            return {
+                x: Math.min(Math.max(x, m), maxX),
+                y: Math.min(Math.max(y, m), maxY),
+            };
+        },
+
+        // Called after expanding and on resize: a panel parked low is pulled
+        // back up when it grows, rather than expanding off the bottom.
+        reclamp() {
+            if (this.pos) this.pos = this.clamp(this.pos.x, this.pos.y);
+        },
+    }));
+
     Alpine.data('budgetOverrides', () => ({
         async saveOverride(categoryId, value) {
             const amount = parseFloat(value) || 0;
@@ -546,9 +669,11 @@ requestAnimationFrame(function() {
             if (budgetEl) budgetEl.textContent = fmt(dailyRate);
             if (avgEl) avgEl.textContent = fmt(daysElapsed > 0 ? elapsed / daysElapsed : 0);
 
+            // Two badges — the trigger button and the panel's title bar, which
+            // is all you can see of the panel while it is collapsed.
             const hidden = names.length - selected.size;
-            const badge = document.getElementById('dailyFilterBadge');
-            if (badge) badge.textContent = hidden === 0 ? 'All' : (selected.size + '/' + names.length);
+            const label = hidden === 0 ? 'All' : (selected.size + '/' + names.length);
+            document.querySelectorAll('[data-daily-filter-badge]').forEach(el => { el.textContent = label; });
 
             // A custom anchor below the tallest bar cuts that bar off at the
             // top. Say so — a clipped bar reads as "that day hit the ceiling"
