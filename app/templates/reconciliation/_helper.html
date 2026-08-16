@@ -21,8 +21,13 @@
     setFind(minor|null)  – highlight lines whose |amount| equals minor cents
                            (the reconcile screen feeds its live difference in)
     getStats()           – {loaded, tickedMinor, remainingMinor, done, total}
-  and it dispatches a bubbling `recon-helper:stats` CustomEvent (same shape
-  in event.detail) whenever the numbers change.
+  and it dispatches bubbling CustomEvents:
+    `recon-helper:stats` – same shape as getStats(), whenever the numbers change
+    `recon-helper:tick`  – {id, ticked, date, amountMinor, name, memo, currency}
+                           each time the user ticks or unticks a line (the
+                           reconcile screen lights up candidate matches for the
+                           last tick); {id: null, ticked: false} when the
+                           statement is unloaded/replaced or the ticks reset.
 #}
 <div data-recon-helper x-ignore
      data-scope="{{ rh_scope or '' }}"
@@ -426,6 +431,7 @@
             if (state.stmtBalMinor == null && expectedBalanceMinor != null) state.stmtBalMinor = expectedBalanceMinor;
             saveSession();
             showApp();
+            announceTick(null, false);   // new statement: no line to match against yet
         }
 
         function resumeLast() {
@@ -443,6 +449,7 @@
             state.storageKey = key;
             saveSession();   // re-points this scope's "last" at it
             showApp();
+            announceTick(null, false);
             return true;
         }
 
@@ -705,14 +712,33 @@
             }
             state.txns = []; state.checked = new Set(); state.storageKey = null;
             broadcast();
+            announceTick(null, false);
         }
 
         /* ---------- interactions ---------- */
+        // Tell the page which line was just ticked/unticked (the reconcile
+        // screen uses the last tick to light up candidate matches on its side).
+        // A null id means "nothing to match against any more".
+        function announceTick(id, ticked) {
+            var line = id != null ? state.txns.find(function (t) { return t.id === id; }) : null;
+            root.dispatchEvent(new CustomEvent('recon-helper:tick', { bubbles: true, detail: {
+                id: line ? line.id : null,
+                ticked: !!(line && ticked),
+                date: line ? line.date : null,
+                amountMinor: line ? line.amountMinor : null,
+                name: line ? line.name : '',
+                memo: line ? line.memo : '',
+                currency: state.meta.currency || 'NZD',
+            } }));
+        }
+
         function toggle(id) {
-            if (state.checked.has(id)) state.checked.delete(id);
-            else state.checked.add(id);
+            var ticked;
+            if (state.checked.has(id)) { state.checked.delete(id); ticked = false; }
+            else { state.checked.add(id); ticked = true; }
             saveSession();
             render();
+            announceTick(id, ticked);
         }
 
         function moveFocus(delta) {
@@ -857,7 +883,7 @@
         });
         el('btnReset').addEventListener('click', function (e) {
             e.preventDefault();
-            var doReset = function () { state.checked.clear(); saveSession(); render(); };
+            var doReset = function () { state.checked.clear(); saveSession(); render(); announceTick(null, false); };
             if (!state.checked.size) { doReset(); return; }
             confirmDialog({
                 title: 'Reset ticks?',

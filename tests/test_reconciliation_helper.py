@@ -139,6 +139,49 @@ async def test_reconcile_screen_has_hide_ticked_on_both_sides(db: AsyncSession, 
 
 
 @pytest.mark.asyncio
+async def test_reconcile_screen_wires_candidate_matching(db: AsyncSession, user: User, account: Account):
+    """Ticking a statement line in the helper lights up candidate matches in
+    the transaction list. The matching itself runs in the browser (amount,
+    ±3-day date window, vendor words for the strong tier); what the server
+    owns is the wiring: the helper announces each tick, the reconcile screen
+    listens, every row carries the fields the matcher reads, rows take their
+    tint from rowClass(), and the pinned bar has the candidates note."""
+    tx = Transaction(
+        user_id=user.id, account_id=account.id,
+        date=date(2026, 7, 3), amount=Decimal("-23.50"),
+        description="TESCO STORES 2214", is_cleared=False,
+    )
+    db.add(tx)
+    await db.flush()
+
+    async with _client_as(db, user) as client:
+        resp = await client.get(
+            f"/reconciliation/{account.id}",
+            params={"statement_date": "2026-07-31", "statement_balance": "2193.09"},
+        )
+        standalone = await client.get("/reconciliation/helper")
+    assert resp.status_code == 200
+    body = resp.text
+
+    # Helper side announces ticks (once — the partial is included once).
+    assert body.count("new CustomEvent('recon-helper:tick'") == 1
+    # List side listens, reads the rows, tints them, and reports.
+    assert '@recon-helper:tick="onHelperTick($event.detail)"' in body
+    assert f'data-id="{tx.id}"' in body and 'data-date="2026-07-03"' in body
+    assert 'data-amount="-23.50"' in body and 'data-desc="TESCO STORES 2214"' in body
+    assert f":class=\"rowClass('{tx.id}')\"" in body
+    assert "bg-violet-100/80 dark:bg-violet-900/40" in body    # strong tier
+    assert "bg-violet-50 dark:bg-violet-900/20" in body        # possible tier
+    assert 'x-text="candNote"' in body
+    # Nothing is auto-ticked: the only writers of `checked` are the user's own
+    # actions (toggle / selectAll / clearAll / draft init).
+    assert "this.checked[c.id]" not in body
+    # The standalone helper page still announces ticks but has no listener.
+    assert "new CustomEvent('recon-helper:tick'" in standalone.text
+    assert "@recon-helper:tick" not in standalone.text
+
+
+@pytest.mark.asyncio
 async def test_reconciliation_index_links_to_helper(db: AsyncSession, user: User, account: Account):
     async with _client_as(db, user) as client:
         resp = await client.get("/reconciliation")
