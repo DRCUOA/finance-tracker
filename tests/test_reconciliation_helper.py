@@ -8,7 +8,10 @@ to the account being reconciled.
 """
 from __future__ import annotations
 
+import re
 import uuid
+from datetime import date
+from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -17,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.main import app
 from app.models.account import Account
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.routers.auth import require_user
 
@@ -44,6 +48,7 @@ async def test_helper_page_renders_standalone(db: AsyncSession, user: User):
     assert body.count("window.reconHelper = function") == 1   # partial included exactly once
     assert 'data-embedded=""' in body                          # standalone mode
     assert 'data-rh="followDiff"' not in body                  # split-only control absent
+    assert 'data-rh="hideChecked"' in body                     # Hide ticked travels with the helper
     assert "Statement Helper" in body
 
 
@@ -89,6 +94,48 @@ async def test_reconcile_screen_embeds_helper_for_split_view(db: AsyncSession, u
     assert 'data-rh="followDiff"' in body
     # Existing behaviour still on the page
     assert "Finish Reconciliation" in body and 'id="txBody"' in body
+
+
+_HIDE_TICKED_LABEL = re.compile(r"<input[^>]*type=\"checkbox\"[^>]*>\s*Hide ticked\s*</label>")
+
+
+@pytest.mark.asyncio
+async def test_reconcile_screen_has_hide_ticked_on_both_sides(db: AsyncSession, user: User, account: Account):
+    """Each pane of the split view carries its own Hide ticked switch, worded the
+    same: the transaction list hides rows already ticked (Alpine state,
+    remembered in localStorage like the sort choice) and the statement helper
+    hides ticked lines (its own state, saved with the session). Neither is a
+    form field, so nothing new is posted on Save Draft / Finish."""
+    tx = Transaction(
+        user_id=user.id, account_id=account.id,
+        date=date(2026, 7, 19), amount=Decimal("-42.50"),
+        description="COUNTDOWN ALBANY", is_cleared=False,
+    )
+    db.add(tx)
+    await db.flush()
+
+    async with _client_as(db, user) as client:
+        resp = await client.get(
+            f"/reconciliation/{account.id}",
+            params={"statement_date": "2026-07-31", "statement_balance": "2193.09"},
+        )
+    assert resp.status_code == 200
+    body = resp.text
+
+    # Transaction-list side: switch, persistence, per-row hide, and the
+    # "everything is hidden" notice.
+    assert 'x-model="hideTicked"' in body
+    assert "localStorage.getItem('reconcile-hide-ticked')" in body
+    assert "localStorage.setItem('reconcile-hide-ticked'" in body
+    assert f"x-show=\"!isHidden('{tx.id}')\"" in body
+    assert 'x-show="allHidden"' in body
+    assert "txCount: 1," in body
+    # Statement-helper side keeps its own switch inside the split pane.
+    assert 'data-rh="hideChecked"' in body
+    # Both read identically, and neither would be submitted with the form.
+    labels = _HIDE_TICKED_LABEL.findall(body)
+    assert len(labels) == 2, labels
+    assert all("name=" not in lbl for lbl in labels)
 
 
 @pytest.mark.asyncio

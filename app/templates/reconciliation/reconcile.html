@@ -58,6 +58,11 @@ document.addEventListener('alpine:init', function () {
          statementBalance: {{ statement_balance }},
          clearedBalance: {{ cleared_balance }},
          checked: { {% for did in draft_ids %}{% if not loop.first %}, {% endif %}'{{ did }}': null{% endfor %} },
+         txCount: {{ transactions|length }},
+         // Hide rows already ticked so only what is still to be matched is
+         // listed — the list-side twin of the statement helper's Hide ticked.
+         // Remembered like the sort choice.
+         hideTicked: localStorage.getItem('reconcile-hide-ticked') === '1',
          helperStats: null,
          splitDrag: null,
          init() {
@@ -69,6 +74,7 @@ document.addEventListener('alpine:init', function () {
              for (const id in this.checked) {
                  if (this.checked[id] === null) delete this.checked[id];
              }
+             this.$watch('hideTicked', v => localStorage.setItem('reconcile-hide-ticked', v ? '1' : '0'));
              // The helper mounted itself before Alpine booted, so its first
              // stats broadcast was missed — read them directly.
              this.$nextTick(() => {
@@ -97,6 +103,14 @@ document.addEventListener('alpine:init', function () {
          },
          get isBalanced() {
              return Math.abs(this.difference) < 0.005;
+         },
+         isHidden(id) {
+             return this.hideTicked && this.checked[id] !== undefined;
+         },
+         get allHidden() {
+             // Every listed row is ticked and Hide ticked is on: the table would
+             // look empty, so say why instead.
+             return this.hideTicked && this.txCount > 0 && Object.keys(this.checked).length >= this.txCount;
          },
          toggle(id, amount) {
              if (this.checked[id] !== undefined) {
@@ -223,9 +237,15 @@ document.addEventListener('alpine:init', function () {
 
             <!-- Transactions list -->
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-3 flex-wrap">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Uncleared Transactions</h3>
-                    <div class="flex gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <label class="flex items-center gap-1.5 mr-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none"
+                               title="Hide the items you've already ticked, so only what's still to be matched is listed. The statement helper has the same switch for its side.">
+                            <input type="checkbox" x-model="hideTicked"
+                                   class="rounded border-gray-300 dark:border-gray-600 text-brand-600 focus:ring-brand-500">
+                            Hide ticked
+                        </label>
                         <button type="button" @click="selectAll()"
                                 class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Select All</button>
                         <button type="button" @click="clearAll()"
@@ -252,6 +272,7 @@ document.addEventListener('alpine:init', function () {
                                 data-idx="{{ loop.index0 }}" data-date="{{ tx.date|fiso }}"
                                 data-amount="{{ tx.amount }}" data-desc="{{ tx.description|e }}"
                                 @click="toggle('{{ tx.id }}', {{ tx.amount }})"
+                                x-show="!isHidden('{{ tx.id }}')"
                                 :class="checked['{{ tx.id }}'] !== undefined ? 'bg-brand-50/50 dark:bg-brand-900/20' : ''">
                                 <td class="px-4 py-3 text-center">
                                     <input type="checkbox" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 pointer-events-none"
@@ -280,6 +301,11 @@ document.addEventListener('alpine:init', function () {
                             {% endfor %}
                         </tbody>
                     </table>
+                    <!-- Hide ticked has emptied the list: say so rather than show a bare table -->
+                    <div x-show="allHidden" x-cloak class="px-4 py-10 text-center text-sm text-gray-400 dark:text-gray-500">
+                        All <span x-text="txCount"></span> uncleared transactions are ticked and hidden.
+                        <span class="block mt-1 text-xs">Untick &ldquo;Hide ticked&rdquo; to show them.</span>
+                    </div>
                 </div>
             </div>
 
