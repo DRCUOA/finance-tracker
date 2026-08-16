@@ -53,7 +53,8 @@
                            class="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors">
                             Resume
                         </a>
-                        <form method="post" action="/reconciliation/{{ info.account.id }}/discard-draft" class="inline">
+                        <form method="post" action="/reconciliation/{{ info.account.id }}/discard-draft" class="inline"
+                              onsubmit="Object.keys(localStorage).filter(function (k) { return k.indexOf('recon-checked:{{ info.account.id }}:') === 0; }).forEach(function (k) { localStorage.removeItem(k); })">
                             <button type="submit"
                                     class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                     title="Discard draft">

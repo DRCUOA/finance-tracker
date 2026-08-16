@@ -203,6 +203,95 @@
             }
         }
     </script>
+    <script>
+    /* Session guard. A lapsed session answers htmx/fetch traffic with a 401
+       (+ HX-Redirect) rather than a 302 — see app/routers/auth.py — because a
+       browser follows a 302 silently and hands the script the login page as a
+       200. Here that 401 becomes a toast and a trip to the login page (which
+       brings the user back to this URL afterwards), instead of a fetch handler
+       quietly choking on login-page HTML. */
+    (function () {
+        var AUTH_PATHS = ['/login', '/register', '/logout'];
+        var tripped = false;
+
+        function onAuthPage() {
+            return AUTH_PATHS.some(function (p) { return location.pathname === p || location.pathname.indexOf(p + '/') === 0; });
+        }
+        function sameOrigin(url) {
+            try { return new URL(url, location.href).origin === location.origin; } catch (e) { return false; }
+        }
+        function loginUrl(serverUrl) {
+            // The server's URL already carries next + expired; fall back to building one.
+            if (serverUrl && serverUrl.charAt(0) === '/' && serverUrl.charAt(1) !== '/') return serverUrl;
+            return '/login?next=' + encodeURIComponent(location.pathname + location.search) + '&expired=1';
+        }
+
+        // Returns true when it took charge of the redirect.
+        window.__sessionExpired = function (serverUrl) {
+            if (onAuthPage()) return false;
+            if (tripped) return true;
+            tripped = true;
+            window.dispatchEvent(new CustomEvent('notify', {
+                detail: { message: 'Your session has expired — sign in to carry on.', type: 'warning' }
+            }));
+            // A beat for the toast, then go. Reconciliation ticks survive the
+            // round trip in this browser (see reconciliation/reconcile.html).
+            setTimeout(function () { location.assign(loginUrl(serverUrl)); }, 900);
+            return true;
+        };
+
+        var nativeFetch = window.fetch;
+        if (nativeFetch) {
+            window.fetch = function (input) {
+                var url = (typeof input === 'string') ? input : (input && input.url) || '';
+                var p = nativeFetch.apply(this, arguments);
+                if (!sameOrigin(url)) return p;
+                return p.then(function (r) {
+                    var expired = r.status === 401 ||
+                        (r.redirected && sameOrigin(r.url) && new URL(r.url).pathname === '/login');
+                    if (!expired) return r;
+                    var login = r.status === 401
+                        ? r.clone().json().then(function (d) { return d && d.detail && d.detail.login; }, function () { return null; })
+                        : Promise.resolve(null);
+                    return login.then(function (serverUrl) {
+                        if (!window.__sessionExpired(serverUrl)) return r;
+                        // Never settle: the page is on its way to the login
+                        // screen; no caller should parse a login page as data.
+                        return new Promise(function () {});
+                    });
+                });
+            };
+        }
+
+        // htmx would follow HX-Redirect at once; hold it long enough to say why.
+        document.addEventListener('htmx:beforeOnLoad', function (e) {
+            var xhr = e.detail && e.detail.xhr;
+            if (xhr && xhr.status === 401 && window.__sessionExpired(xhr.getResponseHeader('HX-Redirect'))) e.preventDefault();
+        });
+    })();
+    </script>
+    {% if user %}
+    <script>
+    /* Keep-alive. Reconciliation can run a long time with no request at all,
+       so ping while the tab is visible and has seen input: a session in use
+       renews itself, and a lapsed one is found (and said, via the guard
+       above) within minutes rather than at Save. */
+    (function () {
+        var EVERY = 10 * 60 * 1000;
+        var active = false;
+        ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) {
+            document.addEventListener(ev, function () { active = true; }, { passive: true, capture: true });
+        });
+        setInterval(function () {
+            if (!active || document.visibilityState !== 'visible') return;
+            active = false;
+            fetch('/auth/ping', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }, cache: 'no-store', credentials: 'same-origin'
+            }).catch(function () {});
+        }, EVERY);
+    })();
+    </script>
+    {% endif %}
 </head>
 <body class="h-full bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-brand-950 text-gray-900 dark:text-gray-100 antialiased" hx-headers='{"X-Requested-With": "XMLHttpRequest"}'>
 

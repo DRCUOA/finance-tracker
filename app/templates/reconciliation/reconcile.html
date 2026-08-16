@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Reconcile {{ account.name }} — Finla{% endblock %}
 {% block page_title %}Reconcile: {{ account.name }}{% endblock %}
+{# Ticks are mirrored into localStorage under this key so nothing is lost if
+   the session lapses (or the tab dies) before Save. Cancel and Discard draft
+   clear it; the reconciliation index's discard form clears every key for the
+   account. See stashKey / restoreStash below. #}
+{% set stash_key = 'recon-checked:' ~ account.id ~ ':' ~ statement_date ~ ':' ~ statement_balance %}
 
 {% block header_actions %}
 <div class="flex items-center gap-2">
@@ -17,7 +22,8 @@
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h5v16H5a1 1 0 01-1-1V5zm10-1h5a1 1 0 011 1v14a1 1 0 01-1 1h-5V4z"/></svg>
         Statement helper
     </button>
-    <a href="/reconciliation" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Cancel</a>
+    <a href="/reconciliation" onclick="localStorage.removeItem('{{ stash_key }}')"
+       class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Cancel</a>
 </div>
 {% endblock %}
 
@@ -72,6 +78,13 @@ document.addEventListener('alpine:init', function () {
          txs: [],             // [{id, desc, cents, day}] read off the rows once
          cand: null,          // {id, label, count, best} for the driving helper line
          candIds: {},         // tx id → 'strong' | 'possible'
+         // Ticks live only in this component until Save Draft / Finish, and
+         // those are full-page POSTs — if the session has lapsed by then the
+         // browser lands on the login page and the form body is gone. So the
+         // tick set is mirrored to localStorage on every change and restored
+         // on the way back (login returns to this URL), keyed to this exact
+         // statement. Cancel and Discard draft clear it. Kept a week at most.
+         stashKey: '{{ stash_key }}',
          init() {
              {% for tx in transactions %}
              {% for did in draft_ids %}
@@ -87,6 +100,8 @@ document.addEventListener('alpine:init', function () {
                  cents: Math.round(parseFloat(r.dataset.amount) * 100),
                  day: Date.UTC(+r.dataset.date.slice(0, 4), +r.dataset.date.slice(5, 7) - 1, +r.dataset.date.slice(8, 10)),
              }));
+             this.restoreStash();
+             this.$watch('checked', () => this.writeStash());
              this.$watch('$store.reconSplit.on', on => { if (!on) this.clearCandidates(); });
              // The helper mounted itself before Alpine booted, so its first
              // stats broadcast was missed — read them directly.
@@ -229,6 +244,44 @@ document.addEventListener('alpine:init', function () {
          submitTo(action) {
              this.$refs.theForm.action = action;
              this.$nextTick(() => this.$refs.theForm.submit());
+         },
+
+         /* ---- unsaved-tick stash (survives a session lapse) ---- */
+         restoreStash() {
+             const WEEK = 7 * 86400000, PREFIX = 'recon-checked:';
+             let saved = null;
+             try {
+                 // Sweep stale stashes for any statement while we are here.
+                 Object.keys(localStorage).filter(k => k.indexOf(PREFIX) === 0).forEach(k => {
+                     let v = null;
+                     try { v = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) {}
+                     if (!v || !(Date.now() - (v.at || 0) < WEEK)) localStorage.removeItem(k);
+                 });
+                 saved = JSON.parse(localStorage.getItem(this.stashKey) || 'null');
+             } catch (e) { return; }
+             if (!saved || !Array.isArray(saved.ids)) return;
+             const amounts = {};
+             this.$root.querySelectorAll('#txBody tr[data-id]').forEach(r => { amounts[r.dataset.id] = parseFloat(r.dataset.amount); });
+             const restored = {};
+             saved.ids.forEach(id => { if (id in amounts) restored[id] = amounts[id]; });
+             const n = Object.keys(restored).length;
+             if (!n) return;   // nothing listed here any more (reconciled since) — the seed stands
+             const seeded = Object.keys(this.checked);
+             const same = seeded.length === n && seeded.every(id => id in restored);
+             if (same) return;
+             // The stash is the newer intent: it is written on every change, so
+             // it only differs from the server draft when a save never landed.
+             this.checked = restored;
+             this.clearCandidates();
+             // The toast container sits after this component in the DOM, so
+             // its listener isn't up yet during init — say it a tick later.
+             this.$nextTick(() => window.dispatchEvent(new CustomEvent('notify', { detail: {
+                 message: 'Restored ' + n + ' unsaved tick' + (n === 1 ? '' : 's') + ' from your last visit — save the draft to keep them.',
+                 type: 'warning'
+             }})));
+         },
+         writeStash() {
+             try { localStorage.setItem(this.stashKey, JSON.stringify({ ids: Object.keys(this.checked), at: Date.now() })); } catch (e) {}
          },
 
          /* ---- statement helper (split view) ---- */
@@ -411,7 +464,8 @@ document.addEventListener('alpine:init', function () {
 
             <!-- Action bar -->
             <div class="flex items-center justify-between">
-                <a href="/reconciliation" class="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <a href="/reconciliation" @click="localStorage.removeItem(stashKey)"
+                   class="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     Cancel
                 </a>
                 <div class="flex items-center gap-3">
