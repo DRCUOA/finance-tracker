@@ -215,13 +215,22 @@ class TestSyncAccountBalancesFeedFields:
         akahu_acct = make_akahu_account(balance_current=100.00)
         akahu_acct["refreshed"] = {"balance": "2026-04-20T09:30:00.000Z"}
         mock_fetch.return_value = [akahu_acct]
+        expected = datetime(2026, 4, 20, 9, 30, 0, tzinfo=timezone.utc)
 
         await sync_account_balances(db, user.id)
-        await db.refresh(account)
+        # The sync writes an aware UTC instant (``account`` is the same
+        # identity-map row the sync just updated).
+        assert account.reported_balance_as_of == expected
 
-        assert account.reported_balance_as_of == datetime(
-            2026, 4, 20, 9, 30, 0, tzinfo=timezone.utc
-        )
+        # The same instant must survive a round trip through the DB. SQLite
+        # (the test DB) has no tz-aware datetime, so ``DateTime(timezone=True)``
+        # comes back naive here — production Postgres returns it aware. Read it
+        # back as UTC, as the read sites in ``feed_reconciliation`` do.
+        await db.refresh(account)
+        as_of = account.reported_balance_as_of
+        if as_of.tzinfo is None:
+            as_of = as_of.replace(tzinfo=timezone.utc)
+        assert as_of == expected
 
 
 # ---------------------------------------------------------------------------
